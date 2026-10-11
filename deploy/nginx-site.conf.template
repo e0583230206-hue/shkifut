@@ -20,6 +20,13 @@ server {
         return 301 https://__DOMAIN__$request_uri;
     }
 
+    # Compress text responses (the live-update stream is not in the list, so it is never buffered)
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 1024;
+    gzip_types text/css application/javascript application/json image/svg+xml text/plain application/xml;
+
     access_log /var/log/nginx/thechannel.access.log;
     error_log  /var/log/nginx/thechannel.error.log;
 

@@ -146,12 +146,15 @@ export class MediaModerationService {
       video.preload = 'metadata';
       video.src = url;
       video.className = 'mod-media';
+      video.setAttribute('aria-label', 'וידאו');
       frame.appendChild(video);
     } else {
       // Readers of a fully blurred / pending video get the blurred poster (an image), never the video itself.
       const img = document.createElement('img');
       img.src = url;
       img.className = 'img-fluid mod-media';
+      img.alt = isVideo ? 'וידאו ממתין לאישור (תמונה מטושטשת)' : info.status === 'open' ? 'תמונה' : 'תמונה (חלקה מטושטש)';
+      img.loading = 'lazy';
       img.width = 300;
       if (isVideo) img.style.cursor = 'default';
       frame.appendChild(img);

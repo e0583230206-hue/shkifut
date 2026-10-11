@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -40,6 +41,21 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-Frame-Options", "SAMEORIGIN")
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// hashedAsset matches the Angular build outputs whose names contain a content hash (main-6SCDYTF5.js).
+var hashedAsset = regexp.MustCompile(`-[A-Z0-9]{8}\.(js|css)$`)
+
+// staticCache lets browsers keep content-hashed build files for a year (a new build has new names).
+func staticCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if hashedAsset.MatchString(r.URL.Path) {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

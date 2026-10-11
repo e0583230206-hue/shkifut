@@ -29,7 +29,7 @@
   </button>
 
   @if (notificationsService.initialized) {
-    <button nbButton shape="round" class="m-2" title="התראות" status="danger"
+    <button nbButton shape="round" class="m-2" title="התראות" aria-label="הפעלת התראות" status="danger"
       (click)="notificationsService.requestPermission()">
       <nb-icon icon="bell"></nb-icon>
     </button>
