@@ -41,6 +41,7 @@ func main() {
 	initializePrivilegeUsers()
 	go statLogger()
 	startModeration()
+	startMediaCleanup()
 
 	var err error
 	store, err = redistore.NewRediStore(10, redisType, redisAddr, "", redisPass, []byte(secretKey))
@@ -121,6 +122,7 @@ func main() {
 				protected.Post("/settings/set", protectedWithPrivilege(Admin, setSettings))
 				protected.Get("/reports/get", protectedWithPrivilege(Admin, getReports))
 				protected.Post("/reports/set", protectedWithPrivilege(Admin, setReports))
+				protected.Post("/media/cleanup", protectedWithPrivilege(Admin, mediaCleanupHandler))
 			})
 		})
 	})
