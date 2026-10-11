@@ -214,6 +214,15 @@ func checkLogin(next http.Handler) http.Handler {
 	})
 }
 
+// currentPrivileges returns the user's privileges from the live users list (not from the session cookie),
+// so removing a privilege in the admin panel takes effect immediately instead of after re-login.
+func currentPrivileges(s Session) Privileges {
+	if v, ok := privilegesUsers.Load(s.Email); ok {
+		return v.(User).Privileges
+	}
+	return Privileges{}
+}
+
 func checkPrivilege(r *http.Request, privilege Privilege) bool {
 	session, _ := store.Get(r, cookieName)
 
@@ -222,7 +231,7 @@ func checkPrivilege(r *http.Request, privilege Privilege) bool {
 		return false
 	}
 
-	return s.Privileges[privilege]
+	return currentPrivileges(s)[privilege]
 }
 
 func getUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -232,6 +241,7 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
+	userInfo.Privileges = currentPrivileges(userInfo)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(userInfo)

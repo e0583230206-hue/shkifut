@@ -15,6 +15,7 @@ import urllib.request
 import uuid
 import zlib
 
+sys.stdout.reconfigure(encoding="utf-8")  # Hebrew / emoji output on Windows consoles
 B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
 admin = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 admin.open(B + "/auth/dev-login").read()
