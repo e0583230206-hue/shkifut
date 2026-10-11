@@ -42,7 +42,7 @@ Start-Sleep -Seconds ($startDelay * 60)
 $round = 0
 while (-not (Test-Path $doneFile) -and -not (Test-Path $stopFile)) {
     $round++
-    Write-Log "round $round: claude -p --continue"
+    Write-Log "round ${round}: claude -p --continue"
     $out = & claude -p $prompt --continue --permission-mode auto 2>&1 | ForEach-Object { "$_" }
     $code = $LASTEXITCODE
     $out | Add-Content -LiteralPath $log -Encoding utf8
