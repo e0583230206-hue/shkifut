@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/gob"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"path/filepath"
 
 	"github.com/boj/redistore"
 	"github.com/go-chi/chi"
@@ -129,6 +127,10 @@ func main() {
 
 	if settingConfig.RootStaticFolder != "" {
 		r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir(settingConfig.RootStaticFolder))))
+		// SEO: meta tags for link previews, a shareable page per message, sitemap and robots (seo.go)
+		r.Get("/m/{id}", serveMessagePage)
+		r.Get("/robots.txt", serveRobots)
+		r.Get("/sitemap.xml", serveSitemap)
 		r.NotFound(serveSpaFile)
 	}
 
@@ -139,20 +141,4 @@ func main() {
 	if err := http.ListenAndServe(":"+os.Getenv("SERVER_PORT"), r); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func serveSpaFile(w http.ResponseWriter, r *http.Request) {
-	htmlPath := filepath.Join(settingConfig.RootStaticFolder, "index.html")
-	content, err := os.ReadFile(htmlPath)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
-	}
-
-	if settingConfig.CustomTitle != "" {
-		content = bytes.ReplaceAll(content, []byte("<title></title>"), []byte(settingConfig.CustomTitle))
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(content)
 }

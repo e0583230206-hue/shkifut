@@ -1,0 +1,33 @@
+.static-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  line-height: 1.7;
+  font-size: 1.05rem;
+}
+
+h1 {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.draft {
+  background: #fff4d6;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+}
+
+.not-found {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.back {
+  margin-top: 2rem;
+}

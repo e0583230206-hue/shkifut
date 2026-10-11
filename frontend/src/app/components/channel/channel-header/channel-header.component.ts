@@ -11,7 +11,7 @@ import {
 } from "@nebular/theme";
 import { filter } from "rxjs";
 import Viewer from 'viewerjs';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { AuthService } from '../../../services/auth.service';
 import { ChatService } from '../../../services/chat.service';
@@ -26,7 +26,8 @@ import { ContactComponent } from '../contact/contact.component';
     NbButtonModule,
     NbIconModule,
     NbUserModule,
-    NbContextMenuModule
+    NbContextMenuModule,
+    RouterLink
 ],
   templateUrl: './channel-header.component.html',
   styleUrl: './channel-header.component.scss'
