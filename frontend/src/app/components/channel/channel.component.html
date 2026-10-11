@@ -7,9 +7,9 @@
     <app-chat class=""></app-chat>
   </nb-layout-column>
 
-  @if (ad) {
+  @if (ad.enabled) {
     <nb-layout-column class="ad-column d-none d-lg-flex">
-      <app-advertising [ad]="ad"></app-advertising>
+      <app-advertising [ad]="ad" mode="side"></app-advertising>
     </nb-layout-column>
   }
 

@@ -1,1 +1,8 @@
-<iframe [src]="sayfeUrl" height="100%" [width]="ad?.width"></iframe>
+@if (safeUrl) {
+<iframe [src]="safeUrl" title="פרסומת" [class]="mode" [style.height.px]="mode === 'feed' ? ad?.feedHeight : null"
+  sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"
+  loading="lazy"></iframe>
+} @else if (safeDoc) {
+<iframe [srcdoc]="safeDoc" title="פרסומת" [class]="mode" [style.height.px]="mode === 'feed' ? ad?.feedHeight : null"
+  sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms" loading="lazy"></iframe>
+}

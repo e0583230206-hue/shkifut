@@ -1,0 +1,41 @@
+<nb-card>
+  <nb-card-header>פרסומות</nb-card-header>
+  <nb-card-body class="d-flex flex-column gap-3">
+    <nb-checkbox [(ngModel)]="enabled">הצגת פרסומות באתר</nb-checkbox>
+
+    <div>
+      <label for="ad-src" class="d-block fw-bold">עמוד פרסומת (כתובת)</label>
+      <input id="ad-src" nbInput fullWidth dir="ltr" placeholder="https://..." [(ngModel)]="src" [disabled]="!enabled">
+      <small class="text-muted">מוצג בעמודה בצד המסך (במסכים רחבים). אם מולא, הוא קודם לקוד ההטמעה.</small>
+    </div>
+
+    <div>
+      <label for="ad-code" class="d-block fw-bold">קוד הטמעה של רשת פרסום (למשל מגנט)</label>
+      <textarea id="ad-code" nbInput fullWidth rows="6" dir="ltr" [(ngModel)]="embedCode" [disabled]="!enabled"
+        placeholder="<script ...></script>"></textarea>
+      <small class="text-muted">
+        הקוד רץ בתוך מסגרת מבודדת, בלי גישה לעוגיות האתר ולדף עצמו.
+        רשתות שדורשות לרוץ ישירות בדף עלולות לא לעבוד, ואז אפשר להשתמש בכתובת עמוד פרסומת.
+      </small>
+    </div>
+
+    <div class="d-flex gap-3 flex-wrap">
+      <div>
+        <label for="ad-width" class="d-block fw-bold">רוחב העמודה (px)</label>
+        <input id="ad-width" nbInput type="number" min="120" [(ngModel)]="width" [disabled]="!enabled">
+      </div>
+      <div>
+        <label for="ad-every" class="d-block fw-bold">פרסומת בין ההודעות: כל</label>
+        <input id="ad-every" nbInput type="number" min="0" [(ngModel)]="feedEvery" [disabled]="!enabled">
+        <small class="d-block text-muted">הודעות (0 = ללא)</small>
+      </div>
+      <div>
+        <label for="ad-height" class="d-block fw-bold">גובה פרסומת בין ההודעות (px)</label>
+        <input id="ad-height" nbInput type="number" min="50" [(ngModel)]="feedHeight" [disabled]="!enabled">
+      </div>
+    </div>
+  </nb-card-body>
+  <nb-card-footer>
+    <button nbButton status="primary" (click)="save()" [disabled]="saving">שמור</button>
+  </nb-card-footer>
+</nb-card>

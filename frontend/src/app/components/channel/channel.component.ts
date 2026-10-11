@@ -51,7 +51,7 @@ export class ChannelComponent implements OnInit {
     private el: ElementRef
   ) { }
 
-  ad: Ad = { src: '', width: 0 };
+  ad: Ad = { enabled: false, src: '', width: 0, embedCode: '', feedEvery: 0, feedHeight: 250 };
   userInfo?: User;
 
   ngOnInit(): void {

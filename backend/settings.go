@@ -19,6 +19,10 @@ type ReplaceRegex struct {
 type SettingConfig struct {
 	AdSrc                   string
 	AdWidth                 int64
+	AdsEnabled              bool   // "ads_enabled" (default on, for compatibility with existing channels)
+	AdsEmbedCode            string // "ads_embed_code": ad-network snippet, rendered in a sandboxed frame
+	AdsFeedEvery            int64  // "ads_feed_every": an ad after every N messages in the feed (0 = off)
+	AdsFeedHeight           int64  // "ads_feed_height": in-feed ad height in px
 	RequireAuth             bool
 	RequireAuthForViewFiles bool
 	RegexReplace            []*ReplaceRegex
@@ -76,6 +80,8 @@ func (s *Settings) ToConfig() *SettingConfig {
 	}
 
 	config.MaxFileSize = 100
+	config.AdsEnabled = true
+	config.AdsFeedHeight = 250
 
 	for _, setting := range *s {
 		switch setting.Key {
@@ -84,6 +90,20 @@ func (s *Settings) ToConfig() *SettingConfig {
 
 		case "ad-iframe-width":
 			config.AdWidth = setting.GetInt()
+
+		case "ads_enabled":
+			config.AdsEnabled = setting.GetBool()
+
+		case "ads_embed_code":
+			config.AdsEmbedCode = setting.GetString()
+
+		case "ads_feed_every":
+			config.AdsFeedEvery = setting.GetInt()
+
+		case "ads_feed_height":
+			if h := setting.GetInt(); h > 0 {
+				config.AdsFeedHeight = h
+			}
 
 		case "require_auth":
 			config.RequireAuth = setting.GetBool()

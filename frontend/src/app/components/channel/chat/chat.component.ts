@@ -20,6 +20,8 @@ import { NotificationsService } from '../../../services/notifications.service';
 import { User } from '../../../models/user.model';
 import { AdminService } from '../../../services/admin.service';
 import { MediaModerationService } from '../../../services/media-moderation.service';
+import { Ad, AdsService } from '../../../services/ads.service';
+import { AdvertisingComponent } from '../advertising/advertising.component';
 
 type LoadMsgOpt = {
   scrollDown?: boolean;
@@ -46,7 +48,8 @@ type ScrollOpt = {
     NbButtonModule,
     NbListModule,
     NbBadgeModule,
-    MessageComponent
+    MessageComponent,
+    AdvertisingComponent
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
@@ -77,6 +80,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     private zone: NgZone,
     private router: ActivatedRoute,
     private mediaModeration: MediaModerationService,
+    private adsService: AdsService,
   ) {
     this._adminService.schedulingBusObservable.subscribe(() => {
       //this.scheduledMessages.length = 0;
@@ -130,8 +134,12 @@ export class ChatComponent implements OnInit, OnDestroy {
     }, 800);
   }
 
+  /** In-feed ads (every N messages), when enabled in the admin settings. */
+  ad?: Ad;
+
   ngOnInit() {
     this.chatService.getEmojisList(true);
+    this.adsService.getAds().then(ad => this.ad = ad.enabled ? ad : undefined).catch(() => this.ad = undefined);
 
     this.initializeMessageListener();
     this.keepAliveSSE();

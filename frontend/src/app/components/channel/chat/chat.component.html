@@ -34,6 +34,11 @@
       </div>
       }
       <app-message class="overflow-auto" [message]="message" [id]="message.id"></app-message>
+      @if (ad?.feedEvery && ($index + 1) % ad!.feedEvery === 0) {
+      <div class="feed-ad w-100 my-2" aria-label="פרסומת">
+        <app-advertising [ad]="ad!" mode="feed"></app-advertising>
+      </div>
+      }
     </nb-list-item>
     }
 

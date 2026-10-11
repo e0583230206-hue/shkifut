@@ -7,6 +7,7 @@ import { ChannelInfoFormComponent } from "../channel/channel-info-form/channel-i
 import { ReportsComponent } from "./reports/reports.component";
 import { StatisticsComponent } from "./statistics/statistics.component";
 import { ContactInboxComponent } from "./contact-inbox/contact-inbox.component";
+import { AdsSettingsComponent } from "./ads-settings/ads-settings.component";
 
 @Component({
   selector: 'admin-dashboard',
@@ -21,7 +22,8 @@ import { ContactInboxComponent } from "./contact-inbox/contact-inbox.component";
     ChannelInfoFormComponent,
     ReportsComponent,
     StatisticsComponent,
-    ContactInboxComponent
+    ContactInboxComponent,
+    AdsSettingsComponent
 ],
   templateUrl: './admin-panel.component.html',
   styleUrls: ['./admin-panel.component.scss']
@@ -37,6 +39,7 @@ export class AdminPanelComponent implements OnInit {
   readonly allReports = "all-reports";
   readonly statistics = "statistics";
   readonly contact = "contact";
+  readonly ads = "ads";
 
   selectedMenuItem = this.info;
 
@@ -57,6 +60,10 @@ export class AdminPanelComponent implements OnInit {
     {
       title: 'סטטיסטיקות',
       icon: 'bar-chart-outline',
+    },
+    {
+      title: 'פרסומות',
+      icon: 'pricetags-outline',
     },
     {
       title: 'פניות',
@@ -126,6 +133,9 @@ export class AdminPanelComponent implements OnInit {
           break;
         case 'email-outline':
           this.selectedMenuItem = this.contact;
+          break;
+        case 'pricetags-outline':
+          this.selectedMenuItem = this.ads;
           break;
       }
     });
