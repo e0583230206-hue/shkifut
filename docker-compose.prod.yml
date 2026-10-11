@@ -1,0 +1,77 @@
+# Production: Ubuntu server behind the existing nginx (no Caddy). Nothing is published except the backend on
+# 127.0.0.1:${APP_PORT}, which nginx proxies to. Installed and started by deploy/install.sh.
+name: thechannel
+
+services:
+  redis:
+    image: apache/kvrocks:2.17.0
+    restart: unless-stopped
+    user: root
+    command: -c /kvrocks.conf
+    volumes:
+      - kvrocks_sock:/data
+      - kvrocks_data:/var/lib/kvrocks
+      - ./kvrocks.conf:/kvrocks.conf:ro
+
+  moderation:
+    build:
+      context: .
+      dockerfile: moderation/Dockerfile
+    restart: unless-stopped
+    environment:
+      THREADS: "3"
+      FFMPEG_THREADS: "3"
+      BOX_MARGIN: "0.15"
+      BEST_SIGHTINGS: "3"
+      FACE_TILING: "0"
+      BODY_MODEL: "1"
+      MIN_BODY_PX: "64"
+      DETECT_FPS: "5"
+      HOLD_SEC: "0.6"
+      TRACK_MAX_GAP_SEC: "1.5"
+      MAX_OUTPUT_FPS: "30"
+      OUTPUT_MAX_SIDE: "1280"
+      MAX_VIDEO_SEC: "900"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 2s
+    # 4 vCPU / 8GB server: leave one core and most memory to nginx, the Node apps and WAHA.
+    cpus: 3
+    mem_limit: 1500m
+    volumes:
+      - ./channel_data:/files:ro
+      - blurred:/blurred
+      - ./moderation_models:/models:ro
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_started
+      moderation:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      DEV_LOGIN: "false"        # never on in production (the backend refuses to start otherwise)
+      MODERATION_URL: http://moderation:8000
+    ports:
+      - "127.0.0.1:${APP_PORT:-8090}:3000"
+    mem_limit: 512m
+    volumes:
+      - ./channel_data:/app/files
+      - blurred:/app/blurred:ro
+      - kvrocks_sock:/app/data
+      - ./logs:/app/logs
+
+volumes:
+  kvrocks_sock:
+  kvrocks_data:
+  blurred:

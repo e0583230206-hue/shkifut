@@ -80,11 +80,10 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	origin := r.Header.Get("Origin")
 	var googleOAuthConfig = &oauth2.Config{
 		ClientID:     googleOAuthClientId,
 		ClientSecret: googleOAuthClientSecret,
-		RedirectURL:  origin + "/login",
+		RedirectURL:  oauthRedirectURL(r),
 		Endpoint:     google.Endpoint,
 	}
 

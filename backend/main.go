@@ -39,6 +39,7 @@ func ifRequireAuth(next http.Handler) http.Handler {
 
 func main() {
 	gob.Register(Session{})
+	checkProductionConfig()
 	initializePrivilegeUsers()
 	go statLogger()
 	startModeration()
@@ -50,10 +51,13 @@ func main() {
 	}
 	store.SetMaxAge(60 * 60 * 24 * 30)
 	store.Options.HttpOnly = true
+	store.Options.SameSite = http.SameSiteLaxMode
+	store.Options.Secure = isProduction // HTTPS only in production
 	defer store.Close()
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
+	r.Use(securityHeaders)
 
 	// Protected with api key
 	r.Post("/api/import/post", addNewPost)
