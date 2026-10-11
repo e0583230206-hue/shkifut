@@ -18,6 +18,7 @@ import { ChatService } from '../../../services/chat.service';
 import { NotificationsService } from '../../../services/notifications.service';
 import { AdminPanelComponent } from "../../admin/admin-panel.component";
 import { User } from '../../../models/user.model';
+import { ContactComponent } from '../contact/contact.component';
 
 @Component({
   selector: 'app-channel-header',
@@ -140,7 +141,13 @@ export class ChannelHeaderComponent implements OnInit {
     this.isSmallScreen = window.innerWidth < 768;
   }
 
+  /** Built-in contact form; an external link can still be set with the "contact_us" setting. */
   openContactUs() {
-    window.open(this.chatService.channelInfo?.contact_us, '_blank');
+    const external = this.chatService.channelInfo?.contact_us;
+    if (external && /^https?:\/\//.test(external)) {
+      window.open(external, '_blank', 'noopener');
+      return;
+    }
+    this.dialogService.open(ContactComponent, { closeOnBackdropClick: false });
   }
 }

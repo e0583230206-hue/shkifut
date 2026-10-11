@@ -1,0 +1,14 @@
+.contact-card {
+  width: min(520px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+/* honeypot: off-screen, not display:none (some bots skip hidden fields) */
+.hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

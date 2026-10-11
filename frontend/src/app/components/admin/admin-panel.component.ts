@@ -6,6 +6,7 @@ import { PrivilegDashboardComponent } from "./privileg-dashboard/privileg-dashbo
 import { ChannelInfoFormComponent } from "../channel/channel-info-form/channel-info-form.component";
 import { ReportsComponent } from "./reports/reports.component";
 import { StatisticsComponent } from "./statistics/statistics.component";
+import { ContactInboxComponent } from "./contact-inbox/contact-inbox.component";
 
 @Component({
   selector: 'admin-dashboard',
@@ -19,7 +20,8 @@ import { StatisticsComponent } from "./statistics/statistics.component";
     PrivilegDashboardComponent,
     ChannelInfoFormComponent,
     ReportsComponent,
-    StatisticsComponent
+    StatisticsComponent,
+    ContactInboxComponent
 ],
   templateUrl: './admin-panel.component.html',
   styleUrls: ['./admin-panel.component.scss']
@@ -34,6 +36,7 @@ export class AdminPanelComponent implements OnInit {
   readonly closedReports = "closed-reports";
   readonly allReports = "all-reports";
   readonly statistics = "statistics";
+  readonly contact = "contact";
 
   selectedMenuItem = this.info;
 
@@ -54,6 +57,10 @@ export class AdminPanelComponent implements OnInit {
     {
       title: 'סטטיסטיקות',
       icon: 'bar-chart-outline',
+    },
+    {
+      title: 'פניות',
+      icon: 'email-outline',
     },
     {
       title: "אימוג'ים",
@@ -116,6 +123,9 @@ export class AdminPanelComponent implements OnInit {
           break;
         case 'bar-chart-outline':
           this.selectedMenuItem = this.statistics;
+          break;
+        case 'email-outline':
+          this.selectedMenuItem = this.contact;
           break;
       }
     });

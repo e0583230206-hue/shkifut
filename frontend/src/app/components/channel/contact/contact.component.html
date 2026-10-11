@@ -1,0 +1,33 @@
+<nb-card class="contact-card">
+  <nb-card-header>צור קשר</nb-card-header>
+  <nb-card-body class="d-flex flex-column gap-2">
+    <label for="contact-name">שם</label>
+    <input id="contact-name" nbInput fullWidth [(ngModel)]="form.name" maxlength="100" autocomplete="name">
+
+    <label for="contact-email">דוא"ל</label>
+    <input id="contact-email" nbInput fullWidth type="email" dir="ltr" [(ngModel)]="form.email" maxlength="200"
+      autocomplete="email">
+
+    <label for="contact-phone">טלפון</label>
+    <input id="contact-phone" nbInput fullWidth type="tel" dir="ltr" [(ngModel)]="form.phone" maxlength="30"
+      autocomplete="tel">
+    <small class="text-muted">יש למלא דוא"ל או טלפון כדי שנוכל לחזור אליכם.</small>
+
+    <label for="contact-subject">נושא</label>
+    <input id="contact-subject" nbInput fullWidth [(ngModel)]="form.subject" maxlength="200">
+
+    <label for="contact-message">הודעה *</label>
+    <textarea id="contact-message" nbInput fullWidth rows="5" [(ngModel)]="form.message" maxlength="5000"
+      required></textarea>
+
+    <!-- Honeypot: hidden from people and screen readers; bots fill every field. -->
+    <div class="hp" aria-hidden="true">
+      <label for="contact-website">אתר</label>
+      <input id="contact-website" type="text" tabindex="-1" autocomplete="off" [(ngModel)]="form.website">
+    </div>
+  </nb-card-body>
+  <nb-card-footer class="d-flex justify-content-end gap-2">
+    <button nbButton (click)="dialogRef.close()">ביטול</button>
+    <button nbButton status="primary" (click)="send()" [disabled]="!valid || sending">שלח</button>
+  </nb-card-footer>
+</nb-card>

@@ -56,12 +56,14 @@ func main() {
 	defer store.Close()
 
 	r := chi.NewRouter()
+	r.Use(middleware.RealIP) // client IP from nginx (X-Real-IP); the backend only listens on localhost in production
 	r.Use(middleware.Logger)
 	r.Use(securityHeaders)
 
 	// Protected with api key
 	r.Post("/api/import/post", addNewPost)
 	r.Post("/api/import/upload", importUpload)
+	r.Post("/api/contact", submitContact)
 
 	if devLoginEnabled {
 		log.Println("WARNING: DEV_LOGIN is enabled - /auth/dev-login bypasses Google OAuth. Never enable this in production.")
@@ -111,6 +113,8 @@ func main() {
 				protected.Post("/set-emojis", protectedWithPrivilege(Moderator, setEmojis))
 				protected.Post("/files/moderation", protectedWithPrivilege(Moderator, setFileModeration))
 				protected.Post("/files/reprocess", protectedWithPrivilege(Moderator, reprocessFile))
+				protected.Get("/contact", protectedWithPrivilege(Moderator, getContactMessages))
+				protected.Post("/contact/set", protectedWithPrivilege(Moderator, setContactHandled))
 
 				protected.Post("/statistics/reset", protectedWithPrivilege(Admin, resetStatistics))
 				protected.Get("/privilegs-users/get-list", protectedWithPrivilege(Admin, getPrivilegeUsersList))
