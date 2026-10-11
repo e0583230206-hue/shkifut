@@ -1,0 +1,82 @@
+# Local development: http://localhost:8080 only (bound to 127.0.0.1, nothing exposed to the network).
+# Models (one time): docker build -f moderation/Dockerfile.models --output type=local,dest=moderation_models .
+# Usage: docker compose -f docker-compose.local.yml up --build -d
+name: thechannel-local
+
+services:
+  redis:
+    image: apache/kvrocks:latest
+    restart: unless-stopped
+    user: root
+    command: -c /kvrocks.conf
+    volumes:
+      - kvrocks_sock:/data
+      - kvrocks_data:/var/lib/kvrocks
+      - ./kvrocks.conf:/kvrocks.conf:ro
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_started
+      moderation:
+        condition: service_healthy  # start after the models are loaded, so queued files go straight through
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MODERATION_URL: http://moderation:8000
+    ports:
+      - "127.0.0.1:8080:3000"
+    volumes:
+      - ./channel_data:/app/files
+      - blurred:/app/blurred:ro
+      - kvrocks_sock:/app/data
+      - ./logs:/app/logs
+
+  moderation:
+    build:
+      context: .
+      dockerfile: moderation/Dockerfile
+    restart: unless-stopped
+    # Not published: reachable only from the backend over the compose network.
+    environment:
+      THREADS: "2"
+      # Strictness (see moderation/app/analyzer.py)
+      PERSON_MIN_CONF: "0.30"
+      FACE_MIN_CONF: "0.50"
+      MALE_MIN_CONF: "0.90"          # still images that are animated (GIF) only
+      MIN_FACE_PX: "28"
+      # Per-level thresholds (strict / normal / lenient) live in moderation/app/regional.py (LEVELS);
+      # the level itself is the admin setting "moderation_level".
+      BOX_MARGIN: "0.15"
+      BEST_SIGHTINGS: "3"           # each figure is judged by its 3 clearest face / body sightings
+      FACE_TILING: "0"              # 1 = second, enlarged face pass for small faces (~+125% analysis time)
+      BODY_MODEL: "1"               # use moderation_models/par.xml|bin when present (body-based gender)
+      MIN_BODY_PX: "64"
+      # Video: detections per second, hold after a figure disappears, output limits
+      DETECT_FPS: "5"
+      HOLD_SEC: "0.6"
+      TRACK_MAX_GAP_SEC: "1.5"
+      MAX_OUTPUT_FPS: "30"
+      OUTPUT_MAX_SIDE: "1280"
+      MAX_VIDEO_SEC: "900"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 2s
+    cpus: 2
+    mem_limit: 600m
+    volumes:
+      - ./channel_data:/files:ro
+      - blurred:/blurred
+      - ./moderation_models:/models:ro
+
+volumes:
+  kvrocks_sock:
+  kvrocks_data:
+  blurred:

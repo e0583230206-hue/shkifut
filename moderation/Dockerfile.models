@@ -1,0 +1,32 @@
+# One-time model preparation. Produces ONNX models into ./moderation_models:
+#   docker build -f moderation/Dockerfile.models --output type=local,dest=moderation_models .
+# person.onnx     - YOLOv8 (Ultralytics, AGPL-3.0) exported to ONNX, used for person detection
+# face_det.onnx   - InsightFace SCRFD det_10g  (InsightFace pretrained models: non-commercial research license)
+# genderage.onnx  - InsightFace gender/age     (same license)
+FROM python:3.12-slim AS export
+
+COPY certs/ /usr/local/share/ca-certificates/extra/
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl unzip libgl1 libglib2.0-0 \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+ENV PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir ultralytics onnx onnxslim
+
+ARG YOLO_MODEL=yolov8s
+WORKDIR /work
+RUN mkdir -p /models \
+    && yolo export model=${YOLO_MODEL}.pt format=onnx imgsz=640 opset=12 \
+    && cp ${YOLO_MODEL}.onnx /models/person.onnx
+
+RUN curl -fL --retry 3 -o buffalo_l.zip https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip \
+    && unzip -j -o buffalo_l.zip '*det_10g.onnx' '*genderage.onnx' -d /work/insightface \
+    && cp /work/insightface/det_10g.onnx /models/face_det.onnx \
+    && cp /work/insightface/genderage.onnx /models/genderage.onnx \
+    && ls -la /models
+
+FROM scratch
+COPY --from=export /models /

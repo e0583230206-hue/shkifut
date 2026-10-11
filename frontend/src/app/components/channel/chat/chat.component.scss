@@ -1,0 +1,50 @@
+nb-list-item {
+  border-bottom: 0 !important;
+  padding: 0 !important;
+  margin-bottom: 25px;
+}
+
+.toggle-scheduled-messages {
+  cursor: pointer;
+  color: #6a6fff;
+}
+
+nb-list.hide-scheduled-messages nb-list-item.scheduled-message-item {
+  display: none !important;
+}
+
+.loading-indicator {
+  overflow: hidden;
+}
+
+nb-list-item:first-child {
+  border-top: 0 !important;
+}
+
+.scroll-to-bottom-btn {
+  position: fixed;
+  bottom: calc(var(--input-height, 0px) + 25px);
+  left: calc(30px + var(--ad-width, 0px));
+  z-index: 1001;
+}
+
+.last-read-indicator {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+  padding-bottom: 1rem;
+}
+
+.last-read-indicator-text {
+  color: #6a6fff !important;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.line {
+  height: 1px;
+  width: 100%;
+  background-color: #6a6fff;
+}

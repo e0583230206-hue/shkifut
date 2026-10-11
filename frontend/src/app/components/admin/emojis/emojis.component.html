@@ -1,0 +1,34 @@
+<nb-card>
+    <nb-card-header>ניהול אימוג'ים מאופשרים</nb-card-header>
+    <nb-card-body>
+        <nb-list>
+            <nb-list-item>
+                <strong class="me-2">אימוג'ים מאופשרים:</strong>
+            </nb-list-item>
+            <nb-list-item class="d-flex flex-wrap">
+
+                @if (emojis?.length === 0) {
+                <p>אין אימוג'ים מאופשרים כרגע.</p>
+                } @else if (emojis) {
+                @for (item of emojis; track $index) {
+                <button nbButton size="small" (click)="removeEmoji($index)" class="me-2 mb-2 emoji">
+                    {{item}}
+                    <nb-icon icon="close"></nb-icon>
+                </button>
+                }
+                }@else {
+                <p>טוען אימוגים...</p>
+                }
+            </nb-list-item>
+            <nb-list-item>
+                <strong class="me-2">הוספת אימוג'ים:</strong>
+            </nb-list-item>
+            <nb-list-item>
+                <emoji-mart [set]="'google'" (emojiClick)="addEmoji($event)"></emoji-mart>
+            </nb-list-item>
+        </nb-list>
+    </nb-card-body>
+    <nb-card-footer>
+        <button nbButton status="primary" (click)="setEmojis()">שמור</button>
+    </nb-card-footer>
+</nb-card>

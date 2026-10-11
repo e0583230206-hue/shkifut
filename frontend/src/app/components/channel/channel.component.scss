@@ -1,0 +1,43 @@
+@use '../../../themes' as *;
+@use "sass:meta";
+
+nb-layout-column.chat-column {
+}
+
+nb-layout-column.ad-column {
+  flex: 0 0 fit-content !important;
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+app-advertising {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  //noinspection CssInvalidPropertyValue
+  height: calc(100vh - nb-theme(header-height) - var(--input-height, 0px)) !important;
+}
+
+::ng-deep {
+  .columns {
+    position: relative !important;
+    bottom: var(--input-height, 0px) !important;
+
+    @if (meta.variable-exists(--input-height)) {
+      //noinspection CssInvalidPropertyValue
+      padding-top: calc(nb-theme(header-height) + nb-theme(header-padding) * 2) !important;
+    }
+  }
+}
+
+.fixed-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+}

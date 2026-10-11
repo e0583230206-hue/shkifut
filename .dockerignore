@@ -1,0 +1,16 @@
+# Runtime data and secrets never go into the build context
+.env
+.env.*
+*.env
+data/
+redis_data/
+channel_data/
+logs/
+caddy_data/
+caddy_config/
+moderation_models/
+frontend/node_modules/
+frontend/.angular/
+frontend/dist/
+backend/__debug*
+.git/

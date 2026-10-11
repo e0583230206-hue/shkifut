@@ -1,0 +1,94 @@
+@use 'themes' as *;
+@use '@nebular/theme/styles/globals' as *;
+@use '@ctrl/ngx-emoji-mart/picker';
+
+@include nb-install() {
+    @include nb-theme-global();
+}
+
+/* You can add global styles to this file, and also import other style files */
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
+
+markdown,
+markdown p {
+    font-weight: 500;
+    font-size: clamp(0.875rem, 2.5vw, 1.15rem);
+}
+
+@font-face {
+    font-family: 'Noto Color Emoji';
+    src: url('assets/fonts/NotoColorEmoji-Regular/NotoColorEmoji-Regular.ttf') format('truetype');
+}
+
+.emoji {
+    font-family: 'Noto Color Emoji', sans-serif;
+}
+/* Media moderation (elements are created at runtime inside rendered markdown) */
+.mod-wrap {
+    display: inline-block;
+    max-width: 300px;
+    width: 100%;
+}
+
+.mod-frame {
+    position: relative;
+}
+
+.mod-media {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    display: block;
+}
+
+.mod-chip {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 0.8rem;
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+
+.mod-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 0.8rem;
+}
+
+.mod-badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: help;
+    white-space: pre-line;
+}
+
+.mod-open { background: #d1f2d9; color: #146c2e; }
+.mod-blurred { background: #fadbd8; color: #a1271b; }
+.mod-pending { background: #fdebc8; color: #8a5300; }
+
+.mod-btn {
+    border: 1px solid #c7c7c7;
+    background: #fff;
+    border-radius: 10px;
+    padding: 1px 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.mod-btn:disabled { opacity: 0.5; cursor: wait; }
+.mod-btn-open:hover { background: #e7f6ea; }
+.mod-btn-blurred:hover { background: #fdeceb; }
+
+.mod-link {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+.mod-regional { background: #e3ecfb; color: #1d4f9c; }
+.mod-btn-regional:hover { background: #eaf1fd; }
