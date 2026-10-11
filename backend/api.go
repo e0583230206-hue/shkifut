@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,7 @@ func importUpload(w http.ResponseWriter, r *http.Request) {
 
 func addNewPost(w http.ResponseWriter, r *http.Request) {
 	if !validApiKey(r) {
-		http.Error(w, "error", http.StatusBadRequest)
+		http.Error(w, "error", http.StatusUnauthorized)
 		return
 	}
 
@@ -37,8 +38,12 @@ func addNewPost(w http.ResponseWriter, r *http.Request) {
 
 	body := Message{}
 	if err = json.NewDecoder(r.Body).Decode(&body); err != nil {
-		log.Printf("Failed to decode message: %v\n", err)
+		log.Printf("Failed to decode message: %v", err)
 		http.Error(w, "error", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(body.Text) == "" {
+		http.Error(w, "text is required", http.StatusBadRequest)
 		return
 	}
 
@@ -46,18 +51,26 @@ func addNewPost(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	message.ID = getMessageNextId(ctx)
-	message.Type = "md" //body.Type
+	message.Type = "md"
 	message.Author = body.Author
+	// A missing timestamp used to be stored as 0001-01-01; a far-future one would pin the message on top.
 	message.Timestamp = body.Timestamp
+	if now := time.Now(); message.Timestamp.IsZero() || message.Timestamp.After(now.Add(5*time.Minute)) {
+		message.Timestamp = now
+	}
 	message.Text = body.Text
 	message.Views = 0
 	message.IsAds = body.IsAds
 
 	if err = setMessage(ctx, &message, false); err != nil {
-		log.Printf("Failed to set new message: %v\n", err)
+		log.Printf("Failed to set new message: %v", err)
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
+
+	// Same follow-up as a message published from the site.
+	go SendWebhook(context.Background(), "create", &message)
+	go pushFcmMessage(&message)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(message)
