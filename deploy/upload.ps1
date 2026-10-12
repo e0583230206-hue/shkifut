@@ -12,7 +12,9 @@ param(
     [string]$AppDir = '/opt/thechannel',
     [int]$Port = 8090,
     # Also send the original research models (YOLOv8 AGPL / InsightFace non-commercial) as a fallback.
-    [switch]$IncludeResearchModels
+    [switch]$IncludeResearchModels,
+    # Also send tests/media/*.mp4 (not in git) to run the full leak check on the server.
+    [switch]$WithTestMedia
 )
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Split-Path $PSScriptRoot -Parent)
@@ -42,3 +44,9 @@ cd $AppDir && sudo chmod +x deploy/*.sh
 sudo ./deploy/install.sh $Domain $Email --port $Port
 "@
 ssh $Server ($remote -replace "`r", '')
+if ($WithTestMedia -and (Test-Path tests/media)) {
+    ssh $Server "sudo mkdir -p $AppDir/tests/media && sudo chmod 777 $AppDir/tests/media"
+    scp (Get-ChildItem tests/media -Filter *.mp4 | ForEach-Object FullName) "${Server}:$AppDir/tests/media/"
+    Write-Host "test videos uploaded. Leak check on the server:"
+    Write-Host "  cd $AppDir && sudo IMAGE=thechannel-moderation LEVEL=strict bash moderation/tests/run_leak_check.sh protest.mp4"
+}

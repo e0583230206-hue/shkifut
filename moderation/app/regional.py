@@ -35,6 +35,9 @@ MAX_OUTPUT_FPS = _env_float("MAX_OUTPUT_FPS", 30)
 OUTPUT_MAX_SIDE = int(_env_float("OUTPUT_MAX_SIDE", 1280))
 ANALYSIS_MAX_SIDE = int(_env_float("ANALYSIS_MAX_SIDE", 960))
 MAX_VIDEO_SEC = _env_float("MAX_VIDEO_SEC", 900)
+# Person-only frames between samples use a lower threshold than anything counted as a figure elsewhere,
+# so a faint figure at the edge of detection is caught on a neighbouring frame (safety margin).
+DENSE_PERSON_MIN = _env_float("DENSE_PERSON_MIN", 0.10)
 FFMPEG_THREADS = os.environ.get("FFMPEG_THREADS", "2")
 
 
@@ -482,7 +485,7 @@ def analyze_video(analyzer, path, fps, aw, ah, step, lv):
     for f, frame in zip(indices, read_frames(path, fps, aw, ah, vf)):
         if f % step:
             # Person-only frame between samples: a figure that flashes up and matches no known figure is blurred.
-            for pb, _ in analyzer.persons.detect(frame, min(weak_min, analyzer.t.person_min)):
+            for pb, _ in analyzer.persons.detect(frame, DENSE_PERSON_MIN):
                 b = pb.tolist()
                 if not any(iou(tr.obs[tr.last_frame], b) >= 0.3 for tr in active):
                     plan.events.append((f, b))
