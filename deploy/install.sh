@@ -14,7 +14,7 @@
 #   6. HTTPS with certbot (only when the domain already points to this server)
 #   7. daily backup cron job
 # Optional environment (used when creating .env): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ADMIN_USERS, ALLOWED_EMAILS
-# (closed site: only these accounts and ADMIN_USERS), MODERATION_CPUS, MODERATION_MEM, MODERATION_THREADS.
+# (closed site: only these accounts and ADMIN_USERS), PRIVATE_SITE=true (closed even without a list), MODERATION_CPUS, MODERATION_MEM, MODERATION_THREADS.
 # Existing sites, ports and services on the server are never modified; the nginx config is backed up first.
 set -euo pipefail
 
@@ -69,6 +69,7 @@ GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
 GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
 ADMIN_USERS=${ADMIN_USERS:-$EMAIL}
 ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
+PRIVATE_SITE=${PRIVATE_SITE:-false}
 
 # Moderation service limits (defaults suit a 4 vCPU / 8GB server)
 MODERATION_CPUS=${MODERATION_CPUS:-3}

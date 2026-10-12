@@ -14,6 +14,8 @@ param(
     [string]$KeyFile = (Join-Path $env:USERPROFILE '.ssh\thechannel_deploy'),
     # Closed site: only these accounts (plus ADMIN_USERS) may log in. Comma separated. Empty = public site.
     [string]$AllowedEmails = '',
+    # Closed site even when the list above is empty (then only ADMIN_USERS get in). Pass -Private:$false for a public site.
+    [bool]$Private = $true,
     # Moderation service limits (only used when .env is created; edit .env on the server afterwards).
     [string]$ModerationCpus = '3',
     [string]$ModerationMem = '1500m',
@@ -59,7 +61,8 @@ Write-Host ("uploading {0:N0} MB to $Server ..." -f (($files | Get-Item | Measur
 scp @sshOpts @files "${Server}:/tmp/"
 if ($LASTEXITCODE -ne 0) { throw 'scp failed' }
 
-$envVars = "ALLOWED_EMAILS='$AllowedEmails' MODERATION_CPUS='$ModerationCpus' MODERATION_MEM='$ModerationMem' MODERATION_THREADS='$ModerationThreads'"
+$privateValue = if ($Private) { 'true' } else { 'false' }
+$envVars = "PRIVATE_SITE='$privateValue' ALLOWED_EMAILS='$AllowedEmails' MODERATION_CPUS='$ModerationCpus' MODERATION_MEM='$ModerationMem' MODERATION_THREADS='$ModerationThreads'"
 $remote = @"
 set -e
 sudo mkdir -p $AppDir

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Private site: when ALLOWED_EMAILS is set (comma separated), only those accounts and ADMIN_USERS may log in,
+// Private site: when ALLOWED_EMAILS is set (comma separated) or PRIVATE_SITE=true, only those accounts and ADMIN_USERS may log in,
 // and every request without such a session is refused here, before any handler runs. The login page, its
 // static files and the bridge API (which has its own key) stay reachable. Unset = public site (as before).
 
@@ -21,7 +21,7 @@ var allowedEmails = func() map[string]bool {
 	return m
 }()
 
-var privateSite = len(allowedEmails) > 0
+var privateSite = len(allowedEmails) > 0 || strings.EqualFold(os.Getenv("PRIVATE_SITE"), "true")
 
 // isAllowedEmail: in private mode, the listed accounts and the admins; otherwise everyone.
 func isAllowedEmail(email string) bool {
@@ -51,7 +51,7 @@ func privateAccess(next http.Handler) http.Handler {
 	if !privateSite {
 		return next
 	}
-	log.Printf("private site: %d allowed accounts (+ admins); everything else requires their login", len(allowedEmails))
+	log.Printf("private site: %d allowed accounts + ADMIN_USERS; everything else requires their login", len(allowedEmails))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		p := r.URL.Path

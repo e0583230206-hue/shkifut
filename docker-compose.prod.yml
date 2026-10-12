@@ -65,6 +65,7 @@ services:
     environment:
       APP_ENV: production
       DEV_LOGIN: "false"        # never on in production (the backend refuses to start otherwise)
+      # PRIVATE_SITE / ALLOWED_EMAILS come from .env (closed site, see backend/access.go)
       MODERATION_URL: http://moderation:8000
     ports:
       - "127.0.0.1:${APP_PORT:-8090}:3000"
