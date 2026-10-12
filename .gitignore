@@ -39,3 +39,6 @@ training/
 
 # Google OAuth client file downloaded from the console (contains the client secret)
 client_secret*.json
+
+# Personal Claude Code permission overrides
+.claude/settings.local.json
