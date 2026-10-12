@@ -20,6 +20,13 @@ export interface ChatMessage {
   views?: number;
   reactions?: Reactions;
   is_ads?: boolean;
+  topic?: string;
+}
+
+export interface Topic {
+  id: string;
+  name: string;
+  color: string;
 }
 export type ChatResponse = ChatMessage[];
 
@@ -105,13 +112,44 @@ export class ChatService {
   }
 
   getMessages(offset: number, limit: number, direction: string): Observable<ChatResponse> {
-    return this.http.get<ChatResponse>('/api/messages', {
-      params: {
-        offset: offset.toString(),
-        limit: limit.toString(),
-        direction: direction
-      }
-    });
+    const params: Record<string, string> = { offset: offset.toString(), limit: limit.toString(), direction };
+    if (this.topic.value) params['topic'] = this.topic.value;
+    return this.http.get<ChatResponse>('/api/messages', { params });
+  }
+
+  // --- topics
+  private topics = new BehaviorSubject<Topic[]>([]);
+  topics$ = this.topics.asObservable();
+  private topic = new BehaviorSubject<string>('');
+  /** The topic the channel is filtered by ('' = everything). */
+  selectedTopic$ = this.topic.asObservable();
+
+  get selectedTopic(): string {
+    return this.topic.value;
+  }
+
+  topicById(id?: string): Topic | undefined {
+    return id ? this.topics.value.find(t => t.id === id) : undefined;
+  }
+
+  async loadTopics() {
+    try {
+      const list = await firstValueFrom(this.http.get<Topic[]>('/api/topics'));
+      this.topics.next(list || []);
+      if (this.topic.value && !list.some(t => t.id === this.topic.value)) this.topic.next('');
+    } catch {
+      this.topics.next([]);
+    }
+  }
+
+  selectTopic(id: string) {
+    if (id !== this.topic.value) this.topic.next(id);
+  }
+
+  async saveTopics(list: Topic[]): Promise<Topic[]> {
+    const saved = await firstValueFrom(this.http.post<Topic[]>('/api/admin/topics', list));
+    this.topics.next(saved);
+    return saved;
   }
 
   setReact(messageId: number, react: string) {

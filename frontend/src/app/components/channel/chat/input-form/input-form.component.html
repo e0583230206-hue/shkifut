@@ -42,6 +42,15 @@
             <ng-icon name="heroQuestionMarkCircle" class="toolbar-icon"></ng-icon>
         </button>
         <input type="file" #fileInput multiple (change)="onFileSelected($event)" hidden>
+        @if ((chatService.topics$ | async)?.length) {
+        <select class="form-select form-select-sm w-auto mx-1 topic-select" aria-label="נושא ההודעה" title="נושא ההודעה"
+          [(ngModel)]="topic">
+          <option value="">ללא נושא</option>
+          @for (t of (chatService.topics$ | async); track t.id) {
+          <option [value]="t.id">{{ t.name }}</option>
+          }
+        </select>
+        }
         <nb-toggle class="me-md-auto" labelPosition="start" [(checked)]="showMarkdownPreview" [disabled]="!input">
             <span class="d-none d-md-inline-block">תצוגה מקדימה</span>
         </nb-toggle>

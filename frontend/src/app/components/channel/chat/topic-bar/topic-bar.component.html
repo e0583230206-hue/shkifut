@@ -1,0 +1,9 @@
+@if (topics.length) {
+<nav class="topic-bar" aria-label="סינון לפי נושא">
+  <button type="button" class="topic-chip" [class.active]="!selected" [attr.aria-pressed]="!selected" (click)="select('')">הכל</button>
+  @for (t of topics; track t.id) {
+  <button type="button" class="topic-chip" [class.active]="selected === t.id" [attr.aria-pressed]="selected === t.id"
+    [style.--chip-color]="t.color" [attr.data-topic]="t.id" (click)="select(t.id)">{{ t.name }}</button>
+  }
+</nav>
+}

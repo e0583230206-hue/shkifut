@@ -30,7 +30,11 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	messages, err := funcGetMessageRange(ctx, int64(offset), int64(limit), checkPrivilege(r, Writer), settingConfig.CountViews, direction)
+	topic := r.URL.Query().Get("topic")
+	if topic != "" && !topicIDRe.MatchString(topic) {
+		topic = ""
+	}
+	messages, err := funcGetMessageRange(ctx, int64(offset), int64(limit), checkPrivilege(r, Writer), settingConfig.CountViews, direction, topic)
 	if err != nil {
 		log.Printf("Failed to get messages: %v\n", err)
 		http.Error(w, "error", http.StatusInternalServerError)
@@ -70,6 +74,7 @@ func addMessage(w http.ResponseWriter, r *http.Request) {
 	message.File = body.File
 	message.Views = 0
 	message.IsAds = body.IsAds
+	message.Topic = body.Topic
 
 	if err = setMessage(ctx, &message, false); err != nil {
 		log.Printf("Failed to set new message: %v\n", err)

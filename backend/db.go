@@ -32,6 +32,7 @@ type Message struct {
 	Views     int          `json:"views" redis:"views"`
 	Reactions Reactions    `json:"reactions" redis:"reactions"`
 	IsAds     bool         `json:"is_ads" redis:"is_ads"`
+	Topic     string       `json:"topic,omitempty" redis:"topic"`
 }
 
 type User struct {
@@ -84,6 +85,13 @@ func setMessage(ctx context.Context, m *Message, isUpdate bool) error {
 		}
 	}
 
+	// Topic: accept an id or a name, keep only known topics.
+	m.Topic = resolveTopic(ctx, m.Topic)
+	oldTopic := ""
+	if isUpdate {
+		oldTopic, _ = rdb.HGet(ctx, messageKey, "topic").Result()
+	}
+
 	// Set message in hash
 	if err := rdb.HSet(ctx, messageKey, m).Err(); err != nil {
 		return err
@@ -95,6 +103,7 @@ func setMessage(ctx context.Context, m *Message, isUpdate bool) error {
 			return err
 		}
 	}
+	indexMessageTopic(ctx, m, oldTopic)
 
 	pushType := "new-message"
 	if isUpdate {
@@ -251,9 +260,14 @@ var getMessageRange = redis.NewScript(`
 	return cjson.encode(messages)
 `)
 
-func funcGetMessageRange(ctx context.Context, start, stop int64, isAdmin, countViews bool, direction string) ([]Message, error) {
+// funcGetMessageRange pages through the channel, or through one topic when topic is set.
+func funcGetMessageRange(ctx context.Context, start, stop int64, isAdmin, countViews bool, direction, topic string) ([]Message, error) {
 	offsetKeyName := fmt.Sprintf("messages:%d", start)
-	res, err := getMessageRange.Run(ctx, rdb, []string{"m_times:1", offsetKeyName}, []string{strconv.FormatInt(stop, 10), strconv.FormatBool(isAdmin), strconv.FormatBool(countViews), direction}).Result()
+	timeSet := "m_times:1"
+	if topic != "" {
+		timeSet = topicIndexKey(topic)
+	}
+	res, err := getMessageRange.Run(ctx, rdb, []string{timeSet, offsetKeyName}, []string{strconv.FormatInt(stop, 10), strconv.FormatBool(isAdmin), strconv.FormatBool(countViews), direction}).Result()
 	if err != nil {
 		return []Message{}, err
 	}

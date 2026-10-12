@@ -2,6 +2,7 @@ import { Component, ElementRef, EventEmitter, OnDestroy, OnInit, Output, ViewChi
 
 import { HttpEventType } from "@angular/common/http";
 import { FormsModule } from "@angular/forms";
+import { AsyncPipe } from "@angular/common";
 import { firstValueFrom, Subscription } from "rxjs";
 import {
   NbAlertModule,
@@ -19,7 +20,7 @@ import {
 } from "@nebular/theme";
 import { MarkdownComponent } from "ngx-markdown";
 import { NgIconsModule } from "@ng-icons/core";
-import { Attachment, ChatFile, ChatMessage } from '../../../../services/chat.service';
+import { Attachment, ChatFile, ChatMessage, ChatService } from '../../../../services/chat.service';
 import { AdminService, EditMsg } from '../../../../services/admin.service';
 import { AutosizeModule } from "ngx-autosize";
 import { TimePickerComponent } from './time-picker/time-picker.component';
@@ -40,7 +41,8 @@ import { TimePickerComponent } from './time-picker/time-picker.component';
     NbTagModule,
     NbAlertModule,
     NgIconsModule,
-    AutosizeModule
+    AutosizeModule,
+    AsyncPipe
   ],
   templateUrl: './input-form.component.html',
   styleUrl: './input-form.component.scss'
@@ -55,6 +57,8 @@ export class InputFormComponent implements OnInit, OnDestroy {
 
   input: string = '';
   isAds: boolean = false;
+  /** Topic id of the message being written ('' = none). */
+  topic: string = '';
   schedulingMessage: Date | undefined = undefined;
   isSending: boolean = false;
   showMarkdownPreview: boolean = false;
@@ -68,13 +72,18 @@ export class InputFormComponent implements OnInit, OnDestroy {
   constructor(
     private adminService: AdminService,
     private toastrService: NbToastrService,
-    private dialogService: NbDialogService
+    private dialogService: NbDialogService,
+    public chatService: ChatService,
   ) { }
 
   ngOnInit() {
     if (this.message) {
       this.input = this.message.text || '';
     }
+
+    this.topicSubscription = this.chatService.selectedTopic$.subscribe(t => {
+      if (!this.message) this.topic = t; // new messages default to the topic being viewed
+    });
 
     this.subscription = this.adminService.messageEditObservable.subscribe((edit?: EditMsg) => {
       if (edit?.isScheduling) {
@@ -86,12 +95,16 @@ export class InputFormComponent implements OnInit, OnDestroy {
         this.message = edit?.message;
         this.input = this.message?.text || '';
         this.isAds = this.message?.is_ads || false;
+        this.topic = this.message ? (this.message.topic || '') : this.chatService.selectedTopic;
       }
     });
   }
 
+  private topicSubscription?: Subscription;
+
   ngOnDestroy(): void {
     this.subscription.unsubscribe();
+    this.topicSubscription?.unsubscribe();
   }
 
   /** All selected files are uploaded (several images in a row are shown as a gallery). */
@@ -203,6 +216,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
     this.message.text = this.input;
     this.message.deleted = false;
     this.message.is_ads = this.isAds;
+    this.message.topic = this.topic;
     await firstValueFrom(this.adminService.editMessage(this.message));
     this.cancelUpdateMessage();
     return true;
@@ -220,6 +234,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
       file: undefined,
       is_ads: this.isAds,
       timestamp: this.schedulingMessage || undefined,
+      topic: this.topic,
     };
 
     try {
@@ -227,6 +242,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
         this.message.text = this.input;
         this.message.is_ads = this.isAds;
         this.message.timestamp = this.schedulingMessage;
+        this.message.topic = this.topic;
 
         await this.adminService.editScheduledMessage(this.message);
       } else {
@@ -246,6 +262,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
       text: this.input,
       file: undefined,
       is_ads: this.isAds,
+      topic: this.topic,
     };
 
     this.message = await firstValueFrom(this.adminService.addMessage(newMessage));
@@ -262,6 +279,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
     this.attachments = [];
     this.message = undefined;
     this.isAds = false;
+    this.topic = this.chatService.selectedTopic;
     this.schedulingMessage = undefined;
     this.adminService.setEditMessage(undefined);
   }

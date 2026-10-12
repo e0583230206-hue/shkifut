@@ -61,6 +61,7 @@ func addNewPost(w http.ResponseWriter, r *http.Request) {
 	message.Text = body.Text
 	message.Views = 0
 	message.IsAds = body.IsAds
+	message.Topic = body.Topic // topic id or name; unknown names are ignored
 
 	if err = setMessage(ctx, &message, false); err != nil {
 		log.Printf("Failed to set new message: %v", err)

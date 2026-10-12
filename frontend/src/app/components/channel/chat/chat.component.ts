@@ -12,7 +12,7 @@ import {
   NbToastrService
 } from "@nebular/theme";
 import { MessageComponent } from "./message/message.component";
-import { firstValueFrom, interval } from 'rxjs';
+import { firstValueFrom, interval, skip } from 'rxjs';
 import { ChatMessage, ChatService } from '../../../services/chat.service';
 import { AuthService } from '../../../services/auth.service';
 import { ActivatedRoute } from '@angular/router';
@@ -23,6 +23,7 @@ import { MediaModerationService } from '../../../services/media-moderation.servi
 import { Ad, AdsService } from '../../../services/ads.service';
 import { AdvertisingComponent } from '../advertising/advertising.component';
 import { PinnedBarComponent } from './pinned-bar/pinned-bar.component';
+import { TopicBarComponent } from './topic-bar/topic-bar.component';
 import { firstUnreadId, newestVisibleId, unreadCount } from '../../../read-position';
 
 type LoadMsgOpt = {
@@ -53,7 +54,8 @@ type ScrollOpt = {
     NbBadgeModule,
     MessageComponent,
     AdvertisingComponent,
-    PinnedBarComponent
+    PinnedBarComponent,
+    TopicBarComponent
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
@@ -158,6 +160,9 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this.initializeMessageListener();
     this.keepAliveSSE();
+    this.chatService.loadTopics();
+    this.topicSub = this.chatService.selectedTopic$.pipe(skip(1)).subscribe(() => this.reloadForTopic());
+
     // After the current click finishes bubbling (the window click handler clears highlights).
     this.jumpSub = this.chatService.jump$.subscribe(id =>
       setTimeout(() => this.scrollToId({ messageId: id, smooth: true, mark: true }), 50));
@@ -215,6 +220,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       switch (message.type) {
         case 'new-message':
           if (this.hasNewMessages) break;
+          if (this.chatService.selectedTopic && message.message.topic !== this.chatService.selectedTopic) break;
           this.zone.run(() => {
             this.messages.unshift(message.message);
             this.thereNewMessages = !(message.message.author === this.userInfo?.username);
@@ -259,6 +265,9 @@ export class ChatComponent implements OnInit, OnDestroy {
         case 'heartbeat':
           this.lastHeartbeat = Date.now();
           break;
+        case 'topics':
+          this.zone.run(() => this.chatService.loadTopics());
+          break;
         case 'pins':
           this.zone.run(() => this.chatService.loadPinned());
           break;
@@ -270,9 +279,22 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   private jumpSub?: { unsubscribe(): void };
+  private topicSub?: { unsubscribe(): void };
+
+  /** Topic filter changed: show the newest messages of that topic. */
+  private async reloadForTopic() {
+    this.messages = [];
+    this.offset = 0;
+    this.hasOldMessages = true;
+    this.hasNewMessages = false;
+    this.lastReadMessageId = 0;
+    await this.loadMessages({ resetList: true });
+    this.scrollToBottom(false);
+  }
 
   ngOnDestroy() {
     this.jumpSub?.unsubscribe();
+    this.topicSub?.unsubscribe();
     this.chatService.sseClose();
     clearInterval(this.subLastHeartbeat);
   }

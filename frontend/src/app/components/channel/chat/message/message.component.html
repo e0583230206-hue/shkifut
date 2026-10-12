@@ -11,6 +11,10 @@
         chatService.channelInfo?.name
         }}</strong>
       <small class="text-black-50">{{ message.timestamp | messageTime }}</small>
+      @if (chatService.topicById(message.topic); as topic) {
+      <button type="button" class="topic-tag" [style.--chip-color]="topic.color" (click)="chatService.selectTopic(topic.id)"
+        [title]="'הצג רק ' + topic.name">{{ topic.name }}</button>
+      }
       @if (!isSchedulingMessage && chatService.isPinned(message.id)) {
       <small class="pinned-mark" title="הודעה נעוצה" aria-label="הודעה נעוצה">📌</small>
       }

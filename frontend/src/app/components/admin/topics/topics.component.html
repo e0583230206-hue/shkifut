@@ -1,0 +1,25 @@
+<nb-card>
+  <nb-card-header>נושאים</nb-card-header>
+  <nb-card-body>
+    <p class="text-muted small">הקוראים יכולים לסנן את הערוץ לפי נושא, וכל הודעה מציגה את הנושא שלה. כותבים בוחרים נושא בזמן הכתיבה. מחיקת נושא לא מוחקת את ההודעות שלו.</p>
+    @for (t of topics; track $index; let i = $index) {
+    <div class="d-flex gap-2 align-items-center mb-2 topic-row">
+      <input type="color" [(ngModel)]="t.color" [attr.aria-label]="'צבע הנושא ' + (t.name || (i + 1))" class="form-control form-control-color">
+      <input nbInput fieldSize="small" type="text" [(ngModel)]="t.name" maxlength="30" placeholder="שם הנושא"
+        [attr.aria-label]="'שם נושא ' + (i + 1)" class="topic-name">
+      <button nbButton ghost size="small" (click)="move(i, -1)" [disabled]="i === 0" title="למעלה" aria-label="הזז למעלה"><nb-icon icon="arrow-upward-outline"></nb-icon></button>
+      <button nbButton ghost size="small" (click)="move(i, 1)" [disabled]="i === topics.length - 1" title="למטה" aria-label="הזז למטה"><nb-icon icon="arrow-downward-outline"></nb-icon></button>
+      <button nbButton ghost status="danger" size="small" (click)="remove(i)" title="מחק" aria-label="מחק נושא"><nb-icon icon="trash-2-outline"></nb-icon></button>
+    </div>
+    }
+    @if (!topics.length) {
+    <p class="text-muted">אין נושאים עדיין.</p>
+    }
+    <button nbButton size="small" status="primary" (click)="add()" [disabled]="topics.length >= 20" class="add-topic">
+      <nb-icon icon="plus"></nb-icon> הוסף נושא
+    </button>
+  </nb-card-body>
+  <nb-card-footer>
+    <button nbButton status="primary" (click)="save()" [disabled]="saving" class="save-topics">שמור</button>
+  </nb-card-footer>
+</nb-card>

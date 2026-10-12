@@ -130,6 +130,9 @@ await evaluate(`[...document.querySelectorAll('admin-dashboard .menu-title')].fi
 check('admin: contact inbox renders', await waitFor(`!!document.querySelector('app-contact-inbox nb-card')`));
 await evaluate(`[...document.querySelectorAll('admin-dashboard .menu-title')].find(e => e.textContent.trim() === 'הגדרות').click()`);
 check('admin: strictness level select in settings', await waitFor(`document.querySelectorAll('#moderation-level option').length === 3`));
+await evaluate(`[...document.querySelectorAll('admin-dashboard .menu-title')].find(e => e.textContent.trim() === 'נושאים')?.click()`);
+check('admin: topics tab renders', await waitFor(`!!document.querySelector('app-topics .add-topic')`));
+await evaluate(`[...document.querySelectorAll('admin-dashboard .menu-title')].find(e => e.textContent.trim() === 'הגדרות').click()`);
 check('admin: watermark section with position, size and opacity', await waitFor(`!!document.querySelector('#wm-enabled') && document.querySelectorAll('#wm-position option').length === 5 && !!document.querySelector('#wm-size') && !!document.querySelector('#wm-opacity') && !!document.querySelector('.wm-preview')`));
 
 // --- pins and quotes (admin session): own test messages, removed at the end
@@ -183,6 +186,26 @@ check('gallery: "next" moves to the second image', await waitFor(`[...document.q
 await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))`);
 check('composer: file picker accepts several files', await evaluate(`!!document.querySelector('app-input-form input[type=file][multiple]')`));
 if (galleryMsg?.id) await evaluate(`fetch('/api/admin/delete-message/${galleryMsg.id}')`);
+
+// --- topics: chips filter the channel, message tag, composer select (topics restored afterwards)
+console.log('step: topics');
+const origTopics = await evaluate(`fetch('/api/topics').then(r => r.json())`);
+const tName = 'נושא-' + Math.random().toString(36).slice(2, 6);
+const savedTopics = await api('/api/admin/topics', [...(origTopics || []), { name: tName, color: '#00b887' }]);
+const tId = (savedTopics || []).find(t => t.name === tName)?.id;
+const withTopic = await api('/api/admin/new', { type: 'md', text: `הודעה עם נושא ${tName}`, topic: tId });
+const noTopic = await api('/api/admin/new', { type: 'md', text: `הודעה בלי נושא ${tName}` });
+await go('/', 6000);
+check('topics: chip bar shows "הכל" and the topic', await waitFor(`!!document.querySelector('app-topic-bar [data-topic="${tId}"]') && document.querySelector('app-topic-bar .topic-chip')?.textContent.trim() === 'הכל'`));
+check('topics: message shows its topic tag', await waitFor(`document.getElementById('${withTopic?.id}')?.querySelector('.topic-tag')?.textContent.trim() === ${JSON.stringify(tName)}`));
+await evaluate(`document.querySelector('app-topic-bar [data-topic="${tId}"]').click()`);
+check('topics: choosing a topic shows only its messages', await waitFor(`!!document.getElementById('${withTopic?.id}') && !document.getElementById('${noTopic?.id}') && [...document.querySelectorAll('app-message')].every(m => m.querySelector('.topic-tag')?.textContent.trim() === ${JSON.stringify(tName)})`));
+check('topics: composer defaults to the viewed topic', await waitFor(`document.querySelector('app-input-form .topic-select')?.value === '${tId}'`));
+await evaluate(`document.querySelector('app-topic-bar .topic-chip').click()`);
+check('topics: "הכל" shows every message again', await waitFor(`!!document.getElementById('${noTopic?.id}')`));
+for (const m of [withTopic, noTopic]) if (m?.id) await evaluate(`fetch('/api/admin/delete-message/${m.id}')`);
+await api('/api/admin/topics', origTopics || []);
+check('topics: original topics restored', JSON.stringify(await evaluate(`fetch('/api/topics').then(r => r.json())`)) === JSON.stringify(origTopics || []));
 
 check('no native alert/confirm dialogs appeared', dialogs.length === 0, dialogs);
 ws.close();
