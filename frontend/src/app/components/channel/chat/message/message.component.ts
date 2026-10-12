@@ -20,6 +20,7 @@ import { AuthService } from '../../../../services/auth.service';
 import { ReportComponent } from './report/report.component';
 import { MediaModerationService } from '../../../../services/media-moderation.service';
 import { Subscription } from 'rxjs';
+import { groupImageEmbeds } from '../../../../gallery';
 @Component({
   selector: 'app-message',
   imports: [
@@ -219,8 +220,48 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private displayCache?: { text: string; out: string };
+
+  /** Message text as rendered: consecutive images become a gallery. */
+  get displayText(): string {
+    const text = this.message?.text || '';
+    if (this.displayCache?.text !== text) this.displayCache = { text, out: groupImageEmbeds(text) };
+    return this.displayCache.out;
+  }
+
   viewLargeImage(event: MouseEvent) {
-    const target = event.target as HTMLElement;
+    let target = event.target as HTMLElement;
+
+    // Gallery: open a viewer over all of its images, starting at the clicked one ("+N" opens the 4th).
+    const gallery = target.closest('.msg-gallery') as HTMLElement | null;
+    if (gallery) {
+      if (target.classList.contains('gallery-more')) {
+        target = target.parentElement?.querySelector('img') ?? target;
+      }
+      const images = Array.from(gallery.querySelectorAll('img'));
+      const index = images.indexOf(target as HTMLImageElement);
+      if (index < 0) return;
+      // The viewer runs over a detached copy: the gallery's own images are rebuilt by the media
+      // decoration and include hidden ("+N") cells.
+      const list = document.createElement('ul');
+      for (const image of images) {
+        const copy = document.createElement('img');
+        copy.src = image.currentSrc || image.src;
+        copy.alt = image.alt;
+        list.appendChild(document.createElement('li')).appendChild(copy);
+      }
+      this.viewer?.destroy();
+      this.viewer = new Viewer(list, {
+        initialViewIndex: index,
+        toolbar: { prev: true, next: true, zoomIn: true, zoomOut: true, oneToOne: false, reset: false, rotateLeft: false, rotateRight: false, flipHorizontal: false, flipVertical: false, play: false },
+        navbar: true,
+        transition: false, // the list is built right away (no wait for a transition that may never end)
+        title: false,
+      });
+      this.target = null;
+      this.viewer.show();
+      return;
+    }
 
     if (target.tagName === 'IMG' || target.tagName === 'I') {
       const youtubeId = target.getAttribute('youtubeid');

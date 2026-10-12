@@ -67,7 +67,7 @@
       <div class="d-flex flex-column bg-light rounded-4 border fs-5 f lh-base message-card"
         [ngStyle]="{'opacity': (message.deleted || isSchedulingMessage) ? 0.5 : 1}">
         <div class="m-2" #media>
-          <markdown [data]="message.text" [disableSanitizer]="true" (click)="viewLargeImage($event)" (ready)="decorateMedia()">
+          <markdown [data]="displayText" [disableSanitizer]="true" (click)="viewLargeImage($event)" (ready)="decorateMedia()">
           </markdown>
         </div>
         <div class="d-flex justify-content-between align-items-center mx-2 gap-2 mb-1">

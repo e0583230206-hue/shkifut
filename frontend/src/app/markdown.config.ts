@@ -1,7 +1,8 @@
 import { Token, Tokens, TokensList } from "marked";
 import { MarkdownModuleConfig, MARKED_EXTENSIONS, MARKED_OPTIONS, MarkedRenderer } from "ngx-markdown";
+import { renderGallery } from "./gallery";
 
-const matchCustomEmbedRegEx = /^\[(video|audio|image|quote)-embedded#]\((.*?)\)/;
+const matchCustomEmbedRegEx = /^\[(video|audio|image|quote|gallery)-embedded#]\((.*?)\)/;
 
 //https://regexr.com/3dj5t
 const matchYoutubeRegEx = /^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)(?<id>[\w\-]+)(\S+)?$/;
@@ -59,6 +60,8 @@ const customEmbedExtension = {
           class="bi bi-youtube" youtubeid="${id}" style="position: absolute; place-self: anchor-center; color: red; font-size: 70px;"></i></div>`;
         case 'quote':
           return `<blockquote class="quote" quote-id="${id}"><p>${url}</p></blockquote>`;
+        case 'gallery':
+          return renderGallery(String(url).split('|').filter(Boolean));
         default:
           return '';
       }

@@ -92,3 +92,65 @@ markdown p {
 }
 .mod-regional { background: #e3ecfb; color: #1d4f9c; }
 .mod-btn-regional:hover { background: #eaf1fd; }
+
+/* Gallery: consecutive images in one message (rendered inside markdown) */
+.msg-gallery {
+    display: grid;
+    gap: 3px;
+    max-width: 320px;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 2px 0;
+}
+
+.msg-gallery.g-2 { grid-template-columns: 1fr 1fr; }
+.msg-gallery.g-3 { grid-template-columns: 1fr 1fr; }
+.msg-gallery.g-3 .gallery-cell:first-child { grid-column: 1 / -1; }
+.msg-gallery.g-4 { grid-template-columns: 1fr 1fr; }
+
+.gallery-cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.gallery-hidden {
+    display: none;
+}
+
+.msg-gallery img,
+.msg-gallery .mod-wrap,
+.msg-gallery .mod-media {
+    width: 100%;
+    max-width: none;
+}
+
+.msg-gallery img {
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.msg-gallery.g-3 .gallery-cell:first-child img {
+    aspect-ratio: 2;
+}
+
+.gallery-more {
+    position: absolute;
+    inset: 0 0 auto 0;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 1.6rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.msg-gallery .mod-bar {
+    font-size: 0.7rem;
+}

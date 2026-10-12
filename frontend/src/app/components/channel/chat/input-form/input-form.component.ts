@@ -94,22 +94,26 @@ export class InputFormComponent implements OnInit, OnDestroy {
     this.subscription.unsubscribe();
   }
 
+  /** All selected files are uploaded (several images in a row are shown as a gallery). */
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
-    if (input.files) {
-      let newAttachment: Attachment = { file: input.files[0] };
-      let i = this.attachments.push(newAttachment) - 1;
-
-      let reader = new FileReader();
-      reader.readAsDataURL(newAttachment.file);
-      reader.onload = (event) => {
-        if (event.target) {
-          this.attachments[i].url = event.target.result as string;
-        }
-      }
-
-      this.uploadFile(this.attachments[i]);
+    const files = Array.from(input.files ?? []).slice(0, 10);
+    if (input.files && input.files.length > 10) {
+      this.toastrService.warning('', 'אפשר לצרף עד 10 קבצים בבת אחת');
     }
+    for (const file of files) {
+      const attachment: Attachment = { file };
+      this.attachments.push(attachment);
+
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        if (e.target) attachment.url = e.target.result as string;
+      };
+
+      this.uploadFile(attachment);
+    }
+    input.value = ''; // allow choosing the same file again
   }
 
   async uploadFile(attachment: Attachment) {

@@ -129,6 +129,37 @@ await evaluate(`document.querySelector('app-pinned-bar .pin-close')?.click()`);
 check('pins: unpin from the bar removes the pin', await waitFor(`!document.getElementById('${pinMsg?.id}')?.querySelector('.pinned-mark')`));
 for (const m of [pinMsg, quoteMsg]) if (m?.id) await evaluate(`fetch('/api/admin/delete-message/${m.id}')`);
 
+// --- gallery: 5 consecutive images in one message -> 4 cells + "+1", viewer with navigation
+console.log('step: gallery');
+const galleryMsg = await evaluate(`(async () => {
+  const urls = [];
+  for (let i = 0; i < 5; i++) {
+    const c = document.createElement('canvas'); c.width = 120; c.height = 90;
+    const g = c.getContext('2d'); g.fillStyle = 'hsl(' + (i * 70 + Math.random() * 20) + ',70%,50%)'; g.fillRect(0, 0, 120, 90);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    const fd = new FormData(); fd.append('file', blob, 'g' + i + '.png');
+    urls.push((await (await fetch('/api/admin/upload', { method: 'POST', body: fd })).json()).url);
+  }
+  for (let t = 0; t < 60; t++) {
+    const st = await Promise.all(urls.map(u => fetch('/api/files/' + u.split('/').pop().split('.')[0] + '/moderation').then(r => r.json())));
+    if (st.every(s => s.status !== 'pending')) break;
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  const text = ['גלריה לבדיקה', ...urls.map(u => '[image-embedded#](' + u + ')')].join(String.fromCharCode(10));
+  return (await fetch('/api/admin/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'md', text }) })).json();
+})()`);
+await go('/', 6000);
+const gsel = `document.getElementById('${galleryMsg?.id}')?.querySelector('.msg-gallery')`;
+check('gallery: consecutive images render as one gallery', await waitFor(`!!${gsel} && ${gsel}.querySelectorAll('img').length === 5`), await evaluate(`${gsel}?.querySelectorAll('img').length`));
+check('gallery: 4 visible cells and a "+1" badge', await evaluate(`${gsel}.querySelectorAll('.gallery-cell:not(.gallery-hidden)').length === 4 && ${gsel}.querySelector('.gallery-more')?.textContent.trim() === '+1'`));
+await evaluate(`${gsel}.querySelector('img').click()`);
+check('gallery: clicking opens a viewer over all 5 images', await waitFor(`document.querySelectorAll('.viewer-container .viewer-navbar li').length === 5`));
+await evaluate(`document.querySelector('.viewer-container .viewer-next')?.click()`);
+check('gallery: "next" moves to the second image', await waitFor(`[...document.querySelectorAll('.viewer-container .viewer-navbar li')].findIndex(li => li.classList.contains('viewer-active')) === 1`));
+await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))`);
+check('composer: file picker accepts several files', await evaluate(`!!document.querySelector('app-input-form input[type=file][multiple]')`));
+if (galleryMsg?.id) await evaluate(`fetch('/api/admin/delete-message/${galleryMsg.id}')`);
+
 check('no native alert/confirm dialogs appeared', dialogs.length === 0, dialogs);
 ws.close();
 console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nALL PASSED');
