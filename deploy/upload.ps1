@@ -69,7 +69,7 @@ sudo mkdir -p $AppDir
 sudo tar xzf /tmp/thechannel-code.tgz -C $AppDir
 [ -f /tmp/thechannel-models.tgz ] && sudo tar xzf /tmp/thechannel-models.tgz -C $AppDir || true
 echo 'loading images ...'
-sudo docker load -i /tmp/thechannel-images.tgz
+tar xzOf /tmp/thechannel-images.tgz | sudo docker load   # the archive holds the docker-save tar
 rm -f /tmp/thechannel-code.tgz /tmp/thechannel-models.tgz /tmp/thechannel-images.tgz
 cd $AppDir && sudo chmod +x deploy/*.sh
 sudo env $envVars ./deploy/install.sh $Domain $Email --port $Port --prebuilt
