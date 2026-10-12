@@ -20,13 +20,8 @@
 
 הרמה חלה על קבצים חדשים. לקובץ קיים יש כפתור "בדוק מחדש", שמריץ את הבדיקה מחדש ומבטל החלטה ידנית.
 
-### זיהוי לפי הגוף (אופציונלי)
-המודל `person-attributes-recognition-crossroad-0230` של OpenVINO Open Model Zoo (Apache-2.0, מותר לשימוש מסחרי) נותן הסתברות לגבר לפי הגוף. הוא שימושי לדמויות מהגב, מרחוק, או עם פנים קטנות. התקנה, עם אימות checksum רשמי:
-```
-python moderation/fetch_body_model.py                      # הורדה מהמקור הרשמי (נחסם ע"י נטפרי)
-python moderation/fetch_body_model.py model.xml model.bin  # קבצים שהורדת בעצמך
-docker compose -f docker-compose.local.yml restart moderation
-```
+### זיהוי לפי הגוף
+המודל `person-attributes-recognition-crossroad-0230` של Intel (Apache-2.0) נותן הסתברות לגבר לפי הגוף. הוא שימושי לדמויות מהגב, מרחוק, או עם פנים קטנות. הוא מותקן יחד עם שאר המודלים (ראו "הרכב השירות").
 
 ### סרטונים
 1. **מעבר ניתוח:** זיהוי `DETECT_FPS` פעמים בשנייה. כל זיהוי משויך למסלול (tracking), וההחלטה נעשית לכל המסלול.
@@ -70,24 +65,46 @@ docker compose -f docker-compose.local.yml restart moderation
 > שינוי אבטחה: `/api/import/post` ו-`/api/import/upload` נדחים כשלא הוגדר `api_secret_key` בהגדרות. קודם לכן מפתח ריק התקבל.
 
 ## הרכב השירות
-קונטיינר Python (onnxruntime על CPU, בלי torch), שמשתמש בשלושה מודלים:
-- `person.onnx`: YOLOv8s, לזיהוי אנשים.
-- `face_det.onnx`: SCRFD (InsightFace det_10g), לזיהוי פנים.
-- `genderage.onnx`: InsightFace, לסיווג מגדר.
+קונטיינר Python (onnxruntime ו-OpenVINO על CPU). לכל רכיב השירות בוחר את המודל לפי הקבצים שמותקנים ב-`moderation_models/`. מודל ברישיון מסחרי מקבל עדיפות. המודלים הפעילים מוצגים ב-`GET /health`.
 
-הכנת המודלים, פעם אחת (התוצאה ב-`moderation_models/`):
+| רכיב | מודל ברישיון מסחרי (ברירת מחדל) | מודל מקורי (מחקר) | אם אין אף אחד |
+|---|---|---|---|
+| זיהוי אנשים | YOLOX-s, `person_yolox.onnx` (Apache-2.0) | YOLOv8s, `person.onnx` (AGPL-3.0) | השירות לא עולה |
+| זיהוי פנים | YuNet, `face_yunet.onnx` (MIT) | SCRFD, `face_det.onnx` (InsightFace, לא-מסחרי) | השירות לא עולה |
+| מגדר לפי פנים | Intel age-gender-recognition-retail-0013, `gender_omz.*` (Apache-2.0) | InsightFace genderage (לא-מסחרי) | כל פנים נחשבות "לא ודאי", ולכן מטושטשות |
+| מגדר לפי גוף | Intel person-attributes-recognition-crossroad-0230, `par.*` (Apache-2.0) | אין | ההחלטה לפי הפנים בלבד |
+
+**התקנת המודלים המסחריים** (עם אימות checksum רשמי). `deploy/install.sh` מריץ את זה אוטומטית:
 ```
-docker build -f moderation/Dockerfile.models --output type=local,dest=moderation_models .
+python moderation/fetch_models.py
+python moderation/fetch_models.py --local par model.xml model.bin   # קבצים שהורדו ידנית
 ```
+- נטפרי חוסם את קבצי ה-`.bin` של Intel להורדה במחשב המקומי. בשרת אין חסימה כזו.
+- `MODEL_PROFILE=research` מכריח את המודלים המקוריים, למשל להשוואה.
+- המודלים המקוריים נבנים פעם אחת עם `moderation/Dockerfile.models`.
 
-הספים מוגדרים במשתני הסביבה של השירות, ב-`docker-compose.local.yml`.
+### השוואה שבוצעה (מחמיר, אותו מודל מגדר בשני המקרים)
+| | YOLOv8 + SCRFD | YOLOX + YuNet |
+|---|---|---|
+| זמן ניתוח לשנייה של וידאו | 1.21–1.33 שנ' | **0.70–0.73 שנ'** |
+| דמויות שזוהו לכל פריים (הפגנה) | 7.7 | **9.6** (פחות פספוסים) |
+| גברים שזוהו בוודאות (הפגנה) | 155 | **211** |
+| תמונות לדוגמה | תקין | תקין |
 
-השירות רץ כמשתמש לא-root. הוא קורא את המקורות במצב קריאה בלבד וכותב רק ל-volume `blurred`.
-הוא אינו חשוף החוצה, וה-backend פונה אליו ב-`MODERATION_URL`.
+ההשוואה הורצה עם `moderation/tests/compare_models.py`. בדיקת הדליפה המלאה רצה עם `moderation/tests/run_leak_check.sh`.
+
+**מגבלה:** מודל המגדר של Intel מתוכנן לפנים של 62 פיקסלים ומעלה. בסרטוני WhatsApp הפנים קטנות יותר (חציון כ-29), ולכן יותר דמויות יישארו "לא ודאי", כלומר מטושטשות. הדבר נבדק רק בשרת, כי כאן המודל חסום.
+
+השירות רץ כמשתמש לא-root. הוא קורא את המקורות במצב קריאה בלבד וכותב רק ל-volume `blurred`. הוא אינו חשוף החוצה, וה-backend פונה אליו ב-`MODERATION_URL`.
 אם השירות לא זמין, הקבצים נשארים `pending` (מטושטשים), ונבדקים מחדש אוטומטית כל 2 דקות.
 
 ## רישוי
-- YOLOv8 (Ultralytics): AGPL-3.0.
-- המודלים המאומנים של InsightFace: לשימוש מחקרי לא-מסחרי בלבד.
+עם המודלים המסחריים (ברירת המחדל בהתקנה), כל המודלים מתירים שימוש מסחרי:
+- **YOLOX:** Apache-2.0.
+- **YuNet:** MIT.
+- **מודלי Intel OMZ:** Apache-2.0.
 
-לפני שימוש מסחרי יש לבדוק את הרישוי או להחליף את המודלים.
+**מה צריך לעשות:**
+- **לשמור את הודעות הרישוי:** Apache-2.0 ו-MIT דורשות לצרף את טקסט הרישיון והודעת זכויות היוצרים בהפצה. אם רק מפעילים שירות ולא מפיצים את המודלים, החובה מינימלית.
+- **המודלים המקוריים:** YOLOv8 תחת AGPL, ו-InsightFace לשימוש לא-מסחרי בלבד. הם נשארים רק כאופציה (`MODEL_PROFILE=research`), ולא נשלחים לשרת כברירת מחדל.
+- **הקוד של TheChannel:** הוא תחת GPLv3. מותר להשתמש בו מסחרית. שינויים שמופצים חייבים להיות בקוד פתוח, אבל הפעלה כשירות אינה נחשבת הפצה.

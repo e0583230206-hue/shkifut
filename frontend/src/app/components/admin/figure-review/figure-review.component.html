@@ -1,0 +1,43 @@
+<nb-card class="review-card">
+  <nb-card-header>
+    בדיקת דמויות
+    <small class="text-muted d-block">
+      "גבר" = הדמות תוצג לקוראים, "טשטש" = הדמות תטושטש. אחרי השמירה הקובץ מעובד מחדש.
+    </small>
+  </nb-card-header>
+  <nb-card-body>
+    @if (loading) {
+    <div>טוען...</div>
+    } @else if (!figures.length) {
+    <div>לא נמצאו דמויות לבדיקה בקובץ הזה (או שהקובץ עדיין בבדיקה).</div>
+    } @else {
+    <div class="grid">
+      @for (f of figures; track f.key) {
+      <div class="fig" [class.is-blur]="effective(f) === 'blur'" [class.changed]="choices[f.key] !== undefined">
+        <img [src]="f.cropUrl" alt="דמות לבדיקה" loading="lazy">
+        <div class="meta">
+          <span class="badge" [class.man]="effective(f) === 'man'">{{ effective(f) === 'man' ? 'מוצג' : effective(f) === 'blur' ? 'מטושטש' : 'לפי המודל' }}</span>
+          <small>{{ label(f) }}@if (f.override) { · תוקן ידנית }</small>
+          @if (f.start !== undefined) { <small class="text-muted">{{ time(f.start) }}–{{ time(f.end) }}</small> }
+        </div>
+        <div class="actions">
+          <button nbButton size="tiny" status="success" (click)="choose(f, 'man')">גבר</button>
+          <button nbButton size="tiny" status="danger" (click)="choose(f, 'blur')">טשטש</button>
+          @if (f.override) { <button nbButton size="tiny" ghost (click)="clear(f)">בטל תיקון</button> }
+        </div>
+      </div>
+      }
+    </div>
+    @if (total > figures.length) {
+    <small class="text-muted d-block mt-2">מוצגות {{ figures.length }} מתוך {{ total }} דמויות (קודם המטושטשות והגדולות).</small>
+    }
+    }
+  </nb-card-body>
+  <nb-card-footer class="d-flex justify-content-between align-items-center">
+    <small>{{ changes ? changes + ' שינויים' : '' }}</small>
+    <div class="d-flex gap-2">
+      <button nbButton (click)="dialogRef.close()">סגור</button>
+      <button nbButton status="primary" [disabled]="!changes || saving" (click)="save()">שמור ועבד מחדש</button>
+    </div>
+  </nb-card-footer>
+</nb-card>

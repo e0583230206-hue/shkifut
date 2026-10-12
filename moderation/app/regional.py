@@ -11,6 +11,7 @@ blurred entirely only when the blurred area would cover most of it anyway (figur
 
 Strictness level (admin setting, sent per request): strict | normal | lenient - see LEVELS.
 """
+import itertools
 import json
 import os
 import subprocess
@@ -52,13 +53,14 @@ class Level:
     unowned_face_blur: str      # faces without a detected body: "not_man" -> blur unless man, "woman" -> only women
     dense_cluster: int          # this many mutually overlapping figures are blurred as one box
     full_area: float            # blur the whole frame when the blurred boxes cover at least this share
+    dense_person_step: int = 0  # also run person detection every N frames between samples (0 = off)
 
 
 LEVELS = {
     "strict": Level("strict", male_conf=0.90, female_max_male=0.50, any_face_veto=True,
                     body_male_conf=0.92, body_female_max=0.40, body_resolves_uncertain=False,
                     weak_conf=0.15, split_on_overlap=True, faceless_min_height=0.0, unowned_face_blur="not_man",
-                    dense_cluster=5, full_area=0.85),
+                    dense_cluster=5, full_area=0.85, dense_person_step=2),
     "normal": Level("normal", male_conf=0.80, female_max_male=0.40, any_face_veto=False,
                     body_male_conf=0.85, body_female_max=0.30, body_resolves_uncertain=True,
                     weak_conf=0.20, split_on_overlap=True, faceless_min_height=0.0, unowned_face_blur="not_man",
@@ -176,6 +178,10 @@ class Figure:
     bodies: list = field(default_factory=list)   # (body height px, P(male) from the body model)
     small_faces: int = 0
     max_height: float = 0.0
+    key: str = ""          # stable id for manual corrections: "<first frame>:<x1>,<y1>,<x2>,<y2>"
+    override: str = ""     # manual correction: "man" (show) or "blur"
+    crop: bytes = b""      # JPEG of the clearest sighting, for the moderator review grid
+    crop_h: float = 0.0
 
     def add_face(self, face):
         box, _, male, small = face
@@ -196,7 +202,11 @@ class Figure:
         return top_f, f, b
 
     def decide(self, lv):
-        """man | woman | uncertain_gender | person_without_clear_face (cached per level)."""
+        """man | woman | uncertain_gender | person_without_clear_face | manual_blur (cached per level)."""
+        if self.override == "man":
+            return "man"
+        if self.override == "blur":
+            return "manual_blur"
         cache = self.__dict__.setdefault("_decision", {})
         if lv.name in cache:
             return cache[lv.name]
@@ -236,22 +246,99 @@ class Figure:
         return self.decide(lv)
 
 
+# ---------- review grid and manual corrections ----------
+
+MIN_REVIEW_PX = int(_env_float("MIN_REVIEW_PX", 40))  # smaller figures are not shown in the review grid
+MAX_REVIEW_FIGURES = int(_env_float("MAX_REVIEW_FIGURES", 80))
+
+
+def figure_key(frame, box):
+    return f"{frame}:{int(box[0])},{int(box[1])},{int(box[2])},{int(box[3])}"
+
+
+def take_crop(fig, img, box):
+    """Keep a small JPEG of the figure's tallest sighting."""
+    h = box[3] - box[1]
+    if h <= fig.crop_h or h < MIN_REVIEW_PX:
+        return
+    H, W = img.shape[:2]
+    x1, y1, x2, y2 = expand(box, 0.1, W, H)
+    roi = img[int(y1):int(y2), int(x1):int(x2)]
+    if roi.size == 0:
+        return
+    scale = min(1.0, 160 / roi.shape[0])
+    if scale < 1.0:
+        roi = cv2.resize(roi, (max(1, int(roi.shape[1] * scale)), 160), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".jpg", roi, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    if ok:
+        fig.crop, fig.crop_h = buf.tobytes(), h
+
+
+def apply_overrides(figs, overrides):
+    """Attach manual corrections; a key matches the same first frame and an overlapping first box."""
+    applied = 0
+    for key, value in (overrides or {}).items():
+        if value not in ("man", "blur"):
+            continue
+        try:
+            frame, coords = key.split(":")
+            box = [float(v) for v in coords.split(",")]
+        except ValueError:
+            continue
+        best = max((f for f in figs if f.key.split(":")[0] == frame),
+                   key=lambda f: iou([float(v) for v in f.key.split(":")[1].split(",")], box), default=None)
+        if best is not None and iou([float(v) for v in best.key.split(":")[1].split(",")], box) >= 0.5:
+            best.override = value
+            applied += 1
+    return applied
+
+
+def write_review(review_dir, figs, lv, frame_h, fps=None):
+    """figures.json + one JPEG per figure, for the moderator review grid (moderators only)."""
+    if not review_dir:
+        return 0
+    os.makedirs(review_dir, exist_ok=True)
+    for name in os.listdir(review_dir):
+        os.remove(os.path.join(review_dir, name))
+    shown = [f for f in figs if f.crop]
+    shown.sort(key=lambda f: (f.visible(lv, frame_h), -f.crop_h))  # hidden first, then by size
+    items = []
+    for n, f in enumerate(shown[:MAX_REVIEW_FIGURES]):
+        _, fm, bm = f.evidence()
+        name = f"{n}.jpg"
+        with open(os.path.join(review_dir, name), "wb") as fh:
+            fh.write(f.crop)
+        item = {"key": f.key, "crop": name, "decision": f.decide(lv), "visible": f.visible(lv, frame_h),
+                "override": f.override or None, "faceMale": None if fm is None else round(fm, 2),
+                "bodyMale": None if bm is None else round(bm, 2), "smallFaces": f.small_faces}
+        if fps and getattr(f, "obs", None):
+            item["start"], item["end"] = round(min(f.obs) / fps, 2), round(max(f.obs) / fps, 2)
+        items.append(item)
+    tmp = os.path.join(review_dir, "figures.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"level": lv.name, "figures": items, "total": len(figs)}, fh, ensure_ascii=False)
+    os.replace(tmp, os.path.join(review_dir, "figures.json"))
+    return len(items)
+
+
 # ---------- still images ----------
 
-def plan_still(analyzer, bgr, lv):
-    """Return (full, boxes, reasons, confidence) for one image."""
+def plan_still(analyzer, bgr, lv, overrides=None):
+    """Return (full, boxes, reasons, confidence, figures) for one image."""
     t = analyzer.t
     h, w = bgr.shape[:2]
     persons, weak, faces, bodies = analyzer.detect_all(bgr, weak_min=lv.weak_conf or t.person_min)
     verdicts = [verdict(f, lv) for f in faces]
     owners = assign_faces(persons, faces)
     reasons, boxes, conf = set(), [], []
-    figures = [Figure(max_height=p[0][3] - p[0][1]) for p in persons]
+    figures = [Figure(max_height=p[0][3] - p[0][1], key=figure_key(0, p[0])) for p in persons]
     for j, o in enumerate(owners):
         if o >= 0:
             figures[o].add_face(faces[j])
     for fig, (pb, _), bm in zip(figures, persons, bodies):
         fig.add_body(pb[3] - pb[1], bm)
+        take_crop(fig, bgr, pb.tolist())
+    apply_overrides(figures, overrides)
     for (pb, score), fig in zip(persons, figures):
         if fig.visible(lv, h):
             _, f, b = fig.evidence()
@@ -280,16 +367,18 @@ def plan_still(analyzer, bgr, lv):
         reasons.add("inseparable")
     if not reasons:
         reasons.add("men_only" if persons or faces else "no_people")
-    return full, boxes, sorted(reasons), round(min(conf) if conf else 1.0, 3)
+    return full, boxes, sorted(reasons), round(min(conf) if conf else 1.0, 3), figures
 
 
-def regional_still(analyzer, pil_img, out_path, save_jpeg, level=None):
+def regional_still(analyzer, pil_img, out_path, save_jpeg, level=None, overrides=None, review_dir=None):
     """Analyze one still image; write the regional version when something must be hidden."""
     lv = get_level(level)
     rgb = np.asarray(pil_img.convert("RGB"))
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-    full, boxes, reasons, confidence = plan_still(analyzer, bgr, lv)
-    base = {"level": lv.name, "reasons": reasons, "confidence": confidence, "regions": len(boxes)}
+    full, boxes, reasons, confidence, figures = plan_still(analyzer, bgr, lv, overrides)
+    reviewed = write_review(review_dir, figures, lv, bgr.shape[0])
+    base = {"level": lv.name, "reasons": reasons, "confidence": confidence, "regions": len(boxes),
+            "figures": reviewed, "overrides": sum(1 for f in figures if f.override)}
     if full:
         return {"decision": "blurred", "full_frames": 1, **base}
     if not boxes:
@@ -382,10 +471,25 @@ def analyze_video(analyzer, path, fps, aw, ah, step, lv):
     max_gap = max(step, int(TRACK_MAX_GAP_SEC * fps))
     active = []
     next_id = 0
-    for j, frame in enumerate(read_frames(path, fps, aw, ah, f"select='not(mod(n\\,{step}))'")):
-        f = j * step
+    dense = lv.dense_person_step if 0 < lv.dense_person_step < step else 0
+    if dense:  # decode each needed frame once: samples (every `step`) and person-only frames (every `dense`)
+        vf = f"select='not(mod(n\\,{step}))+not(mod(n\\,{dense}))'"
+        indices = (n for n in itertools.count() if n % step == 0 or n % dense == 0)
+    else:
+        vf = f"select='not(mod(n\\,{step}))'"
+        indices = (n * step for n in itertools.count())
+    weak_min = lv.weak_conf or analyzer.t.person_min
+    for f, frame in zip(indices, read_frames(path, fps, aw, ah, vf)):
+        if f % step:
+            # Person-only frame between samples: a figure that flashes up and matches no known figure is blurred.
+            for pb, _ in analyzer.persons.detect(frame, min(weak_min, analyzer.t.person_min)):
+                b = pb.tolist()
+                if not any(iou(tr.obs[tr.last_frame], b) >= 0.3 for tr in active):
+                    plan.events.append((f, b))
+                    plan.reasons.add("between_samples")
+            continue
         plan.detections += 1
-        persons, weak, faces, bodies = analyzer.detect_all(frame, weak_min=lv.weak_conf or analyzer.t.person_min)
+        persons, weak, faces, bodies = analyzer.detect_all(frame, weak_min=weak_min)
         if lv.weak_conf:
             for pb, _ in weak:
                 plan.events.append((f, pb.tolist()))
@@ -415,7 +519,7 @@ def analyze_video(analyzer, path, fps, aw, ah, step, lv):
         for di, b in enumerate(boxes):
             tr = det_track.get(di)
             if tr is None or id(tr) in ended:
-                tr = Track(id=next_id)
+                tr = Track(id=next_id, key=figure_key(f, b))
                 next_id += 1
                 plan.tracks.append(tr)
                 active.append(tr)
@@ -423,6 +527,7 @@ def analyze_video(analyzer, path, fps, aw, ah, step, lv):
             tr.obs[f] = b
             tr.max_height = max(tr.max_height, b[3] - b[1])
             tr.add_body(b[3] - b[1], bodies[di])
+            take_crop(tr, frame, b)
 
         # --- face sightings
         owners = assign_faces(persons, faces)
@@ -483,7 +588,7 @@ def frame_boxes(plan, t, step, fps, total, aw, ah, sx, sy, men=False):
     return out
 
 
-def regional_video(analyzer, path, out_path, level=None):
+def regional_video(analyzer, path, out_path, level=None, overrides=None, review_dir=None):
     lv = get_level(level)
     w, h, src_fps, duration = probe(path)
     if not w or not h:
@@ -497,6 +602,8 @@ def regional_video(analyzer, path, out_path, level=None):
     rw, rh = fit(w, h, OUTPUT_MAX_SIDE)
 
     plan = analyze_video(analyzer, path, fps, aw, ah, step, lv)
+    applied = apply_overrides(plan.tracks, overrides)
+    reviewed = write_review(review_dir, plan.tracks, lv, ah, fps)
     hidden = [tr for tr in plan.tracks if not tr.visible(lv, ah)]
     visible = [tr for tr in plan.tracks if tr.visible(lv, ah)]
     reasons = set(plan.reasons)
@@ -506,6 +613,7 @@ def regional_video(analyzer, path, out_path, level=None):
         "visible_tracks": len(visible), "men_tracks": sum(tr.is_man(lv) for tr in plan.tracks),
         "men_by_body": sum(tr.body_decided(lv) for tr in plan.tracks), "body_model": analyzer.body is not None,
         "detections": plan.detections, "fps": round(fps, 2), "duration": round(duration, 2),
+        "figures": reviewed, "overrides": applied,
     }
     total = int(duration * fps) + 2 * step + 10
     boxes = frame_boxes(plan, analyzer.t, step, fps, total, aw, ah, rw / aw, rh / ah)

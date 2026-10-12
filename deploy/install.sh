@@ -81,14 +81,14 @@ if ss -ltnH "( sport = :$PORT )" | grep -q . ; then
     fi
 fi
 
-step "4/7 Moderation models"
-mkdir -p moderation_models channel_data logs
-if [ ! -f moderation_models/person.onnx ] || [ ! -f moderation_models/face_det.onnx ]; then
-    echo "building the detection models once (several minutes)..."
-    docker build -f moderation/Dockerfile.models --output type=local,dest=moderation_models .
+step "4/7 Moderation models (commercial-friendly licenses, checksum-verified)"
+mkdir -p moderation_models channel_data logs training
+python3 moderation/fetch_models.py || echo "!! some models were not installed - see above (the service falls back safely: more blur)"
+if [ ! -f moderation_models/person_yolox.onnx ] && [ ! -f moderation_models/person.onnx ]; then
+    echo "no person detection model - cannot start the moderation service"; exit 1
 fi
-if [ ! -f moderation_models/par.bin ]; then
-    python3 moderation/fetch_body_model.py || echo "!! body model not installed (blurring still works, with face-only gender)"
+if [ ! -f moderation_models/face_yunet.onnx ] && [ ! -f moderation_models/face_det.onnx ]; then
+    echo "no face detection model - cannot start the moderation service"; exit 1
 fi
 
 step "5/7 Build and start"

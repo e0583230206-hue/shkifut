@@ -70,6 +70,7 @@ services:
       - blurred:/app/blurred:ro
       - kvrocks_sock:/app/data
       - ./logs:/app/logs
+      - ./training:/app/training     # moderator corrections (crop + label) for training a model later
 
 volumes:
   kvrocks_sock:

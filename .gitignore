@@ -34,3 +34,5 @@ STOP_NIGHT.txt
 ALL_DONE.txt
 tests/ui/.settings_backup.json
 tests/ui/.last_run.log
+tests/media/
+training/

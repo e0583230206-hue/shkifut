@@ -149,16 +149,19 @@ def process(body, analyze=True):
             return {"ok": True}
 
         regional_out = resolve(body["regional_out"], BLURRED_ROOT) if body.get("regional_out") else None
+        # Review grid (figure crops + figures.json, moderators only) and manual corrections {figure key: man|blur}
+        review_dir = resolve(body["review_out"], BLURRED_ROOT) if body.get("review_out") else None
+        overrides = body.get("overrides") or {}
         if kind == "video":
             if not regional_out:
                 raise ValueError("regional_out required for video")
-            return regional.regional_video(analyzer, src, regional_out, body.get("level"))
+            return regional.regional_video(analyzer, src, regional_out, body.get("level"), overrides, review_dir)
 
         frames = list(image_frames(src))
         if len(frames) == 1 and regional_out:
             img = frames[0].convert("RGB")
             img.thumbnail((REGIONAL_IMAGE_MAX_SIDE, REGIONAL_IMAGE_MAX_SIDE))
-            return regional.regional_still(analyzer, img, regional_out, save_jpeg, body.get("level"))
+            return regional.regional_still(analyzer, img, regional_out, save_jpeg, body.get("level"), overrides, review_dir)
 
         # Animated images: no regional version - open only if every sampled frame is clean.
         results = []
@@ -186,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             t = analyzer.t
-            return self._send(200, {"ok": True, "thresholds": t.__dict__})
+            return self._send(200, {"ok": True, "thresholds": t.__dict__, "models": analyzer.models})
         self._send(404, {"error": "not found"})
 
     def do_POST(self):

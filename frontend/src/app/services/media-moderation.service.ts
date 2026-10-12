@@ -2,6 +2,8 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom, Subject } from 'rxjs';
 import { ResponseResult } from '../models/response-result.model';
+import { NbDialogService } from '@nebular/theme';
+import { FigureReviewComponent } from '../components/admin/figure-review/figure-review.component';
 
 export type ModerationStatus = 'pending' | 'open' | 'regional' | 'blurred';
 export type ModerationChoice = 'open' | 'regional' | 'blurred';
@@ -68,7 +70,7 @@ export class MediaModerationService {
   private updates = new Subject<{ id: string; status: ModerationStatus }>();
   updates$ = this.updates.asObservable();
 
-  constructor(private http: HttpClient) { }
+  constructor(private http: HttpClient, private dialog: NbDialogService) { }
 
   /** Called from the SSE stream ('file-moderation' events). */
   notify(id: string, status: ModerationStatus) {
@@ -177,6 +179,22 @@ export class MediaModerationService {
       if (choice.status !== info.status) {
         bar.appendChild(this.button(choice.label, `mod-btn-${choice.status}`, wrap, info.id, choice.status));
       }
+    }
+
+    if (info.status !== 'pending') {
+      const review = document.createElement('button');
+      review.type = 'button';
+      review.className = 'mod-btn mod-btn-review';
+      review.textContent = 'בדיקת דמויות';
+      review.title = 'רשת הדמויות שזוהו בקובץ: אישור או תיקון לכל דמות (גבר / טשטש)';
+      review.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this.dialog.open(FigureReviewComponent, { context: { fileId: info.id }, closeOnBackdropClick: false })
+          .onClose.subscribe(async (saved) => {
+            if (saved) this.render(wrap, await this.getStatus(info.id, true), true);
+          });
+      });
+      bar.appendChild(review);
     }
 
     const again = document.createElement('button');

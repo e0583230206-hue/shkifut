@@ -25,7 +25,7 @@ done
 "${COMPOSE[@]}" exec -T redis tar czf - -C /var/lib/kvrocks backup > "$DEST/db-$TS.tgz"
 
 # 2. Media, logs and configuration (the blurred versions are regenerated, so they are not backed up).
-tar czf "$DEST/files-$TS.tgz" channel_data logs .env
+tar czf "$DEST/files-$TS.tgz" channel_data logs training .env 2>/dev/null || tar czf "$DEST/files-$TS.tgz" channel_data logs .env
 
 # 3. Rotation
 find "$DEST" -name '*.tgz' -mtime +"$KEEP_DAYS" -delete

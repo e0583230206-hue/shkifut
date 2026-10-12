@@ -7,6 +7,7 @@ Models (ONNX, CPU only, see Dockerfile.models):
   genderage.onnx - InsightFace gender/age attribute model
 """
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -20,6 +21,7 @@ def _env_float(name, default):
 
 
 BODY_MODEL = os.environ.get("BODY_MODEL", "1") == "1"
+MODEL_PROFILE = os.environ.get("MODEL_PROFILE", "auto")  # auto: commercial models when installed; research: originals
 FACE_TILING = os.environ.get("FACE_TILING", "0") == "1"  # +~125% analysis time; helps only high-res video
 
 
@@ -203,6 +205,112 @@ class GenderClassifier:
         return float(p[1]), int(round(float(pred[2]) * 100))
 
 
+class YoloxPersonDetector:
+    """YOLOX-s (Megvii, Apache-2.0) person detector - commercial-friendly replacement for YOLOv8."""
+
+    def __init__(self, path, threads):
+        self.sess = _session(path, threads)
+        self.input_name = self.sess.get_inputs()[0].name
+        self.size = 640
+        grids, strides = [], []
+        for stride in (8, 16, 32):
+            n = self.size // stride
+            yv, xv = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+            grids.append(np.stack((xv, yv), 2).reshape(-1, 2))
+            strides.append(np.full((n * n, 1), stride))
+        self.grids = np.concatenate(grids).astype(np.float32)
+        self.strides = np.concatenate(strides).astype(np.float32)
+
+    def detect(self, bgr, min_score):
+        h, w = bgr.shape[:2]
+        r = min(self.size / h, self.size / w)
+        canvas = np.full((self.size, self.size, 3), 114, dtype=np.uint8)
+        canvas[:int(h * r), :int(w * r)] = cv2.resize(bgr, (int(w * r), int(h * r)), interpolation=cv2.INTER_LINEAR)
+        blob = canvas.transpose(2, 0, 1)[None].astype(np.float32)  # BGR, 0..255 (official ONNX export)
+        out = self.sess.run(None, {self.input_name: blob})[0][0]    # (8400, 85)
+        xy = (out[:, :2] + self.grids) * self.strides
+        wh = np.exp(out[:, 2:4]) * self.strides
+        scores = out[:, 4] * out[:, 5]  # objectness x class 0 (person)
+        keep = scores >= min_score
+        if not np.any(keep):
+            return []
+        xy, wh, scores = xy[keep], wh[keep], scores[keep]
+        boxes = np.concatenate([xy - wh / 2, xy + wh / 2], axis=1) / r
+        boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, w)
+        boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, h)
+        return [(boxes[i], float(scores[i])) for i in _nms(boxes, scores, 0.45)]
+
+
+class YuNetFaceDetector:
+    """YuNet (OpenCV Zoo, MIT) face detector via cv2.FaceDetectorYN - replacement for InsightFace SCRFD.
+    FaceDetectorYN is not thread-safe, so each thread gets its own instance."""
+
+    def __init__(self, path, threads):
+        self.path = path
+        self.size = 640
+        self.local = threading.local()
+
+    def _det(self):
+        d = getattr(self.local, "det", None)
+        if d is None:
+            d = cv2.FaceDetectorYN.create(self.path, "", (self.size, self.size), 0.5, 0.3, 5000)
+            self.local.det = d
+        return d
+
+    def detect(self, bgr, min_score):
+        h, w = bgr.shape[:2]
+        scale = min(self.size / w, self.size / h)
+        nw, nh = int(w * scale), int(h * scale)
+        canvas = np.zeros((self.size, self.size, 3), dtype=np.uint8)
+        canvas[:nh, :nw] = cv2.resize(bgr, (nw, nh))
+        det = self._det()
+        det.setScoreThreshold(float(min_score))
+        _, faces = det.detect(canvas)
+        if faces is None:
+            return []
+        out = []
+        for f in faces:
+            x, y, fw, fh = f[:4] / scale
+            box = np.array([max(0, x), max(0, y), min(w, x + fw), min(h, y + fh)], dtype=np.float32)
+            out.append((box, float(f[-1])))
+        return out
+
+
+class OmzGenderClassifier:
+    """OpenVINO Open Model Zoo age-gender-recognition-retail-0013 (Apache-2.0): 62x62 BGR face crop,
+    outputs prob [female, male] and age/100. Commercial-friendly replacement for InsightFace genderage."""
+
+    def __init__(self, xml_path, threads):
+        import openvino as ov
+        core = ov.Core()
+        core.set_property("CPU", {"INFERENCE_NUM_THREADS": threads})
+        self.model = core.compile_model(core.read_model(xml_path), "CPU")
+        self.prob = next(o for o in self.model.outputs if "prob" in o.get_any_name())
+        self.age = next((o for o in self.model.outputs if "age" in o.get_any_name()), None)
+        self.size = 62
+
+    def male_prob(self, bgr, box):
+        h, w = bgr.shape[:2]
+        x1, y1, x2, y2 = box
+        cx, cy, side = (x1 + x2) / 2, (y1 + y2) / 2, max(x2 - x1, y2 - y1) * 1.2  # enlarged like the OMZ demo
+        a, b = int(max(0, cx - side / 2)), int(max(0, cy - side / 2))
+        c, d = int(min(w, cx + side / 2)), int(min(h, cy + side / 2))
+        if c - a < 4 or d - b < 4:
+            return 0.5, 0
+        crop = cv2.resize(bgr[b:d, a:c], (self.size, self.size))
+        res = self.model(crop.transpose(2, 0, 1)[None].astype(np.float32))
+        p = np.asarray(res[self.prob]).reshape(-1)
+        age = int(round(float(np.asarray(res[self.age]).reshape(-1)[0]) * 100)) if self.age is not None else 0
+        return float(p[1]), age
+
+
+class UnknownGender:
+    """Fallback when no gender model is installed: P(male) = 0.5 (uncertain) for every face."""
+
+    def male_prob(self, bgr, box):
+        return 0.5, 0
+
+
 class BodyGenderClassifier:
     """Pedestrian attributes from the whole body (OpenVINO Open Model Zoo
     person-attributes-recognition-crossroad-0230, Apache-2.0). Gives P(male) for figures whose
@@ -229,11 +337,36 @@ class BodyGenderClassifier:
 class Analyzer:
     def __init__(self, models_dir, threads=2, thresholds=None):
         self.t = thresholds or Thresholds()
-        self.persons = PersonDetector(os.path.join(models_dir, "person.onnx"), threads)
-        self.faces = FaceDetector(os.path.join(models_dir, "face_det.onnx"), threads)
-        self.gender = GenderClassifier(os.path.join(models_dir, "genderage.onnx"), threads)
+        # Each component uses the commercial-friendly model when it is installed (MODEL_PROFILE=research forces
+        # the original research models). self.models records what is active, for /health and the reports.
+        f = lambda name: os.path.join(models_dir, name)
+        research = MODEL_PROFILE == "research"
+        self.models = {}
+        if not research and os.path.exists(f("person_yolox.onnx")):
+            self.persons = YoloxPersonDetector(f("person_yolox.onnx"), threads)
+            self.models["person"] = "YOLOX-s (Apache-2.0)"
+        else:
+            self.persons = PersonDetector(f("person.onnx"), threads)
+            self.models["person"] = "YOLOv8s (AGPL-3.0)"
+        if not research and os.path.exists(f("face_yunet.onnx")):
+            self.faces = YuNetFaceDetector(f("face_yunet.onnx"), threads)
+            self.models["face"] = "YuNet (MIT)"
+        else:
+            self.faces = FaceDetector(f("face_det.onnx"), threads)
+            self.models["face"] = "SCRFD / InsightFace (non-commercial)"
+        if not research and os.path.exists(f("gender_omz.xml")) and os.path.exists(f("gender_omz.bin")):
+            self.gender = OmzGenderClassifier(f("gender_omz.xml"), threads)
+            self.models["gender"] = "OMZ age-gender-recognition-retail-0013 (Apache-2.0)"
+        elif os.path.exists(f("genderage.onnx")):
+            self.gender = GenderClassifier(f("genderage.onnx"), threads)
+            self.models["gender"] = "InsightFace genderage (non-commercial)"
+        else:
+            # No gender model installed: every face is "uncertain", so every figure with a face is blurred.
+            self.gender = UnknownGender()
+            self.models["gender"] = "none (all faces uncertain -> blurred)"
         par = os.path.join(models_dir, "par.xml")
         self.body = BodyGenderClassifier(par, threads) if os.path.exists(par) and BODY_MODEL else None
+        self.models["body"] = "OMZ person-attributes-recognition-crossroad-0230 (Apache-2.0)" if self.body else "none"
 
     def detect_all(self, bgr, weak_min=None, tiling=FACE_TILING):
         """Raw detections for regional blurring (the verdict depends on the strictness level).

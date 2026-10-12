@@ -237,11 +237,13 @@ func callModerationService(endpoint string, meta map[string]any) (*moderationRes
 	if !ok {
 		return nil, errors.New("invalid hash in metadata")
 	}
-	body, _ := json.Marshal(map[string]string{
+	body, _ := json.Marshal(map[string]any{
 		"path":         filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash)),
 		"kind":         metaString(meta, "type"),
 		"blurred_out":  filepath.ToSlash(blurredRelPath(hash)),
 		"regional_out": filepath.ToSlash(regionalRelPath(hash, metaString(meta, "type"))),
+		"review_out":   filepath.ToSlash(reviewRelDir(hash)),
+		"overrides":    metaOverrides(meta),
 		"level":        moderationLevel(),
 	})
 	resp, err := moderationClient.Post(moderationURL+endpoint, "application/json", bytes.NewReader(body))

@@ -10,7 +10,9 @@ param(
     [string]$Domain = '30206.co.il',
     [string]$Email = 'e0583230206@gmail.com',
     [string]$AppDir = '/opt/thechannel',
-    [int]$Port = 8090
+    [int]$Port = 8090,
+    # Also send the original research models (YOLOv8 AGPL / InsightFace non-commercial) as a fallback.
+    [switch]$IncludeResearchModels
 )
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Split-Path $PSScriptRoot -Parent)
@@ -21,8 +23,11 @@ if (git status --porcelain --untracked-files=no) {
 $code = Join-Path $env:TEMP 'thechannel-code.tgz'
 $models = Join-Path $env:TEMP 'thechannel-models.tgz'
 git archive --format=tar.gz -o $code HEAD
-$modelFiles = Get-ChildItem moderation_models -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.onnx', '.xml', '.bin' }
-if ($modelFiles) { tar -czf $models moderation_models } else { Remove-Item $models -ErrorAction SilentlyContinue }
+# Commercial-friendly models only, unless asked otherwise (the server downloads any that are missing).
+$names = @('person_yolox.onnx', 'face_yunet.onnx', 'gender_omz.xml', 'gender_omz.bin', 'par.xml', 'par.bin')
+if ($IncludeResearchModels) { $names += @('person.onnx', 'face_det.onnx', 'genderage.onnx') }
+$modelFiles = $names | Where-Object { Test-Path "moderation_models/$_" } | ForEach-Object { "moderation_models/$_" }
+if ($modelFiles) { tar -czf $models @modelFiles } else { Remove-Item $models -ErrorAction SilentlyContinue }
 
 Write-Host "uploading to $Server ..."
 $files = @($code) + @(if (Test-Path $models) { $models })

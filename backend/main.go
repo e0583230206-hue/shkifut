@@ -112,6 +112,9 @@ func main() {
 				protected.Post("/set-emojis", protectedWithPrivilege(Moderator, setEmojis))
 				protected.Post("/files/moderation", protectedWithPrivilege(Moderator, setFileModeration))
 				protected.Post("/files/reprocess", protectedWithPrivilege(Moderator, reprocessFile))
+				protected.Get("/files/{fileid}/figures", protectedWithPrivilege(Moderator, getFigures))
+				protected.Get("/files/{fileid}/figures/{name}", protectedWithPrivilege(Moderator, getFigureCrop))
+				protected.Post("/files/{fileid}/figures", protectedWithPrivilege(Moderator, setFigures))
 				protected.Get("/contact", protectedWithPrivilege(Moderator, getContactMessages))
 				protected.Post("/contact/set", protectedWithPrivilege(Moderator, setContactHandled))
 
