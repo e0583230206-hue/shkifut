@@ -143,6 +143,9 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this.initializeMessageListener();
     this.keepAliveSSE();
+    // After the current click finishes bubbling (the window click handler clears highlights).
+    this.jumpSub = this.chatService.jump$.subscribe(id =>
+      setTimeout(() => this.scrollToId({ messageId: id, smooth: true, mark: true }), 50));
 
     this._authService.loadUserInfo().then((res) => {
       this.userInfo = res;
@@ -231,7 +234,10 @@ export class ChatComponent implements OnInit, OnDestroy {
     };
   }
 
+  private jumpSub?: { unsubscribe(): void };
+
   ngOnDestroy() {
+    this.jumpSub?.unsubscribe();
     this.chatService.sseClose();
     clearInterval(this.subLastHeartbeat);
   }

@@ -1,0 +1,31 @@
+<nb-card class="search-card" role="dialog" aria-label="חיפוש בערוץ">
+  <nb-card-header class="d-flex align-items-center gap-2">
+    <nb-icon icon="search-outline"></nb-icon>
+    <input #searchInput nbInput fullWidth type="search" id="search-input" placeholder="חיפוש בהודעות הערוץ..."
+      aria-label="חיפוש בהודעות הערוץ" [(ngModel)]="query" (ngModelChange)="onInput()" maxlength="100">
+    <button nbButton ghost shape="round" size="small" title="סגור" aria-label="סגור" (click)="dialogRef.close()">
+      <nb-icon icon="close"></nb-icon>
+    </button>
+  </nb-card-header>
+  <nb-card-body class="search-body">
+    @if (searching) {
+    <div class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+    } @else if (error) {
+    <div class="text-danger p-2">שגיאה בחיפוש, נסו שוב.</div>
+    } @else if (searched && !results.length) {
+    <div class="text-muted p-2 search-empty">לא נמצאו הודעות</div>
+    } @else if (!searched) {
+    <div class="text-muted p-2">הקלידו לפחות 2 תווים</div>
+    }
+    <ul class="list-unstyled m-0">
+      @for (r of results; track r.id) {
+      <li>
+        <button type="button" class="search-result" (click)="open(r)">
+          <small class="text-muted d-block">{{ r.timestamp | messageTime }}</small>
+          <span>@for (p of r.parts; track $index) {@if (p.hit) {<mark>{{ p.text }}</mark>} @else {{{ p.text }}}}</span>
+        </button>
+      </li>
+      }
+    </ul>
+  </nb-card-body>
+</nb-card>

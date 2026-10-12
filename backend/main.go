@@ -92,6 +92,7 @@ func main() {
 
 			api.Get("/channel/info", getChannelInfo)
 			api.Get("/messages", getMessages)
+			api.Get("/messages/search", searchMessages)
 			api.Get("/events", getEvents)
 			api.Get("/files/{fileid}", serveFile)
 			api.Get("/files/{fileid}/moderation", getFileModeration)

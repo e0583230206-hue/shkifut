@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom, Observable } from 'rxjs';
+import { firstValueFrom, Observable, Subject } from 'rxjs';
 import { Channel } from '../models/channel.model';
 import { ResponseResult } from '../models/response-result.model';
 
@@ -29,6 +29,13 @@ export interface ChatFile {
   filetype: string;
 }
 
+export interface SearchResult {
+  id: number;
+  timestamp: string;
+  snippet: string;
+  topic?: string;
+}
+
 export interface Attachment {
   file: File;
   url?: string;
@@ -45,7 +52,21 @@ export class ChatService {
   private emojis: string[] = [];
   public channelInfo?: Channel;
 
+  /** Requests to show a message in the channel (search results, pinned bar, ...). */
+  private jump = new Subject<number>();
+  jump$ = this.jump.asObservable();
+
   constructor(private http: HttpClient) { }
+
+  jumpToMessage(id: number) {
+    this.jump.next(id);
+  }
+
+  searchMessages(q: string, topic?: string): Promise<SearchResult[]> {
+    const params: Record<string, string> = { q };
+    if (topic) params['topic'] = topic;
+    return firstValueFrom(this.http.get<SearchResult[]>('/api/messages/search', { params }));
+  }
 
   async updateChannelInfo() {
     this.channelInfo = await firstValueFrom(this.http.get<Channel>('/api/channel/info'));

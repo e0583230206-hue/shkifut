@@ -78,6 +78,19 @@ if (MSG_ID) {
   check('/m/<id> opens the channel at the message', (await evaluate('location.pathname + location.hash')) === `/#${MSG_ID}`, await evaluate('location.href'));
 }
 
+// --- search: dialog, highlighted results, jump to the message
+console.log('step: search');
+await go('/', 5000);
+const word = await evaluate(`(() => { for (const md of document.querySelectorAll('app-message markdown')) { const w = (md.innerText.match(/[א-ת]{4,}/g) || [])[0]; if (w) return w; } return ''; })()`);
+check('search: picked a word from a visible message', !!word, word);
+await evaluate(`document.querySelector('button[title="חיפוש"]').click()`);
+check('search: dialog opens with focused input', await waitFor(`document.activeElement?.id === 'search-input'`));
+await evaluate(`(() => { const i = document.querySelector('#search-input'); i.value = ${JSON.stringify(word)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+check('search: results appear with the word highlighted', await waitFor(`document.querySelectorAll('.search-result mark').length > 0`, 8000));
+await evaluate(`document.querySelector('.search-result').click()`);
+check('search: choosing a result closes the dialog and highlights the message',
+  await waitFor(`!document.querySelector('#search-input') && !!document.querySelector('.mark_message')`, 8000));
+
 // --- admin: panel tabs
 console.log('step: admin');
 await go('/auth/dev-login', 6000);

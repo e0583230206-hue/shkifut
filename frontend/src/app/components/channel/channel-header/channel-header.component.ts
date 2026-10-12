@@ -19,6 +19,7 @@ import { NotificationsService } from '../../../services/notifications.service';
 import { AdminPanelComponent } from "../../admin/admin-panel.component";
 import { User } from '../../../models/user.model';
 import { ContactComponent } from '../contact/contact.component';
+import { SearchComponent } from '../search/search.component';
 
 @Component({
   selector: 'app-channel-header',
@@ -143,6 +144,10 @@ export class ChannelHeaderComponent implements OnInit {
   }
 
   /** Built-in contact form; an external link can still be set with the "contact_us" setting. */
+  openSearch() {
+    this.dialogService.open(SearchComponent, { closeOnBackdropClick: true, autoFocus: false });
+  }
+
   openContactUs() {
     const external = this.chatService.channelInfo?.contact_us;
     if (external && /^https?:\/\//.test(external)) {

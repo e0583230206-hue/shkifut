@@ -39,7 +39,8 @@ type pageMeta struct {
 var spaRoutes = map[string]bool{"/": true, "/login": true, "/privacy": true, "/terms": true, "/index.html": true}
 
 var (
-	embedRe     = regexp.MustCompile(`\[(?:image|video|audio|quote)-embedded#\]\(([^)]*)\)`)
+	embedRe     = regexp.MustCompile(`\[(?:image|video|audio|quote|gallery)-embedded#\]\(([^)]*)\)`)
+	htmlTagRe   = regexp.MustCompile(`<[^>]+>`)
 	imageRe     = regexp.MustCompile(`\[image-embedded#\]\(([^)\s]+)\)`)
 	mdLinkRe    = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
 	mdMarkRe    = regexp.MustCompile("[*_`~>#|]+")
@@ -68,6 +69,7 @@ func absURL(r *http.Request, u string) string {
 // plainText turns a message's markdown into readable text (embeds and markup removed).
 func plainText(md string) string {
 	t := embedRe.ReplaceAllString(md, " ")
+	t = htmlTagRe.ReplaceAllString(t, " ")
 	t = mdLinkRe.ReplaceAllString(t, "$1")
 	t = mdMarkRe.ReplaceAllString(t, " ")
 	return strings.TrimSpace(spacesRe.ReplaceAllString(t, " "))
