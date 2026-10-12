@@ -103,7 +103,11 @@ func cleanupOrphanMedia(ctx context.Context, days int, dryRun bool) (*cleanupRep
 			return nil
 		}
 		hash, _ := metaHash(meta)
-		uploads = append(uploads, upload{id: id, yamlPath: p, hash: hash, old: info.ModTime().Before(cutoff)})
+		uploaded := info.ModTime() // files uploaded before "uploadedAt" existed
+		if t, err := time.Parse(time.RFC3339, metaString(meta, "uploadedAt")); err == nil {
+			uploaded = t
+		}
+		uploads = append(uploads, upload{id: id, yamlPath: p, hash: hash, old: uploaded.Before(cutoff)})
 		return nil
 	})
 	if err != nil {

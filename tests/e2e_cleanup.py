@@ -66,8 +66,16 @@ def yaml_path(fid):
 
 
 def age(fid, days):
-    t = time.time() - days * 86400
-    os.utime(yaml_path(fid), (t, t))
+    """Pretend the file was uploaded `days` ago (after its moderation finished, so nothing rewrites it)."""
+    for _ in range(60):
+        st = json.loads(urllib.request.urlopen(f"{B}/api/files/{fid}/moderation").read())["status"]
+        if st != "pending":
+            break
+        time.sleep(1)
+    old = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - days * 86400))
+    text = open(yaml_path(fid), encoding="utf-8").read()
+    lines = [l for l in text.splitlines() if not l.startswith("uploadedAt:")]
+    open(yaml_path(fid), "w", encoding="utf-8").write("\n".join(lines + [f'uploadedAt: "{old}"']) + "\n")
 
 
 def status(fid):
@@ -99,7 +107,7 @@ try:
     check("non-admin cannot run cleanup", st == 401, st)
 
     st, rep = call(admin, "/api/admin/media/cleanup?dryRun=0&days=7")
-    check("cleanup run", st == 200 and {b, c} <= set(rep["orphans"]), rep and rep.get("freedBytes"))
+    check("cleanup run", st == 200 and {b, c} <= set(rep["orphans"]), {"status": st, "freed": rep and rep.get("freedBytes"), "orphans": rep and len(rep.get("orphans", [])), "b": rep and b in rep.get("orphans", []), "c": rep and c in rep.get("orphans", [])})
     check("orphan removed (404)", status(b) == 404 and not os.path.exists(yaml_path(b)))
     check("orphan sharing content removed, content kept for the used upload",
           not os.path.exists(yaml_path(c)) and status(a) == 200)

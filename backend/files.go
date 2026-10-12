@@ -239,6 +239,8 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		"type":     t.MIME.Type,
 		"mime":     t.MIME.Value,
 		"delete":   false,
+		// upload time (the YAML's mtime changes on every moderation update)
+		"uploadedAt": time.Now().UTC().Format(time.RFC3339),
 	}
 	if isModeratedType(t.MIME.Type) {
 		fileMetadata["moderation"] = ModPending
