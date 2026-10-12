@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # One-command install / update of TheChannel ("שקיפות") on Ubuntu, behind the server's existing nginx.
 #
-#   sudo ./deploy/install.sh <domain> <email> [--port 8090] [--no-ssl] [--force-nginx]
+#   sudo ./deploy/install.sh <domain> <email> [--port 8090] [--no-ssl] [--force-nginx] [--prebuilt]
 #   e.g. sudo ./deploy/install.sh 30206.co.il e0583230206@gmail.com
+#   --prebuilt: the images were built elsewhere and loaded with "docker load" (deploy/upload.ps1); nothing is built here
 #
 # Safe to run again (updates the app). What it does:
 #   1. checks / installs Docker (Ubuntu packages) and certbot
@@ -12,17 +13,20 @@
 #   5. adds ONE nginx site for <domain> (other sites untouched; nginx -t before reload)
 #   6. HTTPS with certbot (only when the domain already points to this server)
 #   7. daily backup cron job
-# Optional environment: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ADMIN_USERS (used when creating .env).
+# Optional environment (used when creating .env): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ADMIN_USERS, ALLOWED_EMAILS
+# (closed site: only these accounts and ADMIN_USERS), MODERATION_CPUS, MODERATION_MEM, MODERATION_THREADS.
+# Existing sites, ports and services on the server are never modified; the nginx config is backed up first.
 set -euo pipefail
 
 DOMAIN="${1:-}"; EMAIL="${2:-}"
 shift $(( $# >= 2 ? 2 : $# )) || true
-PORT=8090; SSL=1; FORCE_NGINX=0
+PORT=8090; SSL=1; FORCE_NGINX=0; PREBUILT=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --port) PORT="$2"; shift 2 ;;
         --no-ssl) SSL=0; shift ;;
         --force-nginx) FORCE_NGINX=1; shift ;;
+        --prebuilt) PREBUILT=1; shift ;;
         *) echo "unknown option: $1"; exit 2 ;;
     esac
 done
@@ -64,6 +68,12 @@ APP_PORT=$PORT
 GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
 GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
 ADMIN_USERS=${ADMIN_USERS:-$EMAIL}
+ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
+
+# Moderation service limits (defaults suit a 4 vCPU / 8GB server)
+MODERATION_CPUS=${MODERATION_CPUS:-3}
+MODERATION_MEM=${MODERATION_MEM:-1500m}
+MODERATION_THREADS=${MODERATION_THREADS:-3}
 EOF
     chmod 600 .env
     echo "created .env"
@@ -91,8 +101,14 @@ if [ ! -f moderation_models/face_yunet.onnx ] && [ ! -f moderation_models/face_d
     echo "no face detection model - cannot start the moderation service"; exit 1
 fi
 
-step "5/7 Build and start"
-"${COMPOSE[@]}" up -d --build
+step "5/7 Start"
+if [ "$PREBUILT" -eq 1 ]; then
+    docker image inspect thechannel-backend:latest thechannel-moderation:latest >/dev/null \
+        || { echo "--prebuilt: images thechannel-backend / thechannel-moderation are not loaded (docker load)"; exit 1; }
+    "${COMPOSE[@]}" up -d --no-build
+else
+    "${COMPOSE[@]}" up -d --build
+fi
 for _ in $(seq 1 60); do
     curl -fsS "http://127.0.0.1:$PORT/api/channel/info" >/dev/null 2>&1 && break
     sleep 3
@@ -100,6 +116,9 @@ done
 curl -fsS "http://127.0.0.1:$PORT/api/channel/info" >/dev/null && echo "app is up on 127.0.0.1:$PORT" || { "${COMPOSE[@]}" logs --tail 50; echo "app did not start"; exit 1; }
 
 step "6/7 nginx site for $DOMAIN"
+BACKUP_DIR=/root/nginx-backups; mkdir -p "$BACKUP_DIR"
+NGINX_BACKUP="$BACKUP_DIR/nginx-$(date +%Y%m%d-%H%M%S).tgz"
+tar czf "$NGINX_BACKUP" -C / etc/nginx && echo "nginx configuration backed up: $NGINX_BACKUP"
 SITE="/etc/nginx/sites-available/$DOMAIN.conf"
 if [ -f "$SITE" ] && [ "$FORCE_NGINX" -eq 0 ]; then
     echo "$SITE exists - kept (use --force-nginx to regenerate)"
@@ -110,7 +129,9 @@ fi
 ln -sf "$SITE" "/etc/nginx/sites-enabled/$DOMAIN.conf"
 if ! nginx -t; then
     rm -f "/etc/nginx/sites-enabled/$DOMAIN.conf"
-    echo "nginx configuration test failed - the new site was disabled, nothing else changed"; exit 1
+    nginx -t >/dev/null 2>&1 && echo "nginx configuration test failed - the new site was disabled, nothing else changed" \
+        || echo "nginx configuration test fails even without the new site - restore: tar xzf $NGINX_BACKUP -C /"
+    exit 1
 fi
 systemctl reload nginx
 
@@ -119,8 +140,13 @@ if [ "$SSL" -eq 1 ]; then
     server_ip="$(curl -fsS https://api.ipify.org || hostname -I | awk '{print $1}')"
     dns_ip="$(getent ahostsv4 "$DOMAIN" | awk 'NR==1{print $1}')"
     if [ "$server_ip" = "$dns_ip" ]; then
-        certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect --hsts \
-            || certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect --hsts
+        if [ "$(echo "$DOMAIN" | tr -cd . | wc -c)" -le 2 ] && getent ahostsv4 "www.$DOMAIN" >/dev/null 2>&1; then
+            certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect --hsts \
+                || certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect --hsts
+        else
+            certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect --hsts
+        fi
+        nginx -t && systemctl reload nginx
     else
         echo "!! $DOMAIN points to '${dns_ip:-nothing}', this server is $server_ip - HTTPS skipped."
         echo "   After updating DNS, run again: sudo ./deploy/install.sh $DOMAIN $EMAIL"

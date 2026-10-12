@@ -27,8 +27,8 @@ RUN go build -o the-channel .
 
 FROM debian:bookworm-slim
 WORKDIR /app
-COPY certs/ /usr/local/share/ca-certificates/extra/
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+# Runtime image: system CAs only (extra proxy CAs from ./certs are trusted by the build stages above, never shipped).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder2 /app/the-channel .
 COPY --from=builder2 /app/assets ./assets
 COPY --from=builder1 /app/dist/channel/browser /usr/share/ng

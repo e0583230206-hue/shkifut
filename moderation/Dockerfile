@@ -11,6 +11,8 @@ ENV PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
 WORKDIR /app
 COPY moderation/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# The extra CAs were only needed to download packages: do not ship them in the image.
+RUN rm -rf /usr/local/share/ca-certificates/extra && update-ca-certificates --fresh
 COPY moderation/app/ .
 
 # Runs unprivileged: originals are mounted read-only, output goes to /blurred (named volume, initialised from this dir).
