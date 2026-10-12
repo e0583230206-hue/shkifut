@@ -111,10 +111,10 @@ else
     "${COMPOSE[@]}" up -d --build
 fi
 for _ in $(seq 1 60); do
-    curl -fsS "http://127.0.0.1:$PORT/api/channel/info" >/dev/null 2>&1 && break
+    curl -fsS "http://127.0.0.1:$PORT/login" >/dev/null 2>&1 && break
     sleep 3
 done
-curl -fsS "http://127.0.0.1:$PORT/api/channel/info" >/dev/null && echo "app is up on 127.0.0.1:$PORT" || { "${COMPOSE[@]}" logs --tail 50; echo "app did not start"; exit 1; }
+curl -fsS "http://127.0.0.1:$PORT/login" >/dev/null && echo "app is up on 127.0.0.1:$PORT" || { "${COMPOSE[@]}" logs --tail 50; echo "app did not start"; exit 1; }
 
 step "6/7 nginx site for $DOMAIN"
 BACKUP_DIR=/root/nginx-backups; mkdir -p "$BACKUP_DIR"
