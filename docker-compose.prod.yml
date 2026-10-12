@@ -6,6 +6,8 @@ services:
   redis:
     image: apache/kvrocks:2.17.0
     restart: unless-stopped
+    mem_limit: ${REDIS_MEM:-256m}
+    oom_score_adj: 200          # on a shared server the kernel stops these containers before other services
     user: root
     command: -c /kvrocks.conf
     volumes:
@@ -44,6 +46,7 @@ services:
     # 2 vCPU / 2GB server: 1 CPU and 600m, leaving the rest to nginx, the Node apps and WAHA.
     cpus: ${MODERATION_CPUS:-3}
     mem_limit: ${MODERATION_MEM:-1500m}
+    oom_score_adj: 500          # first to be stopped if the server runs out of memory
     volumes:
       - ./channel_data:/files:ro
       - blurred:/blurred
@@ -70,6 +73,7 @@ services:
     ports:
       - "127.0.0.1:${APP_PORT:-8090}:3000"
     mem_limit: 512m
+    oom_score_adj: 300
     volumes:
       - ./channel_data:/app/files
       - blurred:/app/blurred:ro
