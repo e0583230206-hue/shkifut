@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -62,8 +63,23 @@ func staticCache(next http.Handler) http.Handler {
 
 // oauthRedirectURL is the redirect URI registered in the Google console: <origin>/login.
 func oauthRedirectURL(r *http.Request) string {
+	// Through an SSH tunnel (deploy/tunnel.ps1) the browser is on http://localhost:<port>; Google only accepts the
+	// redirect URIs registered in its console, so a loopback origin is passed through and anything else is ignored.
+	if o := r.Header.Get("Origin"); publicURL != "" && isLoopbackOrigin(o) {
+		return o + "/login"
+	}
 	if publicURL != "" {
 		return publicURL + "/login"
 	}
 	return r.Header.Get("Origin") + "/login"
+}
+
+// isLoopbackOrigin: exactly http://localhost[:port] or http://127.0.0.1[:port] (no path, no userinfo).
+func isLoopbackOrigin(o string) bool {
+	u, err := url.Parse(o)
+	if err != nil || u.Scheme != "http" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return false
+	}
+	h := u.Hostname()
+	return h == "localhost" || h == "127.0.0.1"
 }
