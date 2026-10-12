@@ -42,8 +42,13 @@ func addNewPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(body.Text) == "" {
+	if strings.TrimSpace(body.Text) == "" && body.Poll == nil {
 		http.Error(w, "text is required", http.StatusBadRequest)
+		return
+	}
+	pollDef, err := pollFor(&body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -62,6 +67,10 @@ func addNewPost(w http.ResponseWriter, r *http.Request) {
 	message.Views = 0
 	message.IsAds = body.IsAds
 	message.Topic = body.Topic // topic id or name; unknown names are ignored
+	if err = storePoll(ctx, &message, pollDef); err != nil {
+		http.Error(w, "error", http.StatusInternalServerError)
+		return
+	}
 
 	if err = setMessage(ctx, &message, false); err != nil {
 		log.Printf("Failed to set new message: %v", err)

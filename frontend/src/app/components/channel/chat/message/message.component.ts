@@ -18,6 +18,7 @@ import { ChatMessage, ChatService } from '../../../../services/chat.service';
 import { AdminService } from '../../../../services/admin.service';
 import { AuthService } from '../../../../services/auth.service';
 import { ReportComponent } from './report/report.component';
+import { PollComponent } from './poll/poll.component';
 import { MediaModerationService } from '../../../../services/media-moderation.service';
 import { Subscription } from 'rxjs';
 import { groupImageEmbeds } from '../../../../gallery';
@@ -33,7 +34,8 @@ import { groupImageEmbeds } from '../../../../gallery';
     NbPopoverModule,
     NgbPopoverModule,
     NbChatModule,
-    NbUserModule
+    NbUserModule,
+    PollComponent
   ],
   templateUrl: './message.component.html',
   styleUrl: './message.component.scss'

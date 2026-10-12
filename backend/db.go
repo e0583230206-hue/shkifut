@@ -33,6 +33,7 @@ type Message struct {
 	Reactions Reactions    `json:"reactions" redis:"reactions"`
 	IsAds     bool         `json:"is_ads" redis:"is_ads"`
 	Topic     string       `json:"topic,omitempty" redis:"topic"`
+	Poll      *Poll        `json:"poll,omitempty" redis:"-"` // stored separately (polls.go)
 }
 
 type User struct {

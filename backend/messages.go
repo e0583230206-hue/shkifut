@@ -40,6 +40,7 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
+	attachPolls(ctx, messages)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(messages)
@@ -64,6 +65,11 @@ func addMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusBadRequest)
 		return
 	}
+	pollDef, err := pollFor(&body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	message.ID = getMessageNextId(ctx)
 	message.Type = body.Type
@@ -75,6 +81,10 @@ func addMessage(w http.ResponseWriter, r *http.Request) {
 	message.Views = 0
 	message.IsAds = body.IsAds
 	message.Topic = body.Topic
+	if err = storePoll(ctx, &message, pollDef); err != nil {
+		http.Error(w, "error", http.StatusInternalServerError)
+		return
+	}
 
 	if err = setMessage(ctx, &message, false); err != nil {
 		log.Printf("Failed to set new message: %v\n", err)
@@ -104,6 +114,7 @@ func updateMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body.LastEdit = time.Now()
+	body.Poll = dbGetPoll(ctx, body.ID) // polls are never changed by an edit; send the real results
 
 	if err := setMessage(ctx, &body, true); err != nil {
 		response := Response{Success: false}

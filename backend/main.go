@@ -79,6 +79,8 @@ func main() {
 		r.Use(checkLogin)
 		r.Post("/api/reactions/set-reactions", setReactions)
 		r.Post("/api/messages/report", reportMessage)
+		r.Post("/api/polls/vote", votePoll)
+		r.Get("/api/polls/mine", myVotes)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -108,6 +110,7 @@ func main() {
 				protected.Get("/delete-message/{id}", protectedWithPrivilege(Writer, deleteMessage))
 				protected.Post("/pin", protectedWithPrivilege(Writer, setPinned))
 				protected.Post("/topics", protectedWithPrivilege(Moderator, setTopics))
+				protected.Post("/polls/close", protectedWithPrivilege(Writer, closePoll))
 				protected.Post("/upload", protectedWithPrivilege(Writer, uploadFile))
 				protected.Get("/scheduled-messages/get", protectedWithPrivilege(Writer, getScheduledMessages))
 				protected.Post("/scheduled-messages/update", protectedWithPrivilege(Writer, updateScheduledMessages))

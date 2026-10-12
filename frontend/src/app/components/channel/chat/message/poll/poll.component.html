@@ -1,0 +1,39 @@
+<div class="poll" role="group" [attr.aria-label]="'סקר: ' + poll.question">
+  <div class="poll-question">📊 {{ poll.question }}</div>
+  <small class="text-muted d-block mb-1">
+    {{ poll.multiple ? 'אפשר לבחור כמה תשובות' : 'בחירה אחת' }}{{ poll.closed ? ' · הסקר סגור' : '' }}
+  </small>
+  @for (o of poll.options; track $index; let i = $index) {
+  <button type="button" class="poll-option" [class.mine]="mine.includes(i)" [class.selected]="selection.has(i)"
+    [disabled]="!canVote || busy" (click)="choose(i)"
+    [attr.aria-pressed]="poll.multiple ? selection.has(i) : mine.includes(i)">
+    @if (showResults) {
+    <span class="poll-bar" [style.width.%]="percent(o.count)"></span>
+    }
+    <span class="poll-text">
+      @if (poll.multiple && canVote) {
+      <span class="poll-check" aria-hidden="true">{{ selection.has(i) ? '☑' : '☐' }}</span>
+      }
+      {{ o.text }}
+      @if (mine.includes(i)) {
+      <span class="poll-mine" aria-label="ההצבעה שלך">✓</span>
+      }
+    </span>
+    @if (showResults) {
+    <span class="poll-percent">{{ percent(o.count) }}%</span>
+    }
+  </button>
+  }
+  <div class="poll-footer">
+    <small class="text-muted poll-voters">{{ poll.voters || 0 }} הצביעו</small>
+    @if (poll.multiple && canVote && selection.size) {
+    <button type="button" class="poll-action poll-submit" (click)="submitMultiple()" [disabled]="busy">הצבע</button>
+    }
+    @if (mine.length && canVote) {
+    <button type="button" class="poll-action poll-retract" (click)="retract()" [disabled]="busy">בטל הצבעה</button>
+    }
+    @if (isWriter && !preview) {
+    <button type="button" class="poll-action poll-close" (click)="toggleClosed()">{{ poll.closed ? 'פתח מחדש' : 'סגור סקר' }}</button>
+    }
+  </div>
+</div>

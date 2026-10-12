@@ -24,6 +24,8 @@ import { Attachment, ChatFile, ChatMessage, ChatService } from '../../../../serv
 import { AdminService, EditMsg } from '../../../../services/admin.service';
 import { AutosizeModule } from "ngx-autosize";
 import { TimePickerComponent } from './time-picker/time-picker.component';
+import { PollEditorComponent } from './poll-editor/poll-editor.component';
+import { Poll } from '../../../../services/chat.service';
 
 @Component({
   selector: 'app-input-form',
@@ -57,6 +59,8 @@ export class InputFormComponent implements OnInit, OnDestroy {
 
   input: string = '';
   isAds: boolean = false;
+  /** Poll to publish with the next new message. */
+  poll?: Poll;
   /** Topic id of the message being written ('' = none). */
   topic: string = '';
   schedulingMessage: Date | undefined = undefined;
@@ -189,7 +193,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
         return;
       }
 
-      if (!this.input.trim() && !this.attachments.length) {
+      if (!this.input.trim() && !this.attachments.length && !this.poll) {
         this.toastrService.danger("", "לא ניתן לפרסם הודעה ריקה");
         this.isSending = false;
         return;
@@ -235,6 +239,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
       is_ads: this.isAds,
       timestamp: this.schedulingMessage || undefined,
       topic: this.topic,
+      poll: this.poll,
     };
 
     try {
@@ -263,6 +268,7 @@ export class InputFormComponent implements OnInit, OnDestroy {
       file: undefined,
       is_ads: this.isAds,
       topic: this.topic,
+      poll: this.poll,
     };
 
     this.message = await firstValueFrom(this.adminService.addMessage(newMessage));
@@ -279,9 +285,16 @@ export class InputFormComponent implements OnInit, OnDestroy {
     this.attachments = [];
     this.message = undefined;
     this.isAds = false;
+    this.poll = undefined;
     this.topic = this.chatService.selectedTopic;
     this.schedulingMessage = undefined;
     this.adminService.setEditMessage(undefined);
+  }
+
+  openPollEditor() {
+    this.dialogService.open(PollEditorComponent, { closeOnBackdropClick: false }).onClose.subscribe((poll?: Poll) => {
+      if (poll) this.poll = poll;
+    });
   }
 
   removeAttachment(attachment: Attachment) {

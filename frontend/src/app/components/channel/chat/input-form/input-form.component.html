@@ -3,6 +3,15 @@
     <nb-alert status="danger">ההודעה מחוקה ומוסתרת! אישור עריכת ההודעה יפרסם אותה מחדש.</nb-alert>
     }
     <div class="d-flex flex-row flex-wrap">
+        @if (poll) {
+        <div class="d-flex flex-row rounded-5 bg-primary-subtle text-primary align-items-center p-1 ms-1 pending-poll"
+            style="border-style: solid; border-width: 0.06rem;">
+            <small class="m-1">📊 סקר: {{ poll.question }} ({{ poll.options.length }} תשובות)</small>
+            <button nbButton ghost status="primary" style="padding: 0" (click)="poll = undefined" title="הסר סקר" aria-label="הסר סקר">
+                <nb-icon icon="close"></nb-icon>
+            </button>
+        </div>
+        }
         @for (attachment of attachments; track attachment) {
         <div class="d-flex flex-row rounded-5 bg-primary-subtle text-primary align-items-center p-1 ms-1"
             style="border-style: solid; border-width: 0.06rem;">
@@ -38,6 +47,11 @@
         <button nbButton ghost shape="round" title="צרף קובץ" (click)="fileInput.click()" class="toolbar-button">
             <ng-icon name="heroPaperClip" class="toolbar-icon"></ng-icon>
         </button>
+        @if (message?.id == undefined) {
+        <button nbButton ghost shape="round" title="הוסף סקר" aria-label="הוסף סקר" (click)="openPollEditor()" class="toolbar-button poll-button">
+          <nb-icon icon="bar-chart-2-outline" class="toolbar-icon"></nb-icon>
+        </button>
+        }
         <button nbButton ghost shape="round" title="עזרה לmarkdown" (click)="openMarkdownDocs()" class="toolbar-button">
             <ng-icon name="heroQuestionMarkCircle" class="toolbar-icon"></ng-icon>
         </button>

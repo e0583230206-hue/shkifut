@@ -73,6 +73,9 @@
         <div class="m-2" #media>
           <markdown [data]="displayText" [disableSanitizer]="true" (click)="viewLargeImage($event)" (ready)="decorateMedia()">
           </markdown>
+          @if (message.poll) {
+          <app-poll [poll]="message.poll" [messageId]="message.id" [preview]="isSchedulingMessage"></app-poll>
+          }
         </div>
         <div class="d-flex justify-content-between align-items-center mx-2 gap-2 mb-1">
           @if (message.views) {

@@ -207,6 +207,29 @@ for (const m of [withTopic, noTopic]) if (m?.id) await evaluate(`fetch('/api/adm
 await api('/api/admin/topics', origTopics || []);
 check('topics: original topics restored', JSON.stringify(await evaluate(`fetch('/api/topics').then(r => r.json())`)) === JSON.stringify(origTopics || []));
 
+// --- polls: vote, results, withdraw; composer poll editor
+console.log('step: polls');
+const pollMsg = await api('/api/admin/new', { type: 'md', text: '', poll: { question: 'שאלת בדיקה', options: [{ text: 'אחת' }, { text: 'שתיים' }, { text: 'שלוש' }], multiple: false } });
+await go('/', 6000);
+const psel = `document.getElementById('${pollMsg?.id}')?.querySelector('app-poll')`;
+check('polls: poll renders with its options', await waitFor(`${psel}?.querySelectorAll('.poll-option').length === 3`));
+await evaluate(`${psel}.querySelectorAll('.poll-option')[1].click()`);
+check('polls: voting marks my choice and counts the vote', await waitFor(`${psel}.querySelectorAll('.poll-option')[1].classList.contains('mine') && ${psel}.querySelector('.poll-voters').textContent.trim().startsWith('1')`));
+check('polls: results shown after voting (100% on my choice)', await evaluate(`${psel}.querySelectorAll('.poll-percent')[1]?.textContent.trim() === '100%'`));
+await evaluate(`${psel}.querySelector('.poll-retract').click()`);
+check('polls: withdrawing the vote', await waitFor(`${psel}.querySelector('.poll-voters').textContent.trim().startsWith('0') && !${psel}.querySelector('.poll-option.mine')`));
+if (pollMsg?.id) await evaluate(`fetch('/api/admin/delete-message/${pollMsg.id}')`);
+
+await evaluate(`document.querySelector('app-input-form .poll-button')?.click()`);
+check('composer: poll editor opens', await waitFor(`!!document.querySelector('#poll-question')`));
+await evaluate(`(() => { const set = (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+  set(document.querySelector('#poll-question'), 'שאלה מהעורך');
+  const opts = document.querySelectorAll('.poll-option-input'); set(opts[0], 'כן'); set(opts[1], 'לא');
+  document.querySelector('.poll-done').click(); })()`);
+check('composer: poll waits as a chip until sending', await waitFor(`!document.querySelector('#poll-question') && document.querySelector('app-input-form .pending-poll')?.textContent.includes('שאלה מהעורך')`));
+await evaluate(`document.querySelector('app-input-form .pending-poll button')?.click()`);
+check('composer: pending poll can be removed', await waitFor(`!document.querySelector('app-input-form .pending-poll')`));
+
 check('no native alert/confirm dialogs appeared', dialogs.length === 0, dialogs);
 ws.close();
 console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nALL PASSED');

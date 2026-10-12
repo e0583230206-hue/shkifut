@@ -21,6 +21,20 @@ export interface ChatMessage {
   reactions?: Reactions;
   is_ads?: boolean;
   topic?: string;
+  poll?: Poll;
+}
+
+export interface PollOption {
+  text: string;
+  count: number;
+}
+
+export interface Poll {
+  question: string;
+  options: PollOption[];
+  multiple: boolean;
+  closed?: boolean;
+  voters?: number;
 }
 
 export interface Topic {
@@ -144,6 +158,39 @@ export class ChatService {
 
   selectTopic(id: string) {
     if (id !== this.topic.value) this.topic.next(id);
+  }
+
+  // --- polls
+  private voteRequests = new Map<number, ((v: number[]) => void)[]>();
+  private voteTimer?: ReturnType<typeof setTimeout>;
+
+  /** The current user's choice in a poll (requests are batched into one call). */
+  myVote(messageId: number): Promise<number[]> {
+    return new Promise(resolve => {
+      const waiting = this.voteRequests.get(messageId) ?? [];
+      waiting.push(resolve);
+      this.voteRequests.set(messageId, waiting);
+      clearTimeout(this.voteTimer);
+      this.voteTimer = setTimeout(() => this.flushMyVotes(), 60);
+    });
+  }
+
+  private async flushMyVotes() {
+    const batch = new Map(this.voteRequests);
+    this.voteRequests.clear();
+    let votes: Record<string, number[]> = {};
+    try {
+      votes = await firstValueFrom(this.http.get<Record<string, number[]>>('/api/polls/mine', { params: { ids: [...batch.keys()].join(',') } }));
+    } catch { /* not logged in */ }
+    batch.forEach((resolvers, id) => resolvers.forEach(res => res(votes[id] ?? [])));
+  }
+
+  vote(messageId: number, options: number[]): Promise<{ poll: Poll; mine: number[] }> {
+    return firstValueFrom(this.http.post<{ poll: Poll; mine: number[] }>('/api/polls/vote', { messageId, options }));
+  }
+
+  closePoll(messageId: number, closed: boolean): Promise<{ poll: Poll }> {
+    return firstValueFrom(this.http.post<{ poll: Poll }>('/api/admin/polls/close', { messageId, closed }));
   }
 
   async saveTopics(list: Topic[]): Promise<Topic[]> {

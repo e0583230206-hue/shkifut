@@ -31,6 +31,11 @@ func init() {
 						m.Timestamp = time.Now()
 						m.Author = "Scheduled"
 						m.AuthorId = "0"
+						if def, err := pollFor(m); err == nil {
+							storePoll(ctx, m, def)
+						} else {
+							m.Poll = nil // an invalid poll is dropped, the message is still published
+						}
 						setMessage(ctx, m, false)
 						go SendWebhook(context.Background(), "create", m)
 						go pushFcmMessage(m)

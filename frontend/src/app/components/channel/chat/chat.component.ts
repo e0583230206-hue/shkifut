@@ -265,6 +265,12 @@ export class ChatComponent implements OnInit, OnDestroy {
         case 'heartbeat':
           this.lastHeartbeat = Date.now();
           break;
+        case 'poll':
+          this.zone.run(() => {
+            const m = this.messages.find(x => x.id === message.messageId);
+            if (m) m.poll = message.poll;
+          });
+          break;
         case 'topics':
           this.zone.run(() => this.chatService.loadTopics());
           break;
