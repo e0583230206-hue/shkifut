@@ -39,10 +39,10 @@ export class LoginComponent implements OnInit {
             this.code = params['code'];
             this._authService.login(this.code).then(() => {
               this.router.navigate(['/']);
-            }).catch(() => {
+            }).catch((err) => {
               this.code = '';
               this.status = 'failed';
-              alert('התחברות נכשלה, נסה שוב');
+              alert(err?.status === 403 ? 'החשבון הזה לא מורשה להיכנס לאתר. פנו למנהל האתר.' : 'התחברות נכשלה, נסה שוב');
             });
           }
         }

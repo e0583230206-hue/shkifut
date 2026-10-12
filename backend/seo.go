@@ -205,6 +205,10 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 
 func serveRobots(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if privateSite {
+		fmt.Fprint(w, "User-agent: *\nDisallow: /\n")
+		return
+	}
 	fmt.Fprintf(w, "User-agent: *\nDisallow: /api/\nDisallow: /auth/\nDisallow: /login\nAllow: /api/files/\n\nSitemap: %s/sitemap.xml\n", baseURL(r))
 }
 

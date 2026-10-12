@@ -14,13 +14,15 @@ services:
       - ./kvrocks.conf:/kvrocks.conf:ro
 
   moderation:
+    # Built on the developer computer and loaded on the server (deploy/upload.ps1), or built here.
+    image: thechannel-moderation:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: moderation/Dockerfile
     restart: unless-stopped
     environment:
-      THREADS: "3"
-      FFMPEG_THREADS: "3"
+      THREADS: "${MODERATION_THREADS:-3}"
+      FFMPEG_THREADS: "${MODERATION_THREADS:-3}"
       BOX_MARGIN: "0.15"
       BEST_SIGHTINGS: "3"
       FACE_TILING: "0"
@@ -38,15 +40,17 @@ services:
       timeout: 5s
       start_period: 60s
       start_interval: 2s
-    # 4 vCPU / 8GB server: leave one core and most memory to nginx, the Node apps and WAHA.
-    cpus: 3
-    mem_limit: 1500m
+    # Limits from .env (MODERATION_CPUS / MODERATION_MEM). Defaults suit a 4 vCPU / 8GB server; on the
+    # 2 vCPU / 2GB server: 1 CPU and 600m, leaving the rest to nginx, the Node apps and WAHA.
+    cpus: ${MODERATION_CPUS:-3}
+    mem_limit: ${MODERATION_MEM:-1500m}
     volumes:
       - ./channel_data:/files:ro
       - blurred:/blurred
       - ./moderation_models:/models:ro
 
   backend:
+    image: thechannel-backend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile

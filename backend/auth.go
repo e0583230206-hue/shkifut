@@ -109,6 +109,11 @@ func login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email, _ := dyno.GetString(payload.Claims["email"])
+	if !isAllowedEmail(email) {
+		log.Printf("login refused for %q: not in ALLOWED_EMAILS", email)
+		http.Error(w, "account not allowed", http.StatusForbidden)
+		return
+	}
 	go registeringEmail(email)
 
 	u, err := getUser(ctx, payload.Claims)
@@ -165,6 +170,10 @@ func devLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !isAllowedEmail(email) {
+		http.Error(w, "account not allowed", http.StatusForbidden)
+		return
+	}
 	claims := map[string]any{
 		"email": email,
 		"name":  strings.Split(email, "@")[0],

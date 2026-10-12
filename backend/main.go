@@ -58,6 +58,7 @@ func main() {
 	r.Use(middleware.RealIP) // client IP from nginx (X-Real-IP); the backend only listens on localhost in production
 	r.Use(middleware.Logger)
 	r.Use(securityHeaders)
+	r.Use(privateAccess) // ALLOWED_EMAILS: closed site, enforced here for every route (access.go)
 
 	// Protected with api key
 	r.Post("/api/import/post", addNewPost)
