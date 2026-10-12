@@ -28,6 +28,9 @@ services:
       - .env
     environment:
       MODERATION_URL: http://moderation:8000
+      # Behind a filtering proxy (NetFree) that re-signs HTTPS: also trust the extra root CAs in ./certs
+      # (added to the system roots, nothing is disabled). The shipped image itself contains none of them.
+      SSL_CERT_DIR: /usr/local/share/extra-ca
     ports:
       - "127.0.0.1:8080:3000"
     volumes:
@@ -36,6 +39,7 @@ services:
       - kvrocks_sock:/app/data
       - ./logs:/app/logs
       - ./training:/app/training     # moderator corrections (crop + label) for training a model later
+      - ./certs:/usr/local/share/extra-ca:ro
 
   moderation:
     build:

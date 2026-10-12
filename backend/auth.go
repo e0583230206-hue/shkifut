@@ -102,8 +102,20 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	tokenStr, _ := dyno.GetString(token.Extra("id_token"))
 	tokenValidator, err := idtoken.NewValidator(ctx)
+	if err != nil {
+		go saveLoginFailedLog("NewValidator", err)
+		http.Error(w, "error", http.StatusInternalServerError)
+		return
+	}
+	if tokenStr == "" {
+		go saveLoginFailedLog("Validate", errors.New("Google returned no id_token (check the requested scopes)"))
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
 	payload, err := tokenValidator.Validate(ctx, tokenStr, googleOAuthClientId)
 	if err != nil {
+		// Typical causes: the server cannot verify Google's TLS certificate (a filtering proxy such as NetFree), or a wrong clock.
+		go saveLoginFailedLog("Validate", err)
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
