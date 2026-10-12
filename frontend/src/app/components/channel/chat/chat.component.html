@@ -27,10 +27,10 @@
     @for (message of messages; track message) {
     <nb-list-item class="d-flex flex-column align-items-start">
       <!-- last read indicator -->
-      @if (message.id === lastReadMessageId + 1) {
-      <div class="last-read-indicator">
+      @if (message.id === firstUnreadId) {
+      <div class="last-read-indicator" id="unread-divider">
         <div class="line"></div>
-        <div class="last-read-indicator-text">לא נקראו</div>
+        <div class="last-read-indicator-text">הודעות שלא נקראו</div>
         <div class="line"></div>
       </div>
       }
@@ -69,7 +69,10 @@
     <button nbButton status="primary" shape="round" class="shadow" (click)="scrollToBottom()">
       <nb-icon icon="arrow-downward-outline"></nb-icon>
     </button>
-    @if (thereNewMessages) {
+    @if (unreadCount > 0) {
+    <nb-badge [text]="unreadCount > 99 ? '99+' : '' + unreadCount" status="danger" class="unread-count"
+      [attr.aria-label]="unreadCount + ' הודעות שלא נקראו'"></nb-badge>
+    } @else if (thereNewMessages) {
     <nb-badge [dotMode]="true" status="danger"></nb-badge>
     }
   </div>

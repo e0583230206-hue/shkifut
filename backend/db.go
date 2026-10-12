@@ -182,7 +182,7 @@ var getMessageRange = redis.NewScript(`
 	local messages = {}
 	repeat
 		local batch_size = required_length - #messages
-		local stop_index = start_index + batch_size
+		local stop_index = start_index + batch_size - 1 -- ZRANGE bounds are inclusive
 		local message_ids
 		
 		if direction == 'asc' then

@@ -48,3 +48,7 @@ nb-list-item:first-child {
   width: 100%;
   background-color: #6a6fff;
 }
+/* "Unread" jump lands below the fixed header and the pinned bar */
+:host ::ng-deep app-message {
+  scroll-margin-top: 150px;
+}

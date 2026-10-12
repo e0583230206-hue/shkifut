@@ -91,6 +91,30 @@ await evaluate(`document.querySelector('.search-result').click()`);
 check('search: choosing a result closes the dialog and highlights the message',
   await waitFor(`!document.querySelector('#search-input') && !!document.querySelector('.mark_message')`, 8000));
 
+// --- returning reader: opens at the first unread message
+console.log('step: last read position');
+const recent = await evaluate(`fetch('/api/messages?offset=0&limit=10&direction=desc').then(r => r.json()).then(a => a.map(m => m.id))`);
+if ((recent || []).length >= 6) {
+  await evaluate(`localStorage.setItem('lastReadMessage', '${recent[4]}')`); // 4 unread
+  await go('/', 6000);
+  check('last read: "unread" divider right before the first unread message',
+    await waitFor(`document.getElementById('unread-divider')?.closest('nb-list-item')?.querySelector('app-message')?.id === '${recent[3]}'`),
+    await evaluate(`document.getElementById('unread-divider')?.closest('nb-list-item')?.querySelector('app-message')?.id`));
+  check('last read: the page opens at the divider (on screen)',
+    await evaluate(`(() => { const r = document.getElementById('unread-divider')?.getBoundingClientRect(); return !!r && r.top >= 0 && r.top < window.innerHeight; })()`));
+  // Bring the newest message on screen (layout-agnostic: headless Chromium here lays the list out
+  // top-down, real browsers bottom-up). Seen -> read.
+  await evaluate(`document.getElementById('${recent[0]}')?.scrollIntoView({ block: 'center' }); window.dispatchEvent(new Event('scroll'))`);
+  check('last read: seeing the newest message marks everything read', await waitFor(`localStorage.getItem('lastReadMessage') === '${recent[0]}'`, 6000),
+    await evaluate(`localStorage.getItem('lastReadMessage')`));
+  await evaluate(`localStorage.removeItem('lastReadMessage')`);
+  await go('/', 5000);
+  check('first visit: opens at the newest message without a divider',
+    await waitFor(`localStorage.getItem('lastReadMessage') === '${recent[0]}' && !document.getElementById('unread-divider')`));
+} else {
+  check('last read: needs at least 6 messages in the channel', false, (recent || []).length);
+}
+
 // --- admin: panel tabs
 console.log('step: admin');
 await go('/auth/dev-login', 6000);

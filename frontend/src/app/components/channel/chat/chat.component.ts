@@ -23,6 +23,7 @@ import { MediaModerationService } from '../../../services/media-moderation.servi
 import { Ad, AdsService } from '../../../services/ads.service';
 import { AdvertisingComponent } from '../advertising/advertising.component';
 import { PinnedBarComponent } from './pinned-bar/pinned-bar.component';
+import { firstUnreadId, newestVisibleId, unreadCount } from '../../../read-position';
 
 type LoadMsgOpt = {
   scrollDown?: boolean;
@@ -35,6 +36,7 @@ type ScrollOpt = {
   messageId: number;
   smooth?: boolean;
   mark?: boolean;
+  block?: ScrollLogicalPosition;
 }
 
 @Component({
@@ -71,7 +73,18 @@ export class ChatComponent implements OnInit, OnDestroy {
   showScrollToBottom: boolean = false;
   private lastHeartbeat: number = Date.now();
   private subLastHeartbeat: any;
+  /** Last message read when the channel was opened (fixed for this visit: where the "unread" divider goes). */
   lastReadMessageId: number = 0;
+  /** Newest message actually seen on screen (persisted). */
+  private storedLastRead: number = Number(localStorage.getItem('lastReadMessage')) || 0;
+
+  get firstUnreadId(): number | undefined {
+    return firstUnreadId(this.messages.map(m => m.id!), this.lastReadMessageId);
+  }
+
+  get unreadCount(): number {
+    return unreadCount(this.messages.filter(m => !m.deleted).map(m => m.id!), this.storedLastRead);
+  }
 
   constructor(
     private chatService: ChatService,
@@ -110,7 +123,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   scrollToId(opt: ScrollOpt) {
     const element = document.getElementById(opt.messageId.toString());
     if (element) {
-      element.scrollIntoView({ behavior: opt.smooth ? 'smooth' : 'instant', block: 'center' });
+      element.scrollIntoView({ behavior: opt.smooth ? 'smooth' : 'instant', block: opt.block ?? 'center' });
       this.removeMsgMarked();
       opt.mark && element.classList.add('mark_message');
     } else {
@@ -155,24 +168,41 @@ export class ChatComponent implements OnInit, OnDestroy {
       this.notificationService.init();
     });
 
+    // Open where the reader left off: at the first unread message (with a divider), or at the bottom.
     this.loadMessages().then(() => {
-      const lastReadMsg = Number(localStorage.getItem('lastReadMessage'));
-      const lastMsgId = this.messages[0].id!;
-      if (lastReadMsg && lastReadMsg < lastMsgId) {
+      const lastRead = this.storedLastRead;
+      const newest = this.messages[0]?.id ?? 0;
+      if (lastRead && lastRead < newest) {
+        this.lastReadMessageId = lastRead;
         setTimeout(() => {
-          this.scrollToId({ messageId: lastReadMsg, smooth: false, mark: false });
-          this.lastReadMessageId = lastReadMsg;
+          const first = this.firstUnreadId;
+          // not loaded yet (left off long ago): load around the last read message
+          this.scrollToId({ messageId: first ?? lastRead, smooth: false, mark: false, block: first ? 'start' : 'center' });
+          setTimeout(() => this.markVisibleAsRead(), 300);
         }, 200);
       } else {
         this.scrollToBottom(false);
+        if (!lastRead && newest) this.setLastReadMessage(newest); // first visit: start from now
       }
-
-      this.setLastReadMessage(lastMsgId.toString());
     });
   }
 
-  async setLastReadMessage(id: string) {
-    localStorage.setItem('lastReadMessage', id);
+  setLastReadMessage(id: number) {
+    if (id > this.storedLastRead) {
+      this.storedLastRead = id;
+      localStorage.setItem('lastReadMessage', String(id));
+    }
+  }
+
+  /** A message counts as read once it has been on screen. */
+  markVisibleAsRead() {
+    const headerBottom = document.querySelector('nb-layout-header')?.getBoundingClientRect().bottom ?? 0;
+    const items = this.messages.map(m => {
+      const r = document.getElementById(String(m.id))?.getBoundingClientRect();
+      return { id: m.id!, top: r?.top ?? -1, bottom: r?.bottom ?? -1 };
+    });
+    const seen = newestVisibleId(items, headerBottom, window.innerHeight);
+    if (seen) this.setLastReadMessage(seen);
   }
 
   private async initializeMessageListener() {
@@ -188,7 +218,7 @@ export class ChatComponent implements OnInit, OnDestroy {
           this.zone.run(() => {
             this.messages.unshift(message.message);
             this.thereNewMessages = !(message.message.author === this.userInfo?.username);
-            this.setLastReadMessage(message.message.id!.toString());
+            setTimeout(() => this.markVisibleAsRead(), 300); // read only if it is actually on screen
             if (this.userInfo?.privileges?.['writer'] && this.scheduledMessages && message.message.author === "Scheduled") {
               this.loadScheduledMessages(true);
             }
@@ -259,6 +289,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   onListScroll() {
+    this.markVisibleAsRead();
     const distanceFromBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
     this.showScrollToBottom = distanceFromBottom > 100;
     if (distanceFromBottom < 10) {
