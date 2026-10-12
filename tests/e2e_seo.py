@@ -89,7 +89,7 @@ try:
     body = (f"--{bnd}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"seo.png\"\r\n"
             f"Content-Type: image/png\r\n\r\n").encode() + png() + f"\r\n--{bnd}--\r\n".encode()
     up = post("/api/admin/upload", None, raw=body, headers={"Content-Type": "multipart/form-data; boundary=" + bnd})
-    text = f'**ידיעה חשובה** על "בדיקת SEO" <script>alert(1)</script>\n[image-embedded#]({up["url"]})'
+    text = f'**ידיעה חשובה** על "בדיקת SEO" <u>מודגש</u> <script>alert(1)</script>\n[image-embedded#]({up["url"]})'
     msg = post("/api/admin/new", {"type": "md", "text": text})
     created.append(msg["id"])
     st, html, _ = get(f"/m/{msg['id']}")
@@ -98,7 +98,9 @@ try:
     check("message page: og:type article", meta(html, "og:type") == "article")
     check("message page: og:image is the message image", (meta(html, "og:image") or "").endswith(up["url"]), meta(html, "og:image"))
     check("message page: text for crawlers without JS (<noscript>)", "<noscript><article>" in html)
-    check("message page: injected HTML is escaped", "<script>alert" not in html and "&lt;script" in html)
+    # HTML in a message never reaches the page: tags are stripped from the text (then the rest is escaped)
+    check("message page: injected HTML never reaches the page", "<script>alert" not in html and "&lt;script" not in html)
+    check("message page: formatting tags (<u>) do not leak into the title", "u&gt;" not in (title(html) or "") and "מודגש" in (title(html) or ""), title(html))
 
     st, sm, _ = get("/sitemap.xml")
     check("sitemap lists the message", st == 200 and f"/m/{msg['id']}</loc>" in sm)
