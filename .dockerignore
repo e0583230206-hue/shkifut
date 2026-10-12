@@ -14,3 +14,4 @@ frontend/.angular/
 frontend/dist/
 backend/__debug*
 .git/
+client_secret*.json

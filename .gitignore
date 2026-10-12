@@ -36,3 +36,6 @@ tests/ui/.settings_backup.json
 tests/ui/.last_run.log
 tests/media/
 training/
+
+# Google OAuth client file downloaded from the console (contains the client secret)
+client_secret*.json
