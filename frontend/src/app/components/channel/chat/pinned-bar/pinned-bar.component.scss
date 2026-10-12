@@ -1,0 +1,49 @@
+.pinned-bar {
+  position: sticky;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0.5rem 0.25rem;
+  padding: 0.35rem 0.75rem;
+  background: #fff;
+  border-inline-start: 3px solid #3366ff;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+
+.pin-marks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  span {
+    width: 3px;
+    height: 8px;
+    border-radius: 2px;
+    background: #c5cee0;
+
+    &.active {
+      background: #3366ff;
+    }
+  }
+}
+
+.pin-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.pin-title {
+  color: #3366ff;
+  font-weight: 600;
+}
+
+.pin-snippet {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -127,6 +127,10 @@ func deleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if n, _ := rdb.ZRem(ctx, pinnedKey, id).Result(); n > 0 {
+		publishPinsChanged(ctx) // a deleted message cannot stay pinned
+	}
+
 	go SendWebhook(context.Background(), "delete", &message)
 
 	response := Response{Success: true}

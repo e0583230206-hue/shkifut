@@ -107,6 +107,27 @@ check('admin: contact inbox renders', await waitFor(`!!document.querySelector('a
 await evaluate(`[...document.querySelectorAll('admin-dashboard .menu-title')].find(e => e.textContent.trim() === 'הגדרות').click()`);
 check('admin: strictness level select in settings', await waitFor(`document.querySelectorAll('#moderation-level option').length === 3`));
 
+// --- pins and quotes (admin session): own test messages, removed at the end
+console.log('step: pins & quotes');
+const api = async (path, body) => evaluate(`fetch(${JSON.stringify(path)}, ${body ? `{method: 'POST', headers: {'Content-Type': 'application/json'}, body: ${JSON.stringify(JSON.stringify(body))}}` : '{}'}).then(r => r.json())`);
+const pinMarker = 'ui-pin-' + Math.random().toString(36).slice(2, 8);
+const pinMsg = await api('/api/admin/new', { type: 'md', text: `הודעה לנעיצה ${pinMarker}` });
+const quoteMsg = await api('/api/admin/new', { type: 'md', text: `[quote-embedded#](${pinMsg?.id}@ציטוט לבדיקה)
+תגובה לבדיקה ${pinMarker}` });
+await api('/api/admin/pin', { id: pinMsg?.id, pinned: true });
+await go('/', 6000);
+check('pins: bar shows the newest pin', await waitFor(`document.querySelector('app-pinned-bar .pin-snippet')?.textContent.includes(${JSON.stringify(pinMarker)})`));
+check('pins: pinned message carries the pin mark', await waitFor(`!!document.getElementById('${pinMsg?.id}')?.querySelector('.pinned-mark')`));
+await evaluate(`window.scrollTo(0, 0)`);
+await evaluate(`document.querySelector('app-pinned-bar .pinned-bar').click()`);
+check('pins: clicking the bar highlights the pinned message', await waitFor(`document.getElementById('${pinMsg?.id}')?.classList.contains('mark_message')`));
+await evaluate(`window.scrollTo(0, 0)`);
+await evaluate(`document.getElementById('${quoteMsg?.id}')?.querySelector('[quote-id]')?.click()`);
+check('quote: clicking a quote highlights the quoted message', await waitFor(`document.getElementById('${pinMsg?.id}')?.classList.contains('mark_message')`));
+await evaluate(`document.querySelector('app-pinned-bar .pin-close')?.click()`);
+check('pins: unpin from the bar removes the pin', await waitFor(`!document.getElementById('${pinMsg?.id}')?.querySelector('.pinned-mark')`));
+for (const m of [pinMsg, quoteMsg]) if (m?.id) await evaluate(`fetch('/api/admin/delete-message/${m.id}')`);
+
 check('no native alert/confirm dialogs appeared', dialogs.length === 0, dialogs);
 ws.close();
 console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nALL PASSED');

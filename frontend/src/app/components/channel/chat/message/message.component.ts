@@ -299,6 +299,17 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
     return date !== 1;
   }
 
+  async togglePin(message: ChatMessage) {
+    if (message.id == null) return;
+    const pin = !this.chatService.isPinned(message.id);
+    try {
+      await this.chatService.setPinned(message.id, pin);
+      this.toastrService.success('', pin ? 'ההודעה נעוצה' : 'הנעיצה בוטלה');
+    } catch (err: any) {
+      this.toastrService.danger('', err?.status === 409 ? 'אפשר לנעוץ עד 10 הודעות' : 'הפעולה נכשלה');
+    }
+  }
+
   copyLink(messageId?: number) {
     if (!messageId || this.isSchedulingMessage) return;
     const url = `${window.location.origin}/m/${messageId}`; // server adds a preview (title, image) for this address

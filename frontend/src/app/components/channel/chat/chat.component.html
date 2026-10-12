@@ -1,3 +1,4 @@
+<app-pinned-bar></app-pinned-bar>
 <div nbInfiniteList (scroll)="onListScroll()" [threshold]="300" [throttleTime]="1000" (topThreshold)="loadMessages()"
   (bottomThreshold)="loadMessages({ scrollDown: true })" [listenWindowScroll]="true">
   <nb-list class="flex-column-reverse" [class.hide-scheduled-messages]="hideScheduledMessages">

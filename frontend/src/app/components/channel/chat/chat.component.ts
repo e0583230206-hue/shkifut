@@ -22,6 +22,7 @@ import { AdminService } from '../../../services/admin.service';
 import { MediaModerationService } from '../../../services/media-moderation.service';
 import { Ad, AdsService } from '../../../services/ads.service';
 import { AdvertisingComponent } from '../advertising/advertising.component';
+import { PinnedBarComponent } from './pinned-bar/pinned-bar.component';
 
 type LoadMsgOpt = {
   scrollDown?: boolean;
@@ -49,7 +50,8 @@ type ScrollOpt = {
     NbListModule,
     NbBadgeModule,
     MessageComponent,
-    AdvertisingComponent
+    AdvertisingComponent,
+    PinnedBarComponent
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
@@ -226,6 +228,9 @@ export class ChatComponent implements OnInit, OnDestroy {
           break;
         case 'heartbeat':
           this.lastHeartbeat = Date.now();
+          break;
+        case 'pins':
+          this.zone.run(() => this.chatService.loadPinned());
           break;
         case 'file-moderation':
           this.zone.run(() => this.mediaModeration.notify(message.file.id, message.file.status));

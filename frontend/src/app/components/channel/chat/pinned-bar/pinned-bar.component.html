@@ -1,0 +1,20 @@
+@if (current; as pin) {
+<div class="pinned-bar" [style.top.px]="top" role="button" tabindex="0" (click)="open()" (keydown.enter)="open()"
+  [attr.aria-label]="'הודעה נעוצה: ' + pin.snippet">
+  <div class="pin-marks" aria-hidden="true">
+    @for (p of pins; track p.id) {
+    <span [class.active]="p.id === pin.id"></span>
+    }
+  </div>
+  <div class="pin-text">
+    <small class="pin-title">הודעה נעוצה{{ pins.length > 1 ? ' ' + (index + 1) + '/' + pins.length : '' }}</small>
+    <span class="pin-snippet">{{ pin.snippet || 'מדיה' }}</span>
+  </div>
+  @if (authService.userInfo?.privileges?.['writer']) {
+  <button nbButton ghost shape="round" size="small" class="pin-close" title="בטל נעיצה" aria-label="בטל נעיצה"
+    (click)="unpin($event)">
+    <nb-icon icon="close"></nb-icon>
+  </button>
+  }
+</div>
+}

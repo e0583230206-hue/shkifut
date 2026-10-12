@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom, Observable, Subject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, Subject } from 'rxjs';
 import { Channel } from '../models/channel.model';
 import { ResponseResult } from '../models/response-result.model';
 
@@ -36,6 +36,13 @@ export interface SearchResult {
   topic?: string;
 }
 
+export interface PinnedMessage {
+  id: number;
+  timestamp: string;
+  snippet: string;
+  pinnedAt: string;
+}
+
 export interface Attachment {
   file: File;
   url?: string;
@@ -57,6 +64,26 @@ export class ChatService {
   jump$ = this.jump.asObservable();
 
   constructor(private http: HttpClient) { }
+
+  private pinned = new BehaviorSubject<PinnedMessage[]>([]);
+  pinned$ = this.pinned.asObservable();
+
+  isPinned(id?: number): boolean {
+    return id != null && this.pinned.value.some(p => p.id === id);
+  }
+
+  async loadPinned() {
+    try {
+      this.pinned.next(await firstValueFrom(this.http.get<PinnedMessage[]>('/api/messages/pinned')));
+    } catch {
+      this.pinned.next([]);
+    }
+  }
+
+  async setPinned(id: number, pinned: boolean) {
+    await firstValueFrom(this.http.post<ResponseResult>('/api/admin/pin', { id, pinned }));
+    await this.loadPinned();
+  }
 
   jumpToMessage(id: number) {
     this.jump.next(id);

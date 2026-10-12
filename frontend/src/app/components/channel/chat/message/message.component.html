@@ -11,6 +11,9 @@
         chatService.channelInfo?.name
         }}</strong>
       <small class="text-black-50">{{ message.timestamp | messageTime }}</small>
+      @if (!isSchedulingMessage && chatService.isPinned(message.id)) {
+      <small class="pinned-mark" title="הודעה נעוצה" aria-label="הודעה נעוצה">📌</small>
+      }
       @if (isEdited(message)) {
       <small class="text-black-50">
         נערכה {{ message.last_edit | messageTime }}
@@ -38,6 +41,13 @@
       <button class="icon-button" nbButton ghost shape="round" size="small" (click)="quoteMessage(message)"
         title="צטט הודעה">
         <nb-icon icon="corner-down-left-outline"></nb-icon>
+      </button>
+      }
+      @if (_authService.userInfo?.privileges?.['writer'] && !message.deleted && !isSchedulingMessage) {
+      <button class="icon-button pin-button" nbButton ghost shape="round" size="small" (click)="togglePin(message)"
+        [title]="chatService.isPinned(message.id) ? 'בטל נעיצה' : 'נעץ הודעה'"
+        [attr.aria-label]="chatService.isPinned(message.id) ? 'בטל נעיצה' : 'נעץ הודעה'">
+        <nb-icon [icon]="chatService.isPinned(message.id) ? 'bookmark' : 'bookmark-outline'"></nb-icon>
       </button>
       }
       @if (_authService.userInfo) {
