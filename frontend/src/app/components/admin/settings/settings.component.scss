@@ -1,0 +1,20 @@
+
+.wm-preview {
+  position: relative;
+  width: 240px;
+  height: 150px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #8aa4c8, #c9d6e8 55%, #a3b18a);
+  overflow: hidden;
+}
+
+.wm-preview-logo {
+  position: absolute;
+  height: auto;
+}
+
+.wm-top-left { top: 3%; left: 3%; }
+.wm-top-right { top: 3%; right: 3%; }
+.wm-bottom-left { bottom: 3%; left: 3%; }
+.wm-bottom-right { bottom: 3%; right: 3%; }
+.wm-center { top: 50%; left: 50%; transform: translate(-50%, -50%); }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,6 +47,10 @@ type SettingConfig struct {
 	CustomTitle             string
 	ContactUs               string
 	ModerationLevel         string
+	WatermarkEnabled        bool
+	WatermarkPosition       string
+	WatermarkSize           int64
+	WatermarkOpacity        int64
 }
 
 type Setting struct {
@@ -210,13 +215,33 @@ func (s *Settings) ToConfig() *SettingConfig {
 
 		case "moderation_level":
 			config.ModerationLevel = setting.GetString()
+
+		case "watermark_enabled":
+			config.WatermarkEnabled = setting.GetBool()
+
+		case "watermark_position":
+			config.WatermarkPosition = setting.GetString()
+
+		case "watermark_size":
+			config.WatermarkSize = setting.GetInt()
+
+		case "watermark_opacity":
+			config.WatermarkOpacity = setting.GetInt()
 		}
 	}
 
 	return config
 }
 
+// GetBool also accepts "true"/"1"/"on" strings: the generic settings screen saves every value as text.
 func (s *Setting) GetBool() bool {
+	if str, ok := s.Value.(string); ok {
+		switch strings.ToLower(strings.TrimSpace(str)) {
+		case "true", "1", "on", "yes":
+			return true
+		}
+		return false
+	}
 	b, _ := dyno.GetBoolean(s.Value)
 	return b
 }
@@ -226,7 +251,12 @@ func (s *Setting) GetString() string {
 	return str
 }
 
+// GetInt also accepts numeric strings (see GetBool).
 func (s *Setting) GetInt() int64 {
+	if str, ok := s.Value.(string); ok {
+		i, _ := strconv.ParseInt(strings.TrimSpace(str), 10, 64)
+		return i
+	}
 	i, _ := dyno.GetInteger(s.Value)
 	return i
 }

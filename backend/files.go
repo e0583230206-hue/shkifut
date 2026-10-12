@@ -91,6 +91,12 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 	filePath := filepath.Join(rootUploadPath, fileHash[:2], fileHash[2:4], fileHash)
 	originalFileName := metaString(metaData, "filename")
 	kind := metaString(metaData, "type")
+	readerView := !checkPrivilege(r, Moderator) || r.URL.Query().Get("view") == "public"
+	// Watermark: only on still images that a reader gets (applied on top of any blur).
+	var wm *watermarkConfig
+	if readerView && watermarkedImageKind(kind) {
+		wm = currentWatermark(r.Context())
+	}
 
 	if isModeratedType(kind) {
 		status := metaString(metaData, "moderation")
@@ -100,16 +106,20 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 		}
 		// Server-side enforcement: only moderators get the original of a non-open file.
 		// ?view=public lets a moderator see exactly what readers see.
-		if status != ModOpen && (!checkPrivilege(r, Moderator) || r.URL.Query().Get("view") == "public") {
+		if status != ModOpen && readerView {
 			switch publicVariant(metaData) {
 			case VariantRegional:
-				serveRegional(w, r, fileHash, kind)
+				serveRegional(w, r, fileHash, kind, wm)
 				return
 			case VariantBlurred:
-				serveBlurred(w, r, fileHash)
+				serveBlurred(w, r, fileHash, wm)
 				return
 			}
 		}
+	}
+
+	if wm != nil && serveWatermarked(w, r, wm, filePath, "o", fileHash) {
+		return
 	}
 
 	f, err := os.Open(filePath)
@@ -125,10 +135,15 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, "", time.Time{}, f) // handles Range / If-None-Match
 }
 
-func serveRegional(w http.ResponseWriter, r *http.Request, fileHash, kind string) {
-	f, err := os.Open(filepath.Join(rootBlurredPath, regionalRelPath(fileHash, kind)))
+func serveRegional(w http.ResponseWriter, r *http.Request, fileHash, kind string, wm *watermarkConfig) {
+	regionalPath := filepath.Join(rootBlurredPath, regionalRelPath(fileHash, kind))
+	f, err := os.Open(regionalPath)
 	if err != nil {
-		serveBlurred(w, r, fileHash)
+		serveBlurred(w, r, fileHash, wm)
+		return
+	}
+	if kind != "video" && wm != nil && serveWatermarked(w, r, wm, regionalPath, "r", fileHash) {
+		f.Close()
 		return
 	}
 	defer f.Close()
@@ -142,8 +157,12 @@ func serveRegional(w http.ResponseWriter, r *http.Request, fileHash, kind string
 	http.ServeContent(w, r, "", time.Time{}, f) // Range support for the video
 }
 
-func serveBlurred(w http.ResponseWriter, r *http.Request, fileHash string) {
-	f, err := os.Open(filepath.Join(rootBlurredPath, blurredRelPath(fileHash)))
+func serveBlurred(w http.ResponseWriter, r *http.Request, fileHash string, wm *watermarkConfig) {
+	blurredPath := filepath.Join(rootBlurredPath, blurredRelPath(fileHash))
+	if wm != nil && serveWatermarked(w, r, wm, blurredPath, "b", fileHash) {
+		return
+	}
+	f, err := os.Open(blurredPath)
 	if err != nil {
 		setPrivateCacheHeaders(w, "p")
 		w.Header().Set("Content-Type", "image/svg+xml")

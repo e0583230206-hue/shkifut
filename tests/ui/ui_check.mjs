@@ -106,6 +106,7 @@ await evaluate(`[...document.querySelectorAll('admin-dashboard .menu-title')].fi
 check('admin: contact inbox renders', await waitFor(`!!document.querySelector('app-contact-inbox nb-card')`));
 await evaluate(`[...document.querySelectorAll('admin-dashboard .menu-title')].find(e => e.textContent.trim() === 'הגדרות').click()`);
 check('admin: strictness level select in settings', await waitFor(`document.querySelectorAll('#moderation-level option').length === 3`));
+check('admin: watermark section with position, size and opacity', await waitFor(`!!document.querySelector('#wm-enabled') && document.querySelectorAll('#wm-position option').length === 5 && !!document.querySelector('#wm-size') && !!document.querySelector('#wm-opacity') && !!document.querySelector('.wm-preview')`));
 
 // --- pins and quotes (admin session): own test messages, removed at the end
 console.log('step: pins & quotes');

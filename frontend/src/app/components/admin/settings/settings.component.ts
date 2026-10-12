@@ -4,6 +4,7 @@ import { NbButtonModule, NbCardModule, NbToastrService, NbIconModule, NbInputMod
 
 import { FormsModule } from '@angular/forms';
 import { Setting } from '../../../models/setting.model';
+import { ChatService } from '../../../services/chat.service';
 
 @Component({
   selector: 'app-settings',
@@ -28,22 +29,57 @@ export class SettingsComponent implements OnInit {
     { value: 'lenient', label: 'מקל: דמויות קטנות ורחוקות בלי פנים נשארות גלויות' },
   ];
 
-  get moderationLevel(): string {
-    return this.settings.find(s => s.key === 'moderation_level')?.value || 'strict';
+  readonly watermarkPositions = [
+    { value: 'bottom-left', label: 'למטה משמאל' },
+    { value: 'bottom-right', label: 'למטה מימין' },
+    { value: 'top-left', label: 'למעלה משמאל' },
+    { value: 'top-right', label: 'למעלה מימין' },
+    { value: 'center', label: 'במרכז' },
+  ];
+
+  private getSetting(key: string): any {
+    return this.settings.find(s => s.key === key)?.value;
   }
 
-  setModerationLevel(value: string) {
-    const setting = this.settings.find(s => s.key === 'moderation_level');
+  private setSetting(key: string, value: any) {
+    const setting = this.settings.find(s => s.key === key);
     if (setting) {
       setting.value = value;
     } else {
-      this.settings.push({ key: 'moderation_level', value });
+      this.settings.push({ key, value });
     }
   }
+
+  get moderationLevel(): string {
+    return this.getSetting('moderation_level') || 'strict';
+  }
+
+  setModerationLevel(value: string) {
+    this.setSetting('moderation_level', value);
+  }
+
+  // Watermark (applied by the server to every image readers get, after any blurring)
+  get wmEnabled(): boolean {
+    const v = this.getSetting('watermark_enabled');
+    return v === true || v === 'true';
+  }
+  set wmEnabled(v: boolean) { this.setSetting('watermark_enabled', v); }
+
+  get wmPosition(): string { return this.getSetting('watermark_position') || 'bottom-left'; }
+  set wmPosition(v: string) { this.setSetting('watermark_position', v); }
+
+  get wmSize(): number { return Number(this.getSetting('watermark_size')) || 18; }
+  set wmSize(v: number) { this.setSetting('watermark_size', Number(v)); }
+
+  get wmOpacity(): number { return Number(this.getSetting('watermark_opacity')) || 70; }
+  set wmOpacity(v: number) { this.setSetting('watermark_opacity', Number(v)); }
+
+  get logoUrl(): string { return this.chatService.channelInfo?.logoUrl || ''; }
 
   constructor(
     private adminService: AdminService,
     private tostService: NbToastrService,
+    private chatService: ChatService,
   ) { }
 
   ngOnInit(): void {
