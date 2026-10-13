@@ -15,6 +15,8 @@ import itertools
 import json
 import os
 import subprocess
+import threading
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -26,6 +28,26 @@ from analyzer import assign_faces
 
 def _env_float(name, default):
     return float(os.environ.get(name, default))
+
+
+# A moderator decided the file by hand while it was being analysed: the backend asks the service to stop (POST /cancel).
+# A request counts only if it was made after the job started, so a late "cancel" never kills a later job on the same file.
+CANCELLED = {}
+JOB = threading.local()   # set by the server for the job running in this thread: .path, .started
+
+
+class Cancelled(Exception):
+    pass
+
+
+def request_cancel(path):
+    CANCELLED[path] = time.time()
+
+
+def check_cancel():
+    started = getattr(JOB, "started", None)
+    if started is not None and CANCELLED.get(JOB.path, 0) >= started:
+        raise Cancelled()
 
 
 DETECT_FPS = _env_float("DETECT_FPS", 5)
@@ -545,6 +567,7 @@ def analyze_video(analyzer, path, fps, aw, ah, step, lv):
         indices = (n * step for n in itertools.count())
     weak_min = lv.weak_conf or analyzer.t.person_min
     for f, frame in zip(indices, read_frames(path, fps, aw, ah, vf)):
+        check_cancel()
         if f % step:
             # Person-only frame between samples: a figure that flashes up and matches no known figure is blurred.
             for pb, _ in analyzer.persons.detect(frame, DENSE_PERSON_MIN):
@@ -714,6 +737,7 @@ def regional_video(analyzer, path, out_path, level=None, overrides=None, review_
     full_count = rendered = 0
     try:
         for fr, frame in enumerate(read_frames(path, fps, rw, rh)):
+            check_cancel()
             rendered += 1
             if fr in full_frames:
                 blur_full(frame)
@@ -722,6 +746,16 @@ def regional_video(analyzer, path, out_path, level=None, overrides=None, review_
                 for b in boxes.get(fr, ()):
                     blur_region(frame, b)
             proc.stdin.write(frame.tobytes())
+    except Cancelled:
+        proc.kill()
+        try:
+            proc.stdin.close()
+        except Exception:
+            pass
+        proc.wait()
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
     finally:
         proc.stdin.close()
         rc = proc.wait()

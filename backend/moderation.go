@@ -74,8 +74,14 @@ var (
 	rootBlurredPath   = envOr("BLURRED_PATH", "/app/blurred/")
 	moderationLogFile = "/app/logs/moderation.yaml"
 	// Separate queues so images are never stuck behind a long video render.
-	imageQueue        = make(chan string, 1000)
-	videoQueue        = make(chan string, 1000)
+	imageQueue = make(chan string, 1000)
+	videoQueue = make(chan string, 1000)
+	// A moderator is waiting for these (saved corrections, "check again"): served before the normal queue.
+	urgentImageQueue = make(chan string, 1000)
+	urgentVideoQueue = make(chan string, 1000)
+	// Automatic checks that are running right now, so that a manual decision can stop them.
+	inflightMu        sync.Mutex
+	inflight          = map[string]context.CancelFunc{}
 	moderationPending = "moderation:pending" // redis set of file ids waiting for automatic check
 	metaMu            sync.Mutex
 	moderationClient  = &http.Client{Timeout: 45 * time.Minute} // long videos are rendered twice
@@ -208,16 +214,55 @@ func enqueueModeration(id string) {
 	queueModeration(id)
 }
 
+// enqueueModerationUrgent: like enqueueModeration, for work a moderator is waiting for (it goes ahead of the queue).
+func enqueueModerationUrgent(id string) {
+	if moderationURL == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rdb.SAdd(ctx, moderationPending, id)
+	queueModerationTo(id, true)
+}
+
 // queueModeration schedules a file without blocking (a full queue is retried by the periodic sweep).
-func queueModeration(id string) {
+func queueModeration(id string) { queueModerationTo(id, false) }
+
+func queueModerationTo(id string, urgent bool) {
 	q := imageQueue
+	if urgent {
+		q = urgentImageQueue
+	}
 	if meta, err := readMetadata(id); err == nil && metaString(meta, "type") == "video" {
 		q = videoQueue
+		if urgent {
+			q = urgentVideoQueue
+		}
 	}
 	select {
 	case q <- id:
 	default:
 	}
+}
+
+// cancelInflight stops the automatic check that is running for this file (a moderator just decided it by hand).
+func cancelInflight(id string) {
+	inflightMu.Lock()
+	cancel := inflight[id]
+	inflightMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// manualDecisionMakesCheckPointless: a moderator opened or blurred the file by hand, so the automatic result would not be
+// applied anyway (and an hour-long video would block everything behind it). Regional needs the analysis, so it is not skipped.
+func manualDecisionMakesCheckPointless(meta map[string]any) bool {
+	if metaString(meta, "reviewedBy") == "" {
+		return false
+	}
+	st := metaString(meta, "moderation")
+	return st == ModOpen || st == ModBlurred
 }
 
 // markLegacyPending gives pre-moderation media files a pending status and queues them.
@@ -239,8 +284,8 @@ func startModeration() {
 		log.Println("MODERATION_URL not set: new media stays pending (blurred) until a moderator opens it")
 		return
 	}
-	go moderationWorker(imageQueue)
-	go moderationWorker(videoQueue)
+	go moderationWorker(imageQueue, urgentImageQueue)
+	go moderationWorker(videoQueue, urgentVideoQueue)
 	go func() {
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -256,8 +301,17 @@ func startModeration() {
 	}()
 }
 
-func moderationWorker(queue chan string) {
-	for id := range queue {
+func moderationWorker(queue, urgent chan string) {
+	for {
+		var id string
+		select { // urgent work first
+		case id = <-urgent:
+		default:
+			select {
+			case id = <-urgent:
+			case id = <-queue:
+			}
+		}
 		if err := moderateFile(id); err != nil {
 			log.Printf("moderation of %s failed (will retry): %v", id, err)
 		}
@@ -281,6 +335,10 @@ type moderationResult struct {
 }
 
 func callModerationService(endpoint string, meta map[string]any) (*moderationResult, error) {
+	return callModerationServiceCtx(context.Background(), endpoint, meta)
+}
+
+func callModerationServiceCtx(ctx context.Context, endpoint string, meta map[string]any) (*moderationResult, error) {
 	hash, ok := metaHash(meta)
 	if !ok {
 		return nil, errors.New("invalid hash in metadata")
@@ -294,7 +352,12 @@ func callModerationService(endpoint string, meta map[string]any) (*moderationRes
 		"overrides":    metaOverrides(meta),
 		"level":        moderationLevel(),
 	})
-	resp, err := moderationClient.Post(moderationURL+endpoint, "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, moderationURL+endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := moderationClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -331,9 +394,34 @@ func moderateFile(id string) error {
 		return nil
 	}
 
+	if manualDecisionMakesCheckPointless(meta) {
+		ctx, cancel := redisCtx()
+		rdb.SRem(ctx, moderationPending, id)
+		cancel()
+		appendYamlLog(moderationLogFile, map[string]any{"action": "skipped", "fileId": id, "reason": "manual decision: " + metaString(meta, "moderation")})
+		return nil
+	}
+
 	level := moderationLevel()
 	gen := metaGeneration(meta)
-	res, err := callModerationService("/process", meta)
+	runCtx, runCancel := context.WithCancel(context.Background())
+	inflightMu.Lock()
+	inflight[id] = runCancel
+	inflightMu.Unlock()
+	res, err := callModerationServiceCtx(runCtx, "/process", meta)
+	canceled := runCtx.Err() != nil
+	inflightMu.Lock()
+	delete(inflight, id)
+	inflightMu.Unlock()
+	runCancel()
+	if canceled || (res != nil && res.Decision == "cancelled") {
+		// A moderator decided the file by hand while it was being checked: the result is not needed.
+		stopCtx, stopCancel := redisCtx()
+		rdb.SRem(stopCtx, moderationPending, id)
+		stopCancel()
+		appendYamlLog(moderationLogFile, map[string]any{"action": "cancelled", "fileId": id, "reason": "manual decision during the check"})
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -553,9 +641,19 @@ func setFileModeration(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	// "Regional" needs the regional version: make sure the file gets (re)processed if it is missing.
+	// "Regional" needs the regional version: make sure the file gets (re)processed if it is missing (ahead of the queue).
 	if req.Status == ModRegional && !regionalExists(hash, metaString(meta, "type")) && metaString(meta, "autoDecision") != ModOpen {
-		enqueueModeration(req.ID)
+		enqueueModerationUrgent(req.ID)
+	}
+	// Open / blurred by hand: the automatic check of this file is no longer needed - stop it and tell the service to stop working.
+	if req.Status != ModRegional {
+		cancelInflight(req.ID)
+		go func(path string) {
+			body, _ := json.Marshal(map[string]string{"path": path})
+			if resp, err := moderationClient.Post(moderationURL+"/cancel", "application/json", bytes.NewReader(body)); err == nil {
+				resp.Body.Close()
+			}
+		}(filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash)))
 	}
 
 	appendYamlLog(moderationLogFile, map[string]any{
@@ -630,7 +728,7 @@ func reprocessFile(w http.ResponseWriter, r *http.Request) {
 		"by":     user.Email,
 		"level":  moderationLevel(),
 	})
-	enqueueModeration(req.ID)
+	enqueueModerationUrgent(req.ID)
 	publishFileModeration(r.Context(), req.ID, ModPending)
 
 	w.Header().Set("Content-Type", "application/json")

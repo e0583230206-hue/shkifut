@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -111,6 +112,9 @@ func serveWatermarked(w http.ResponseWriter, r *http.Request, cfg *watermarkConf
 	lock := lockAny.(*sync.Mutex)
 	lock.Lock()
 	ctype, err := cachedContentType(cachePath)
+	if err == nil && cacheOlderThan(cachePath, srcPath) {
+		err = errors.New("stale") // the blurred/regional source was regenerated after this copy was made
+	}
 	if err != nil {
 		ctype, err = renderWatermark(cfg, srcPath, cachePath)
 		if err == nil {
@@ -130,11 +134,17 @@ func serveWatermarked(w http.ResponseWriter, r *http.Request, cfg *watermarkConf
 		return false
 	}
 	defer f.Close()
-	setPrivateCacheHeaders(w, "w"+key+"-"+variant+"-"+contentHash)
+	setPrivateCacheHeaders(w, "w"+key+"-"+variant+"-"+contentHash+"-"+versionTag(srcPath))
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Disposition", "inline")
 	http.ServeContent(w, r, "", time.Time{}, f)
 	return true
+}
+
+func cacheOlderThan(cachePath, srcPath string) bool {
+	c, err1 := os.Stat(cachePath)
+	s, err2 := os.Stat(srcPath)
+	return err1 == nil && err2 == nil && s.ModTime().After(c.ModTime())
 }
 
 func cachedContentType(p string) (string, error) {

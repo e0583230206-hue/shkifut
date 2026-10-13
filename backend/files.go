@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,15 @@ func stripExtension(id string) string {
 const pendingPlaceholder = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">` +
 	`<rect width="640" height="360" fill="#9aa0a6"/>` +
 	`<text x="320" y="190" font-family="sans-serif" font-size="40" fill="#fff" text-anchor="middle" direction="rtl">ממתין לאישור</text></svg>`
+
+// versionTag changes whenever the file at path is regenerated (e.g. after the moderator saved corrections), so that the ETag of
+// the blurred/regional version never keeps pointing browsers at an old rendition.
+func versionTag(path string) string {
+	if fi, err := os.Stat(path); err == nil {
+		return strconv.FormatInt(fi.ModTime().UnixNano(), 36)
+	}
+	return "0"
+}
 
 func setPrivateCacheHeaders(w http.ResponseWriter, etag string) {
 	// Same URL returns different content per user (original vs blurred): never let shared caches store it.
@@ -150,7 +160,7 @@ func serveRegional(w http.ResponseWriter, r *http.Request, fileHash, kind string
 		return
 	}
 	defer f.Close()
-	setPrivateCacheHeaders(w, "r-"+fileHash)
+	setPrivateCacheHeaders(w, "r-"+fileHash+"-"+versionTag(regionalPath))
 	if kind == "video" {
 		w.Header().Set("Content-Type", "video/mp4")
 	} else {
@@ -173,7 +183,7 @@ func serveBlurred(w http.ResponseWriter, r *http.Request, fileHash string, wm *w
 		return
 	}
 	defer f.Close()
-	setPrivateCacheHeaders(w, "b-"+fileHash)
+	setPrivateCacheHeaders(w, "b-"+fileHash+"-"+versionTag(blurredPath))
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Content-Disposition", "inline")
 	http.ServeContent(w, r, "", time.Time{}, f)

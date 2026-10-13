@@ -177,7 +177,7 @@ func setFigures(w http.ResponseWriter, r *http.Request) {
 
 	saveTrainingExamples(id, hash, changed, user.Email)
 	appendYamlLog(moderationLogFile, map[string]any{"action": "figures", "fileId": id, "by": user.Email, "changed": changed})
-	enqueueModeration(id)
+	enqueueModerationUrgent(id)
 	publishFileModeration(r.Context(), id, ModPending)
 	writeJSON(w, map[string]any{"success": true, "changed": len(changed)})
 }

@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import cv2
@@ -40,7 +41,7 @@ log = logging.getLogger("moderation")
 
 analyzer = Analyzer(MODELS_DIR, THREADS, Thresholds())
 # At most one video and one image at a time keeps CPU/RAM bounded, and images never wait for a video.
-locks = {"video": threading.Lock(), "image": threading.Lock()}
+locks = {"video": threading.Lock(), "image": threading.Lock(), "blur": threading.Lock()}
 
 
 def resolve(rel, root=FILES_ROOT):
@@ -193,23 +194,34 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path not in ("/process", "/blur"):
+        if self.path not in ("/process", "/blur", "/cancel"):
             return self._send(404, {"error": "not found"})
+        arrived = time.time()
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             src = resolve(body["path"])
+            if self.path == "/cancel":   # stop the analysis of this file (running now, or waiting for its turn)
+                regional.request_cancel(src)
+                log.info("/cancel %s", body.get("path"))
+                return self._send(200, {"ok": True})
             if not os.path.isfile(src):
                 return self._send(404, {"error": "file not found"})
         except (ValueError, KeyError) as e:
             return self._send(400, {"error": str(e)})
 
-        with locks["video" if body.get("kind") == "video" else "image"]:
+        with locks["blur" if self.path == "/blur" else ("video" if body.get("kind") == "video" else "image")]:   # the quick "blurred poster" must not wait behind an hour-long analysis
+            regional.JOB.path, regional.JOB.started = src, arrived
             try:
+                regional.check_cancel()   # cancelled while it was waiting for its turn
                 res, ms = timed(process, body, self.path == "/process")
+            except regional.Cancelled:
+                res, ms = {"decision": "cancelled", "reasons": ["cancelled"], "confidence": 0.0}, 0
             except Exception as e:  # undecodable/corrupt media: strict -> blurred
                 log.exception("processing failed for %s", body.get("path"))
                 res, ms = {"decision": "blurred", "reasons": ["analysis_error"], "confidence": 0.0,
                            "error": str(e)[:200]}, 0
+            finally:
+                regional.JOB.started = None
         res["elapsed_ms"] = ms
         log.info("%s %s %s -> %s %s (%d ms)", self.path, body.get("kind"), body.get("path"),
                  res.get("decision", "ok"), res.get("reasons", ""), ms)
