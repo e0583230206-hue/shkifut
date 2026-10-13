@@ -1,0 +1,74 @@
+"""Writes brand/preview.html: every place the logo appears, using the files in brand/out/ (run make_brand.py first)."""
+import os
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, 'out')
+files = sorted(f for f in os.listdir(OUT) if not f.startswith('_'))
+rows = ''.join(f'<tr><td><a href="out/{f}">{f}</a></td><td>{os.path.getsize(os.path.join(OUT, f))/1024:.1f} KB</td></tr>' for f in files)
+html = f'''<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>תצוגה מקדימה: לוגו שקיפות</title>
+<style>
+body{{font-family:Segoe UI,Arial,sans-serif;margin:24px;background:#e9ecef;color:#222}}
+h1{{margin:0 0 4px}} h2{{margin:28px 0 8px;border-bottom:2px solid #c8102e;padding-bottom:4px}}
+.row{{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}}
+.box{{background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 3px #0003}}
+.cap{{font-size:13px;color:#555;margin-top:6px;max-width:360px}}
+.hdr{{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;min-width:340px}}
+.hdr.l{{background:#f8f9fa;color:#222}} .hdr.d{{background:#222b45;color:#fff}}
+.av{{width:60px;height:60px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}}
+.av img{{width:100%;height:100%;object-fit:cover}}
+.tab{{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #ccc;border-radius:8px 8px 0 0;padding:8px 14px;width:230px;font-size:13px}}
+.tabbar{{background:#dee1e6;padding:8px 8px 0}} .tabbar.dk{{background:#35363a}} .tabbar.dk .tab{{background:#202124;color:#eee;border-color:#555}}
+.zoom{{image-rendering:pixelated}}
+.wa{{background:#0b141a;border-radius:8px;padding:16px;width:360px}}
+.bubble{{background:#005c4b;border-radius:8px;padding:4px;color:#e9edef;font-size:13px}}
+.bubble img{{width:100%;display:block;border-radius:6px}} .bubble .t{{padding:6px 8px}} .bubble .d{{color:#9fb0b6;font-size:12px}}
+.bubble.sq{{display:flex;gap:6px;align-items:center}} .bubble.sq .sqimg{{width:84px;height:84px;border-radius:6px;background:url(out/og-image.png) center/auto 100%;flex:none}}
+.phone{{display:flex;gap:18px;background:linear-gradient(135deg,#4b6cb7,#182848);padding:20px;border-radius:12px;color:#fff;font-size:12px;text-align:center}}
+.ic{{width:60px;height:60px;border-radius:14px;overflow:hidden;margin:0 auto 4px}} .ic.round{{border-radius:50%}} .ic img{{width:100%;height:100%}}
+.chk{{background:#fff}} .dk2{{background:#1e1e24}}
+table{{border-collapse:collapse}} td{{padding:3px 12px;border-bottom:1px solid #ddd;font-size:13px}}
+</style></head><body>
+<h1>לוגו "שקיפות": תצוגה מקדימה</h1>
+<p>הקבצים נוצרו מ-<code>brand/source/logo-main.png</code> (העתק של #4). שום דבר לא חובר לאתר ולא נפרס.</p>
+
+<h2>1. כותרת האתר (היום: עיגול 60px שחותך את התמונה)</h2>
+<div class="row">
+ <div class="box"><div class="hdr l"><div class="av"><img src="out/logo-header@2x.png" style="object-fit:cover"></div><b style="font-size:22px">שקיפות</b></div><div class="cap">כמו היום, עם הלוגו הרחב: נחתך, אי אפשר לקרוא (לא מומלץ).</div></div>
+ <div class="box"><div class="hdr l"><div class="av"><img src="out/logo-symbol.png"></div><b style="font-size:22px">שקיפות</b></div><div class="cap">אפשרות א: הסמל (זכוכית מגדלת) בעיגול + שם כטקסט. עובד בלי שינוי מבנה.</div></div>
+ <div class="box"><div class="hdr l"><img src="out/logo-header@2x.png" style="height:48px"></div><div class="cap">אפשרות ב: הלוגו הרחב במקום העיגול והשם (דורש שינוי קטן בכותרת). 96px ממוקטן ל-48px = חד ברטינה.</div></div>
+ <div class="box"><div class="hdr d"><div class="av"><img src="out/logo-symbol.png"></div><b style="font-size:22px">שקיפות</b></div><div class="cap">אפשרות א על ערכת נושא כהה.</div></div>
+ <div class="box"><div class="hdr d"><img src="out/logo-header@2x.png" style="height:48px;border-radius:4px"></div><div class="cap">אפשרות ב על כהה: מוצג כמלבן לבן (גרסה לא שקופה).</div></div>
+</div>
+
+<h2>2. טאב הדפדפן ו-favicon (16 ו-32 פיקסלים, וגם מוגדל פי 6)</h2>
+<div class="row">
+ <div class="box"><div class="tabbar"><div class="tab"><img src="out/icon-16.png" width="16" height="16"> שקיפות</div></div><div class="cap">טאב בהיר, גודל אמיתי 16px.</div></div>
+ <div class="box"><div class="tabbar dk"><div class="tab"><img src="out/icon-16.png" width="16" height="16"> שקיפות</div></div><div class="cap">טאב כהה.</div></div>
+ <div class="box"><img class="zoom" src="out/icon-16.png" width="96" height="96"> <img class="zoom" src="out/icon-32.png" width="192" height="192"><div class="cap">16px ו-32px מוגדלים: הסמל (טבעת שחורה, מרכז אדום, ידית) קריא. הלוגו המלא לא היה קריא בגודל כזה, ולכן ה-favicon הוא הסמל בלבד.</div></div>
+</div>
+
+<h2>3. שיתוף בוואטסאפ (תמונה 1200×630)</h2>
+<div class="row">
+ <div class="box"><div class="wa"><div class="bubble"><img src="out/og-image.png"><div class="t"><b>שקיפות</b><br>חדשות • עדכונים • תיעודים<div class="d">demo.30206.co.il</div></div></div></div><div class="cap">תצוגה רחבה (מה שרוב הצופים רואים).</div></div>
+ <div class="box"><div class="wa"><div class="bubble sq"><div class="sqimg"></div><div class="t"><b>שקיפות</b><br>חדשות • עדכונים • תיעודים<div class="d">demo.30206.co.il</div></div></div></div><div class="cap">תצוגה ריבועית קטנה (חיתוך מרכזי 630×630): הלוגו מוצג בשלמותו, כי רוחבו 600 פיקסלים.</div></div>
+</div>
+<p class="cap">הערה: האתר הנוכחי משתמש בלוגו של הערוץ (מההגדרות) כ-og:image. כדי שתמונת השיתוף תהיה זו, צריך לחבר אותה (שלב נפרד, אחרי אישורך).</p>
+
+<h2>4. אייקון בטלפון</h2>
+<div class="phone">
+ <div><div class="ic"><img src="out/icon-180.png"></div>iPhone (180)</div>
+ <div><div class="ic round"><img src="out/icon-192.png"></div>Android עגול (192)</div>
+ <div><div class="ic round"><img src="out/icon-maskable-512.png"></div>Android maskable (512)</div>
+ <div><div class="ic" style="border-radius:8px"><img src="out/icon-512.png"></div>512</div>
+</div>
+
+<h2>5. גרסה עם רקע שקוף (לא בשימוש, להחלטתך)</h2>
+<div class="row">
+ <div class="box chk"><img src="out/logo-transparent.png" width="420"><div class="cap">על לבן: הקצוות נקיים, בלי הילה לבנה.</div></div>
+ <div class="box dk2"><img src="out/logo-transparent.png" width="420"><div class="cap" style="color:#bbb">על כהה: האותיות והטבעת השחורות כמעט נעלמות והלבן הפנימי נשאר. כדי שזה יעבוד על רקע כהה צריך גרסה נפרדת עם אותיות בהירות.</div></div>
+ <div class="box" style="background:#c8d6e5"><img src="out/logo-transparent.png" width="420"><div class="cap">על רקע צבעוני בינוני.</div></div>
+</div>
+
+<h2>הקבצים</h2><div class="box"><table>{rows}</table></div>
+</body></html>'''
+open(os.path.join(HERE, 'preview.html'), 'w', encoding='utf-8').write(html)
+print('ok')
