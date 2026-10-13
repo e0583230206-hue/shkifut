@@ -13,7 +13,7 @@ export interface FileModeration {
   status: ModerationStatus;
   kind: string;
   /** What readers receive: the original, the regionally blurred version, or the fully blurred one. */
-  publicVariant?: 'original' | 'regional' | 'blurred';
+  publicVariant?: 'original' | 'regional' | 'blurred' | 'hidden';
   autoRegions?: number;
   autoLevel?: string;
   autoFullFrames?: number;
@@ -27,6 +27,8 @@ export interface FileModeration {
   reviewReasons?: string[];
   /** Moderators only: blurred figures with clear male faces that wait for confirmation. */
   likelyMen?: number;
+  /** Moderators only (STRICT_UNTIL_REVIEWED): nobody has reviewed the figures yet, readers get the fully blurred version. */
+  unreviewed?: boolean;
 }
 
 const REASONS: Record<string, string> = {
@@ -144,6 +146,15 @@ export class MediaModerationService {
     const readerGetsVideo = variant !== 'blurred';
     wrap.replaceChildren();
 
+    // STRICT_UNTIL_REVIEWED: the server refuses to send readers this file at all (crowd video waiting for a moderator).
+    if (!isModerator && info.publicVariant === 'hidden') {
+      const hidden = document.createElement('div');
+      hidden.className = 'mod-hidden';
+      hidden.textContent = 'התוכן ממתין לאישור מנהל';
+      wrap.appendChild(hidden);
+      return;
+    }
+
     const frame = document.createElement('div');
     frame.className = 'mod-frame';
     wrap.appendChild(frame);
@@ -180,6 +191,13 @@ export class MediaModerationService {
     badge.textContent = BADGES[info.status] ?? info.status;
     badge.title = this.describe(info);
     bar.appendChild(badge);
+    if (info.unreviewed) {
+      const un = document.createElement('span');
+      un.className = 'mod-badge mod-attention';
+      un.textContent = 'טרם נבדק: מטושטש לגמרי לקוראים';
+      un.title = 'מצב "מחמיר עד בדיקת מנהל" פעיל. הקובץ יוצג לקוראים כרגיל רק אחרי שתפתח את "בדיקת דמויות" ותשמור.';
+      bar.appendChild(un);
+    }
     if (info.needsReview) {
       const why = (info.reviewReasons ?? []).map(r => REASONS[r] ?? r).join(', ');
       const flag = document.createElement('span');
@@ -205,7 +223,7 @@ export class MediaModerationService {
     if (info.status !== 'pending') {
       const review = document.createElement('button');
       review.type = 'button';
-      review.className = 'mod-btn mod-btn-review' + (info.needsReview || info.likelyMen ? ' mod-btn-attention' : '');
+      review.className = 'mod-btn mod-btn-review' + (info.needsReview || info.likelyMen || info.unreviewed ? ' mod-btn-attention' : '');
       review.textContent = 'בדיקת דמויות';
       review.title = 'רשת הדמויות שזוהו בקובץ: אישור או תיקון לכל דמות (גבר / טשטש)';
       review.addEventListener('click', (ev) => {
@@ -287,7 +305,7 @@ export class MediaModerationService {
     if (info.reviewedBy) {
       lines.push(`החלטה ידנית: ${info.reviewedBy} ${info.reviewedAt ? new Date(info.reviewedAt).toLocaleString('he-IL') : ''}`);
     }
-    const readers = { original: 'המקור', regional: 'גרסה עם טשטוש אזורי', blurred: 'גרסה מטושטשת לגמרי' };
+    const readers = { original: 'המקור', regional: 'גרסה עם טשטוש אזורי', blurred: 'גרסה מטושטשת לגמרי', hidden: 'כלום (ממתין לאישור מנהל)' };
     lines.push(`קוראים רואים: ${readers[info.publicVariant ?? 'blurred']}`);
     return lines.join('\n');
   }

@@ -36,6 +36,7 @@ services:
       MAX_OUTPUT_FPS: "30"
       OUTPUT_MAX_SIDE: "1280"
       MAX_VIDEO_SEC: "900"
+      DECISION_V2: "${DECISION_V2:-0}"   # 1 = "likely man" queue for the moderators (automatic release unchanged), see moderation/README.md
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s

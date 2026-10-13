@@ -16,8 +16,21 @@
       <button nbButton size="small" status="warning" class="approve-likely" (click)="approveLikelyMen()">אשר את כל ה"כנראה גבר" ({{ likelyMen.length }})</button>
       }
       <button nbButton size="small" status="success" class="approve-all" [disabled]="!blurredCount" (click)="approveAllMen()">אשר את כל הגברים בקובץ ({{ blurredCount }} מטושטשות)</button>
-      <small class="text-muted">הסימון נשמר רק אחרי "שמור ועבד מחדש". אפשר לתקן דמות בודדת לפני השמירה.</small>
+      <small class="text-muted">הסימון נשמר רק אחרי "שמור". אפשר לתקן דמות בודדת לפני השמירה.</small>
     </div>
+    <div class="bulk-warning" role="note">⚠ בדוק את הגריד לפני האישור, דמויות של נשים עלולות להיכלל.</div>
+    @if (pendingBulk) {
+    <div class="confirm-panel" role="alertdialog" aria-label="אישור סימון גברים">
+      <strong>{{ pendingBulk.keys.length }} דמויות יסומנו כגברים ויוצגו לקוראים ללא טשטוש אחרי השמירה.</strong>
+      @if (pendingBulk.kind === 'all') {
+      <div class="bulk-warning">⚠ בדוק את הגריד לפני האישור, דמויות של נשים עלולות להיכלל.</div>
+      }
+      <div class="d-flex gap-2 mt-2">
+        <button nbButton size="small" status="success" class="confirm-bulk" (click)="confirmBulk()">כן, סמן {{ pendingBulk.keys.length }} דמויות כגברים</button>
+        <button nbButton size="small" class="cancel-bulk" (click)="cancelBulk()">ביטול</button>
+      </div>
+    </div>
+    }
     @if (likelyMen.length) {
     <h6 class="queue-title">כנראה גבר: ממתינות לאישור ({{ likelyMen.length }})</h6>
     <div class="grid queue">
@@ -63,10 +76,10 @@
     }
   </nb-card-body>
   <nb-card-footer class="d-flex justify-content-between align-items-center">
-    <small>{{ changes ? changes + ' שינויים' : '' }}</small>
+    <small>{{ changes ? changes + ' שינויים' : (canSave ? 'טרם נבדק: הקובץ מוצג לקוראים מטושטש עד שתשמור' : '') }}</small>
     <div class="d-flex gap-2">
       <button nbButton (click)="dialogRef.close()">סגור</button>
-      <button nbButton status="primary" [disabled]="!changes || saving" (click)="save()">שמור ועבד מחדש</button>
+      <button nbButton status="primary" [disabled]="!canSave || saving" (click)="save()">{{ changes ? 'שמור ועבד מחדש' : (canSave ? 'אשר שבדקתי את הדמויות' : 'שמור ועבד מחדש') }}</button>
     </div>
   </nb-card-footer>
 </nb-card>

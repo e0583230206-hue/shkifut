@@ -131,3 +131,12 @@ Always on (metadata only): `needs_review` + `review_reasons=["crowd"]` for video
 of which at least `CROWD_NOFACE_SHARE`=50% have no usable face (faces under `MIN_FACE_PX`).
 The review grid has "approve all men in the file" (every blurred figure in the grid) and "approve all likely men";
 both only fill the pending choices, saving is a separate click. Unit tests: `moderation/tests/test_decision_v2.py`.
+
+## STRICT_UNTIL_REVIEWED (backend, off by default)
+
+`STRICT_UNTIL_REVIEWED=1` in the backend's `.env` is a temporary strict mode. Until a moderator has opened the review grid and saved
+(also a save with no corrections; or has decided the file by hand), readers get: a file in which the automatic check found
+people: only the fully blurred version; a video flagged "needs review" (crowd): nothing at all (404, the page shows a placeholder).
+Moderators see everything as usual (`?view=public` shows them what readers get). It only ever hides more: automatic release is
+unchanged. "Check again" resets the review. Files processed before this build have no crowd flag until they are re-checked (they
+are still fully blurred while unreviewed). Verified with two backends on the same data (old vs new, flag off): 84 responses, 0 differences.

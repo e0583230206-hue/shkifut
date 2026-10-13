@@ -106,8 +106,11 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 		}
 		// Server-side enforcement: only moderators get the original of a non-open file.
 		// ?view=public lets a moderator see exactly what readers see.
-		if status != ModOpen && readerView {
+		if (status != ModOpen || strictUntilReviewed) && readerView {
 			switch publicVariant(metaData) {
+			case VariantHidden:
+				http.Error(w, "File not found", http.StatusNotFound)
+				return
 			case VariantRegional:
 				serveRegional(w, r, fileHash, kind, wm)
 				return

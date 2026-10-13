@@ -37,6 +37,11 @@ export class FigureReviewComponent implements OnInit {
   total = 0;
   loading = true;
   saving = false;
+  /** STRICT_UNTIL_REVIEWED: the file is not shown normally to readers until a moderator saves, even without changes. */
+  reviewed = true;
+  strictMode = false;
+  /** A bulk approval waiting for the moderator's explicit confirmation (inline panel, no browser dialog). */
+  pendingBulk: { kind: 'all' | 'likely'; keys: string[] } | null = null;
   /** pending choices: key -> 'man' | 'blur' | '' (remove correction) */
   choices: Record<string, 'man' | 'blur' | ''> = {};
 
@@ -48,9 +53,11 @@ export class FigureReviewComponent implements OnInit {
 
   async ngOnInit() {
     try {
-      const res = await firstValueFrom(this.http.get<{ figures: ReviewFigure[]; total: number }>(`/api/admin/files/${this.fileId}/figures`));
+      const res = await firstValueFrom(this.http.get<{ figures: ReviewFigure[]; total: number; reviewed?: boolean; strictMode?: boolean }>(`/api/admin/files/${this.fileId}/figures`));
       this.figures = res.figures || [];
       this.total = res.total || 0;
+      this.reviewed = res.reviewed !== false;
+      this.strictMode = !!res.strictMode;
     } catch {
       this.toastr.danger('', 'שגיאה בטעינת הדמויות');
     } finally {
@@ -93,32 +100,43 @@ export class FigureReviewComponent implements OnInit {
     return this.blurredNotPinned.length;
   }
 
-  /** "Approve all men in the file": every currently blurred figure in the grid becomes "man" (saved with the main button). */
+  /** "Approve all men in the file": asks for confirmation first; the choices are saved with the main button. */
   approveAllMen() {
-    const targets = this.blurredNotPinned;
-    if (!targets.length) return;
-    if (!confirm(`לסמן ${targets.length} דמויות מטושטשות כגברים? הן יוצגו לקוראים ללא טשטוש אחרי השמירה. דמויות שסימנת "טשטש" לא ישתנו.`)) return;
-    for (const f of targets) this.choices[f.key] = 'man';
+    const keys = this.blurredNotPinned.map(f => f.key);
+    if (keys.length) this.pendingBulk = { kind: 'all', keys };
   }
 
   /** Same, only for the "likely man" queue. */
   approveLikelyMen() {
-    const targets = this.likelyMen.filter(f => this.effective(f) === 'blur');
-    if (!targets.length) return;
-    if (!confirm(`לאשר ${targets.length} דמויות "כנראה גבר" כגברים?`)) return;
-    for (const f of targets) this.choices[f.key] = 'man';
+    const keys = this.likelyMen.filter(f => this.effective(f) === 'blur').map(f => f.key);
+    if (keys.length) this.pendingBulk = { kind: 'likely', keys };
+  }
+
+  confirmBulk() {
+    if (!this.pendingBulk) return;
+    for (const key of this.pendingBulk.keys) this.choices[key] = 'man';
+    this.pendingBulk = null;
+  }
+
+  cancelBulk() {
+    this.pendingBulk = null;
   }
 
   get changes() {
     return Object.keys(this.choices).length;
   }
 
+  /** Saving is possible with changes, or (strict mode) just to confirm that the figures were reviewed. */
+  get canSave() {
+    return this.changes > 0 || (this.strictMode && !this.reviewed);
+  }
+
   async save() {
-    if (!this.changes || this.saving) return;
+    if (!this.canSave || this.saving) return;
     this.saving = true;
     try {
       await firstValueFrom(this.http.post(`/api/admin/files/${this.fileId}/figures`, { overrides: this.choices }));
-      this.toastr.success('', 'התיקונים נשמרו, הקובץ מעובד מחדש');
+      this.toastr.success('', this.changes ? 'התיקונים נשמרו, הקובץ מעובד מחדש' : 'הבדיקה נשמרה');
       this.dialogRef.close(true);
     } catch {
       this.toastr.danger('', 'שמירת התיקונים נכשלה');

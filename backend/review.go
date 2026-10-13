@@ -79,6 +79,7 @@ func getFigures(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"id": id, "status": metaString(meta, "moderation"), "level": m.Level, "total": m.Total,
 		"figures": m.Figures, "overrides": metaOverrides(meta),
+		"reviewed": figuresReviewed(meta), "strictMode": strictUntilReviewed,
 	})
 }
 
@@ -143,6 +144,25 @@ func setFigures(w http.ResponseWriter, r *http.Request) {
 		stored[k] = v
 	}
 	meta["figureOverrides"] = stored
+	// Opening the grid and saving - even without a single correction - is the moderator's review of the figures.
+	meta["figuresReviewedAt"] = time.Now().UTC().Format(time.RFC3339)
+	meta["figuresReviewedBy"] = user.Email
+	if len(changed) == 0 {
+		// Nothing to re-process: the file keeps its current result, it is now reviewed.
+		delete(meta, "autoNeedsReview")
+		delete(meta, "autoReviewReasons")
+		status := metaString(meta, "moderation")
+		err = writeMetadata(id, meta)
+		metaMu.Unlock()
+		if err != nil {
+			http.Error(w, "error", http.StatusInternalServerError)
+			return
+		}
+		appendYamlLog(moderationLogFile, map[string]any{"action": "figures-reviewed", "fileId": id, "by": user.Email})
+		publishFileModeration(r.Context(), id, status)
+		writeJSON(w, map[string]any{"success": true, "changed": 0})
+		return
+	}
 	// Re-run: the automatic result (now with the corrections) is applied, as with "check again".
 	meta["moderation"] = ModPending
 	meta["modGen"] = metaGeneration(meta) + 1

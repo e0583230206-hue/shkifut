@@ -32,7 +32,42 @@ const (
 	VariantOriginal = "original"
 	VariantRegional = "regional"
 	VariantBlurred  = "blurred"
+	VariantHidden   = "hidden" // STRICT_UNTIL_REVIEWED only: not shown to readers at all (a 404)
 )
+
+// STRICT_UNTIL_REVIEWED=1 (off by default): while no moderator has opened the review grid and saved (or decided the file by
+// hand), a file in which the automatic check found people is shown to readers fully blurred, and a video flagged "needs review"
+// (a crowd) is not shown at all. Moderators see everything as usual. It only ever hides more: automatic release is unchanged.
+var strictUntilReviewed = os.Getenv("STRICT_UNTIL_REVIEWED") == "1"
+
+// figuresReviewed: a moderator saved the review grid for this file, or made a manual decision about it.
+func figuresReviewed(meta map[string]any) bool {
+	return metaString(meta, "figuresReviewedAt") != "" || metaString(meta, "reviewedBy") != ""
+}
+
+// autoFoundPeople: the automatic check ran and did not report "no people".
+func autoFoundPeople(meta map[string]any) bool {
+	if metaString(meta, "autoDecision") == "" {
+		return false
+	}
+	if reasons, ok := meta["autoReasons"].([]any); ok {
+		for _, v := range reasons {
+			if s, _ := v.(string); s == "no_people" {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func strictUnreviewed(meta map[string]any) bool {
+	return strictUntilReviewed && isModeratedType(metaString(meta, "type")) && autoFoundPeople(meta) && !figuresReviewed(meta)
+}
+
+func strictHidden(meta map[string]any) bool {
+	needs, _ := meta["autoNeedsReview"].(bool)
+	return strictUntilReviewed && metaString(meta, "type") == "video" && needs && !figuresReviewed(meta)
+}
 
 var (
 	moderationURL     = os.Getenv("MODERATION_URL") // e.g. http://moderation:8000 ; empty = manual review only
@@ -137,6 +172,14 @@ func publicVariant(meta map[string]any) string {
 	kind := metaString(meta, "type")
 	if !isModeratedType(kind) {
 		return VariantOriginal
+	}
+	if strictUntilReviewed {
+		if strictHidden(meta) {
+			return VariantHidden
+		}
+		if strictUnreviewed(meta) {
+			return VariantBlurred
+		}
 	}
 	switch metaString(meta, "moderation") {
 	case ModOpen:
@@ -323,7 +366,7 @@ func moderateFile(id string) error {
 	meta["autoFullFrames"] = res.FullFrames
 	meta["autoLevel"] = level
 	// "Needs review" lasts until a moderator has dealt with the file (any correction or a manual decision).
-	if res.NeedsReview && !manual && len(metaOverrides(meta)) == 0 {
+	if res.NeedsReview && !manual && len(metaOverrides(meta)) == 0 && metaString(meta, "figuresReviewedAt") == "" {
 		meta["autoNeedsReview"] = true
 		meta["autoReviewReasons"] = res.ReviewReasons
 	} else {
@@ -396,6 +439,7 @@ type FileModerationInfo struct {
 	NeedsReview    bool     `json:"needsReview,omitempty"`   // moderators only: e.g. a crowd that cannot be judged automatically
 	ReviewReasons  []string `json:"reviewReasons,omitempty"` // moderators only
 	LikelyMen      int      `json:"likelyMen,omitempty"`     // moderators only: blurred figures that look like men, waiting for confirmation
+	Unreviewed     bool     `json:"unreviewed,omitempty"`    // moderators only: STRICT_UNTIL_REVIEWED is on and nobody has reviewed the figures yet
 }
 
 // getFileModeration returns the status of a file. Review details are for moderators only.
@@ -428,6 +472,7 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		info.Unreviewed = strictUnreviewed(meta)
 		info.NeedsReview, _ = meta["autoNeedsReview"].(bool)
 		if reasons, ok := meta["autoReviewReasons"].([]any); ok {
 			for _, v := range reasons {
@@ -567,6 +612,8 @@ func reprocessFile(w http.ResponseWriter, r *http.Request) {
 	meta["modGen"] = metaGeneration(meta) + 1
 	delete(meta, "reviewedBy")
 	delete(meta, "reviewedAt")
+	delete(meta, "figuresReviewedAt") // a fresh automatic check: the figures have to be looked at again
+	delete(meta, "figuresReviewedBy")
 	err = writeMetadata(req.ID, meta)
 	metaMu.Unlock()
 	if err != nil {
