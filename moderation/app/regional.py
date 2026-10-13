@@ -82,6 +82,7 @@ DECISION_V2 = os.environ.get("DECISION_V2", "0") == "1"
 CLEAR_FACE_PX = _env_float("CLEAR_FACE_PX", 60)            # faces at least this big (shorter side) count as "clear"
 BODY_WOMAN_NOFACE = _env_float("BODY_WOMAN_NOFACE", 0.15)  # body P(male) at or below this = woman when no face decides
 VOTE_FEMALE_MAX_SHARE = _env_float("VOTE_FEMALE_MAX_SHARE", 0.10)  # share of clear face sightings at <=0.5 that still allows "man"
+CLEAR_MIN_SIGHTINGS = int(_env_float("CLEAR_MIN_SIGHTINGS", 2))  # "man by clear faces" needs at least this many clear sightings
 
 
 def get_level(name):
@@ -252,7 +253,7 @@ class Figure:
         if b is not None and b >= lv.body_male_conf and (f is None or lv.body_resolves_uncertain):
             return "man"
         clear = sorted(((sz, m) for sz, m in self.faces if sz >= CLEAR_FACE_PX), reverse=True)
-        if clear:
+        if len(clear) >= CLEAR_MIN_SIGHTINGS:
             top_c = [m for _, m in clear[:BEST_K]]
             all_c = sorted(m for _, m in clear)
             median = all_c[len(all_c) // 2] if len(all_c) % 2 else (all_c[len(all_c) // 2 - 1] + all_c[len(all_c) // 2]) / 2
