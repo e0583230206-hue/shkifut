@@ -528,6 +528,9 @@ type FileModerationInfo struct {
 	ReviewReasons  []string `json:"reviewReasons,omitempty"` // moderators only
 	LikelyMen      int      `json:"likelyMen,omitempty"`     // moderators only: blurred figures that look like men, waiting for confirmation
 	Unreviewed     bool     `json:"unreviewed,omitempty"`    // moderators only: STRICT_UNTIL_REVIEWED is on and nobody has reviewed the figures yet
+	// Rev changes whenever the picture/video readers get is regenerated (saved corrections, "check again"). The page puts it in the
+	// media URL, otherwise a browser keeps showing its copy of an unchanged address.
+	Rev string `json:"rev,omitempty"`
 }
 
 // getFileModeration returns the status of a file. Review details are for moderators only.
@@ -547,6 +550,14 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			info.Status = ModPending
 		}
 		info.PublicVariant = publicVariant(meta)
+		if hash, ok := metaHash(meta); ok {
+			switch info.PublicVariant {
+			case VariantRegional:
+				info.Rev = versionTag(filepath.Join(rootBlurredPath, regionalRelPath(hash, kind)))
+			case VariantBlurred:
+				info.Rev = versionTag(filepath.Join(rootBlurredPath, blurredRelPath(hash)))
+			}
+		}
 	}
 	if checkPrivilege(r, Moderator) {
 		info.ReviewedBy = metaString(meta, "reviewedBy")

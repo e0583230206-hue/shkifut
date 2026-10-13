@@ -29,6 +29,8 @@ export interface FileModeration {
   likelyMen?: number;
   /** Moderators only (STRICT_UNTIL_REVIEWED): nobody has reviewed the figures yet, readers get the fully blurred version. */
   unreviewed?: boolean;
+  /** Changes whenever the picture/video readers get is regenerated: part of the media URL so that browsers fetch the new one. */
+  rev?: string;
 }
 
 const REASONS: Record<string, string> = {
@@ -141,7 +143,9 @@ export class MediaModerationService {
     const isVideo = wrap.dataset['tag'] === 'video' || info.kind === 'video';
     // Cache-buster so the browser refetches after a status change (server also sends ETag + no-cache).
     const variant = info.publicVariant ?? (info.status === 'open' ? 'original' : 'blurred');
-    const url = `${src}?m=${info.status}-${variant}`;
+    // A moderator can switch to "what readers see" (?view=public); the rev makes the address change after every regeneration.
+    const asReader = wrap.dataset['asReader'] === '1';
+    const url = `${src}?m=${info.status}-${variant}${info.rev ? '&r=' + info.rev : ''}${asReader ? '&view=public' : ''}`;
     // Readers can play a video only when the server sends them a video (original or regionally blurred).
     const readerGetsVideo = variant !== 'blurred';
     wrap.replaceChildren();
@@ -253,6 +257,18 @@ export class MediaModerationService {
       }
     });
     bar.appendChild(again);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'mod-btn mod-btn-asreader' + (asReader ? ' mod-btn-attention' : '');
+    toggle.textContent = asReader ? 'הצג מקור' : 'הצג כמו הקוראים';
+    toggle.title = 'מחליף את התמונה/הסרטון כאן במה שהקוראים מקבלים (עם הטשטוש), כדי לראות את האפקט של התיקונים';
+    toggle.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      wrap.dataset['asReader'] = asReader ? '0' : '1';
+      this.render(wrap, info, true);
+    });
+    bar.appendChild(toggle);
 
     const preview = document.createElement('a');
     preview.href = `${src}?view=public`;
