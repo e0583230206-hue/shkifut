@@ -11,8 +11,36 @@
     } @else if (!figures.length) {
     <div>לא נמצאו דמויות לבדיקה בקובץ הזה (או שהקובץ עדיין בבדיקה).</div>
     } @else {
+    <div class="bulk d-flex flex-wrap gap-2 align-items-center mb-2">
+      @if (likelyMen.length) {
+      <button nbButton size="small" status="warning" class="approve-likely" (click)="approveLikelyMen()">אשר את כל ה"כנראה גבר" ({{ likelyMen.length }})</button>
+      }
+      <button nbButton size="small" status="success" class="approve-all" [disabled]="!blurredCount" (click)="approveAllMen()">אשר את כל הגברים בקובץ ({{ blurredCount }} מטושטשות)</button>
+      <small class="text-muted">הסימון נשמר רק אחרי "שמור ועבד מחדש". אפשר לתקן דמות בודדת לפני השמירה.</small>
+    </div>
+    @if (likelyMen.length) {
+    <h6 class="queue-title">כנראה גבר: ממתינות לאישור ({{ likelyMen.length }})</h6>
+    <div class="grid queue">
+      @for (f of likelyMen; track f.key) {
+      <div class="fig likely" [class.is-blur]="effective(f) === 'blur'" [class.changed]="choices[f.key] !== undefined">
+        <img [src]="f.cropUrl" alt="דמות לבדיקה" loading="lazy">
+        <div class="meta">
+          <span class="badge" [class.man]="effective(f) === 'man'">{{ effective(f) === 'man' ? 'יוצג' : 'מטושטש עד אישור' }}</span>
+          <small>כנראה גבר @if (f.faceMale !== null) { · פנים {{ f.faceMale }} }</small>
+          @if (f.start !== undefined) { <small class="text-muted">{{ time(f.start) }}–{{ time(f.end) }}</small> }
+        </div>
+        <div class="actions">
+          <button nbButton size="tiny" status="success" (click)="choose(f, 'man')">גבר</button>
+          <button nbButton size="tiny" status="danger" (click)="choose(f, 'blur')">טשטש</button>
+        </div>
+      </div>
+      }
+    </div>
+    <h6 class="queue-title mt-3">שאר הדמויות</h6>
+    }
     <div class="grid">
       @for (f of figures; track f.key) {
+      @if (!(f.decision === 'likely_man' && !f.override)) {
       <div class="fig" [class.is-blur]="effective(f) === 'blur'" [class.changed]="choices[f.key] !== undefined">
         <img [src]="f.cropUrl" alt="דמות לבדיקה" loading="lazy">
         <div class="meta">
@@ -26,6 +54,7 @@
           @if (f.override) { <button nbButton size="tiny" ghost (click)="clear(f)">בטל תיקון</button> }
         </div>
       </div>
+      }
       }
     </div>
     @if (total > figures.length) {

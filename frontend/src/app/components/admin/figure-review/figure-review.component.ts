@@ -11,12 +11,13 @@ interface ReviewFigure {
   override: 'man' | 'blur' | null;
   faceMale: number | null;
   bodyMale: number | null;
+  priority?: boolean;
   start?: number;
   end?: number;
 }
 
 const DECISIONS: Record<string, string> = {
-  man: 'גבר', woman: 'אישה', uncertain_gender: 'לא ודאי', person_without_clear_face: 'בלי פנים ברורות',
+  man: 'גבר', likely_man: 'כנראה גבר', woman: 'אישה', uncertain_gender: 'לא ודאי', person_without_clear_face: 'בלי פנים ברורות',
   manual_blur: 'טושטש ידנית',
 };
 
@@ -76,6 +77,36 @@ export class FigureReviewComponent implements OnInit {
 
   clear(f: ReviewFigure) {
     this.choices[f.key] = '';
+  }
+
+  /** Blurred figures waiting for the moderator that look like men (shown first). */
+  get likelyMen() {
+    return this.figures.filter(f => f.decision === 'likely_man' && !f.override);
+  }
+
+  /** Figures that are blurred now and not explicitly marked "blur" by a moderator. */
+  private get blurredNotPinned() {
+    return this.figures.filter(f => this.effective(f) === 'blur' && f.override !== 'blur' && this.choices[f.key] !== 'blur');
+  }
+
+  get blurredCount() {
+    return this.blurredNotPinned.length;
+  }
+
+  /** "Approve all men in the file": every currently blurred figure in the grid becomes "man" (saved with the main button). */
+  approveAllMen() {
+    const targets = this.blurredNotPinned;
+    if (!targets.length) return;
+    if (!confirm(`לסמן ${targets.length} דמויות מטושטשות כגברים? הן יוצגו לקוראים ללא טשטוש אחרי השמירה. דמויות שסימנת "טשטש" לא ישתנו.`)) return;
+    for (const f of targets) this.choices[f.key] = 'man';
+  }
+
+  /** Same, only for the "likely man" queue. */
+  approveLikelyMen() {
+    const targets = this.likelyMen.filter(f => this.effective(f) === 'blur');
+    if (!targets.length) return;
+    if (!confirm(`לאשר ${targets.length} דמויות "כנראה גבר" כגברים?`)) return;
+    for (const f of targets) this.choices[f.key] = 'man';
   }
 
   get changes() {

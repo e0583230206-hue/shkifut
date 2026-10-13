@@ -116,3 +116,18 @@ python moderation/fetch_models.py --local par model.xml model.bin   # קבצים
 - **לשמור את הודעות הרישוי:** Apache-2.0 ו-MIT דורשות לצרף את טקסט הרישיון והודעת זכויות היוצרים בהפצה. אם רק מפעילים שירות ולא מפיצים את המודלים, החובה מינימלית.
 - **המודלים המקוריים:** YOLOv8 תחת AGPL, ו-InsightFace לשימוש לא-מסחרי בלבד. הם נשארים רק כאופציה (`MODEL_PROFILE=research`), ולא נשלחים לשרת כברירת מחדל.
 - **הקוד של TheChannel:** הוא תחת GPLv3. מותר להשתמש בו מסחרית. שינויים שמופצים חייבים להיות בקוד פתוח, אבל הפעלה כשירות אינה נחשבת הפצה.
+
+## DECISION_V2 (off by default) and the moderator queue
+
+`DECISION_V2=1` changes only what stays blurred, never what is released: automatic release is exactly the current rules
+(verified on 3,211 figures: 0 differences). Figures with clear male faces (at least `CLEAR_MIN_SIGHTINGS`=2 sightings of
+`CLEAR_FACE_PX`=60 px or more, mean of the best 3 and the median >= the level's male threshold, no face <= 0.5, at most
+`VOTE_FEMALE_MAX_SHARE`=10% female-looking sightings) are labelled `likely_man`: they stay blurred, are shown first in the
+moderator's review grid (yellow queue) and counted in the file badge. Why not release them: the face model reads some women as
+male with confidence 1.00 (labelled examples in the demo), and no face/body rule separated them from men. A woman "by body" with
+no face needs a body score <= `BODY_WOMAN_NOFACE`=0.15; in between is `uncertain_gender`.
+
+Always on (metadata only): `needs_review` + `review_reasons=["crowd"]` for videos with at least `CROWD_MIN_FIGURES`=10 figures
+of which at least `CROWD_NOFACE_SHARE`=50% have no usable face (faces under `MIN_FACE_PX`).
+The review grid has "approve all men in the file" (every blurred figure in the grid) and "approve all likely men";
+both only fill the pending choices, saving is a separate click. Unit tests: `moderation/tests/test_decision_v2.py`.

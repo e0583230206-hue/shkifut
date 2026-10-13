@@ -22,6 +22,11 @@ export interface FileModeration {
   autoDecision?: string;
   autoReasons?: string[];
   autoConfidence?: number;
+  /** Moderators only: the file cannot be judged automatically (e.g. a crowd) and waits for a human. */
+  needsReview?: boolean;
+  reviewReasons?: string[];
+  /** Moderators only: blurred figures with clear male faces that wait for confirmation. */
+  likelyMen?: number;
 }
 
 const REASONS: Record<string, string> = {
@@ -40,6 +45,7 @@ const REASONS: Record<string, string> = {
   dense_crowd: 'קבוצה צפופה',
   inseparable: 'דמויות שאי אפשר להפריד',
   woman_body: 'זוהתה אישה לפי הגוף',
+  likely_man: 'כנראה גבר (ממתין לאישור)',
 };
 
 const BADGES: Record<ModerationStatus, string> = {
@@ -174,6 +180,21 @@ export class MediaModerationService {
     badge.textContent = BADGES[info.status] ?? info.status;
     badge.title = this.describe(info);
     bar.appendChild(badge);
+    if (info.needsReview) {
+      const why = (info.reviewReasons ?? []).map(r => REASONS[r] ?? r).join(', ');
+      const flag = document.createElement('span');
+      flag.className = 'mod-badge mod-attention';
+      flag.textContent = `ממתין לבדיקת מנהל${why ? ': ' + why : ''}`;
+      flag.title = 'הבדיקה האוטומטית לא יכולה להכריע בקובץ הזה. לחץ "בדיקת דמויות" כדי לאשר או לתקן.';
+      bar.appendChild(flag);
+    }
+    if (info.likelyMen) {
+      const likely = document.createElement('span');
+      likely.className = 'mod-badge mod-attention';
+      likely.textContent = `כנראה גבר: ${info.likelyMen}`;
+      likely.title = 'דמויות מטושטשות שנראות כגברים (פנים ברורות במספר פריימים). הן ממתינות לאישור שלך ומופיעות ראשונות ברשת הדמויות.';
+      bar.appendChild(likely);
+    }
 
     for (const choice of CHOICES) {
       if (choice.status !== info.status) {
@@ -184,7 +205,7 @@ export class MediaModerationService {
     if (info.status !== 'pending') {
       const review = document.createElement('button');
       review.type = 'button';
-      review.className = 'mod-btn mod-btn-review';
+      review.className = 'mod-btn mod-btn-review' + (info.needsReview || info.likelyMen ? ' mod-btn-attention' : '');
       review.textContent = 'בדיקת דמויות';
       review.title = 'רשת הדמויות שזוהו בקובץ: אישור או תיקון לכל דמות (גבר / טשטש)';
       review.addEventListener('click', (ev) => {

@@ -230,6 +230,11 @@ type moderationResult struct {
 	Uncovered  int      `json:"uncovered_frames"`
 	ElapsedMs  int      `json:"elapsed_ms"`
 	Error      string   `json:"error,omitempty"`
+	// Flags for the moderators (moderation service): a crowd cannot be judged automatically; "likely men" are blurred
+	// figures with clear male faces that wait for the moderator's confirmation (DECISION_V2).
+	NeedsReview   bool     `json:"needs_review,omitempty"`
+	ReviewReasons []string `json:"review_reasons,omitempty"`
+	LikelyMen     int      `json:"likely_men,omitempty"`
 }
 
 func callModerationService(endpoint string, meta map[string]any) (*moderationResult, error) {
@@ -317,6 +322,19 @@ func moderateFile(id string) error {
 	meta["autoRegions"] = res.Regions
 	meta["autoFullFrames"] = res.FullFrames
 	meta["autoLevel"] = level
+	// "Needs review" lasts until a moderator has dealt with the file (any correction or a manual decision).
+	if res.NeedsReview && !manual && len(metaOverrides(meta)) == 0 {
+		meta["autoNeedsReview"] = true
+		meta["autoReviewReasons"] = res.ReviewReasons
+	} else {
+		delete(meta, "autoNeedsReview")
+		delete(meta, "autoReviewReasons")
+	}
+	if res.LikelyMen > 0 {
+		meta["autoLikelyMen"] = res.LikelyMen
+	} else {
+		delete(meta, "autoLikelyMen")
+	}
 	meta["autoCheckedAt"] = time.Now().UTC().Format(time.RFC3339)
 	if blurredExists(hash) {
 		meta["blurredPath"] = filepath.ToSlash(blurredRelPath(hash))
@@ -375,6 +393,9 @@ type FileModerationInfo struct {
 	AutoDecision   string   `json:"autoDecision,omitempty"`
 	AutoReasons    []string `json:"autoReasons,omitempty"`
 	AutoConfidence float64  `json:"autoConfidence"`
+	NeedsReview    bool     `json:"needsReview,omitempty"`   // moderators only: e.g. a crowd that cannot be judged automatically
+	ReviewReasons  []string `json:"reviewReasons,omitempty"` // moderators only
+	LikelyMen      int      `json:"likelyMen,omitempty"`     // moderators only: blurred figures that look like men, waiting for confirmation
 }
 
 // getFileModeration returns the status of a file. Review details are for moderators only.
@@ -407,6 +428,15 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		info.NeedsReview, _ = meta["autoNeedsReview"].(bool)
+		if reasons, ok := meta["autoReviewReasons"].([]any); ok {
+			for _, v := range reasons {
+				if s, ok := v.(string); ok {
+					info.ReviewReasons = append(info.ReviewReasons, s)
+				}
+			}
+		}
+		info.LikelyMen, _ = meta["autoLikelyMen"].(int)
 		info.AutoRegions, _ = meta["autoRegions"].(int)
 		info.AutoFullFrames, _ = meta["autoFullFrames"].(int)
 		switch v := meta["autoConfidence"].(type) { // YAML may decode 1.0 as int

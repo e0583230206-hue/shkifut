@@ -91,6 +91,8 @@ markdown p {
     color: #6c757d;
 }
 .mod-regional { background: #e3ecfb; color: #1d4f9c; }
+.mod-attention { background: #fff0b3; color: #7a5200; border: 1px solid #e0b100; }
+.mod-btn-attention { border-color: #e0b100; background: #fff7d6; font-weight: 600; }
 .mod-btn-regional:hover { background: #eaf1fd; }
 
 /* Gallery: consecutive images in one message (rendered inside markdown) */

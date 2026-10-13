@@ -76,8 +76,9 @@ LEVELS = {
 
 BEST_K = int(_env_float("BEST_SIGHTINGS", 3))  # decide each figure by its K clearest sightings
 
-# Decision rules v2 (off by default, DECISION_V2=1): clear faces cannot be overturned by the body model, "woman by body" needs a
-# very low body score when there is no usable face, and everything in between is "uncertain" (stays blurred, goes to review).
+# Decision rules v2 (off by default, DECISION_V2=1). Automatic release is exactly the current rules. What changes is the label of what stays
+# blurred: clear male faces over several sightings (the body model cannot overturn them) = "likely_man", queued first in the moderator's
+# review grid; "woman by body" without any face needs a very low body score; everything in between is "uncertain".
 DECISION_V2 = os.environ.get("DECISION_V2", "0") == "1"
 CLEAR_FACE_PX = _env_float("CLEAR_FACE_PX", 60)            # faces at least this big (shorter side) count as "clear"
 BODY_WOMAN_NOFACE = _env_float("BODY_WOMAN_NOFACE", 0.15)  # body P(male) at or below this = woman when no face decides
@@ -243,7 +244,7 @@ class Figure:
         return d
 
     def _decide_v2(self, lv):
-        """Same outputs as decide(); see DECISION_V2."""
+        """Same releases as decide() ("man" only where the current rules say man); see DECISION_V2."""
         top_f, f, b = self.evidence()
         if top_f and (f <= lv.female_max_male or (lv.any_face_veto and min(m for _, m in top_f) <= lv.female_max_male)):
             return "woman"
@@ -260,7 +261,7 @@ class Figure:
             female_share = sum(m <= lv.female_max_male for m in all_c) / len(all_c)
             if (sum(top_c) / len(top_c) >= lv.male_conf and min(top_c) > lv.female_max_male
                     and median >= lv.male_conf and female_share <= VOTE_FEMALE_MAX_SHARE):
-                return "man"      # the body model cannot overturn clear faces
+                return "likely_man"   # clear male faces: still blurred (the face model is wrong on some women), queued for the moderator
         if f is None:
             if b is None:
                 return "person_without_clear_face"
@@ -291,6 +292,23 @@ class Figure:
 
     def reason(self, lv):
         return self.decide(lv)
+
+
+# ---------- flags for the moderator ----------
+
+CROWD_MIN_FIGURES = int(_env_float("CROWD_MIN_FIGURES", 10))
+CROWD_NOFACE_SHARE = _env_float("CROWD_NOFACE_SHARE", 0.5)
+
+
+def review_flags(tracks, lv):
+    """Fields added to the result: needs_review (+ reasons) and the number of "likely man" figures waiting for the moderator.
+    A crowd = many figures, most of them without a single usable face (faces under MIN_FACE_PX or none): the automatic
+    decision cannot be trusted there and the figure grid is the only way to release anyone."""
+    likely = sum(tr.decide(lv) == "likely_man" for tr in tracks)
+    reasons = []
+    if len(tracks) >= CROWD_MIN_FIGURES and sum(not tr.faces for tr in tracks) / len(tracks) >= CROWD_NOFACE_SHARE:
+        reasons.append("crowd")
+    return {"needs_review": bool(reasons), "review_reasons": reasons, "likely_men": likely}
 
 
 # ---------- review grid and manual corrections ----------
@@ -348,14 +366,14 @@ def write_review(review_dir, figs, lv, frame_h, fps=None):
     for name in os.listdir(review_dir):
         os.remove(os.path.join(review_dir, name))
     shown = [f for f in figs if f.crop]
-    shown.sort(key=lambda f: (f.visible(lv, frame_h), -f.crop_h))  # hidden first, then by size
+    shown.sort(key=lambda f: (f.visible(lv, frame_h), f.decide(lv) != "likely_man", -f.crop_h))  # hidden first, likely men first, then by size
     items = []
     for n, f in enumerate(shown[:MAX_REVIEW_FIGURES]):
         _, fm, bm = f.evidence()
         name = f"{n}.jpg"
         with open(os.path.join(review_dir, name), "wb") as fh:
             fh.write(f.crop)
-        item = {"key": f.key, "crop": name, "decision": f.decide(lv), "visible": f.visible(lv, frame_h),
+        item = {"key": f.key, "crop": name, "decision": f.decide(lv), "priority": f.decide(lv) == "likely_man", "visible": f.visible(lv, frame_h),
                 "override": f.override or None, "faceMale": None if fm is None else round(fm, 2),
                 "bodyMale": None if bm is None else round(bm, 2), "smallFaces": f.small_faces}
         if fps and getattr(f, "obs", None):
@@ -668,7 +686,7 @@ def regional_video(analyzer, path, out_path, level=None, overrides=None, review_
         reasons.discard("overlap_split")
         reasons.add("men_only" if visible else "no_people")
         return {"decision": "open", "reasons": sorted(reasons), "confidence": 1.0, "regions": 0,
-                "full_frames": 0, **summary}
+                "full_frames": 0, **summary, **review_flags(plan.tracks, lv)}
 
     # Frames where the figures cannot be separated (blurred area covers most of the frame): blur entirely.
     full_frames = {fr for fr, bs in boxes.items() if coverage(bs, rw, rh) >= lv.full_area}
@@ -713,4 +731,4 @@ def regional_video(analyzer, path, out_path, level=None, overrides=None, review_
     summary["rendered_frames"] = rendered
     summary["blurred_box_frames"] = sum(1 for fr in range(rendered) if boxes.get(fr) and fr not in full_frames)
     return {"decision": "regional", "reasons": sorted(reasons), "confidence": 1.0,
-            "regions": len(hidden) + len(plan.events), "full_frames": full_count, **summary}
+            "regions": len(hidden) + len(plan.events), "full_frames": full_count, **summary, **review_flags(plan.tracks, lv)}
