@@ -76,6 +76,13 @@ LEVELS = {
 
 BEST_K = int(_env_float("BEST_SIGHTINGS", 3))  # decide each figure by its K clearest sightings
 
+# Decision rules v2 (off by default, DECISION_V2=1): clear faces cannot be overturned by the body model, "woman by body" needs a
+# very low body score when there is no usable face, and everything in between is "uncertain" (stays blurred, goes to review).
+DECISION_V2 = os.environ.get("DECISION_V2", "0") == "1"
+CLEAR_FACE_PX = _env_float("CLEAR_FACE_PX", 60)            # faces at least this big (shorter side) count as "clear"
+BODY_WOMAN_NOFACE = _env_float("BODY_WOMAN_NOFACE", 0.15)  # body P(male) at or below this = woman when no face decides
+VOTE_FEMALE_MAX_SHARE = _env_float("VOTE_FEMALE_MAX_SHARE", 0.10)  # share of clear face sightings at <=0.5 that still allows "man"
+
 
 def get_level(name):
     return LEVELS.get(name or "strict", LEVELS["strict"])
@@ -211,8 +218,13 @@ class Figure:
         if self.override == "blur":
             return "manual_blur"
         cache = self.__dict__.setdefault("_decision", {})
-        if lv.name in cache:
-            return cache[lv.name]
+        ckey = lv.name + ("/v2" if DECISION_V2 else "")
+        if ckey in cache:
+            return cache[ckey]
+        if DECISION_V2:
+            d = self._decide_v2(lv)
+            cache[ckey] = d
+            return d
         top_f, f, b = self.evidence()
         if top_f and (f <= lv.female_max_male or (lv.any_face_veto and min(m for _, m in top_f) <= lv.female_max_male)):
             d = "woman"
@@ -228,6 +240,37 @@ class Figure:
             d = "person_without_clear_face"
         cache[lv.name] = d
         return d
+
+    def _decide_v2(self, lv):
+        """Same outputs as decide(); see DECISION_V2."""
+        top_f, f, b = self.evidence()
+        if top_f and (f <= lv.female_max_male or (lv.any_face_veto and min(m for _, m in top_f) <= lv.female_max_male)):
+            return "woman"
+        # what the current rules already release stays released (faces of any size >= MIN_FACE_PX, or a very male body)
+        if f is not None and f >= lv.male_conf and (b is None or b >= 0.5):
+            return "man"
+        if b is not None and b >= lv.body_male_conf and (f is None or lv.body_resolves_uncertain):
+            return "man"
+        clear = sorted(((sz, m) for sz, m in self.faces if sz >= CLEAR_FACE_PX), reverse=True)
+        if clear:
+            top_c = [m for _, m in clear[:BEST_K]]
+            all_c = sorted(m for _, m in clear)
+            median = all_c[len(all_c) // 2] if len(all_c) % 2 else (all_c[len(all_c) // 2 - 1] + all_c[len(all_c) // 2]) / 2
+            female_share = sum(m <= lv.female_max_male for m in all_c) / len(all_c)
+            if (sum(top_c) / len(top_c) >= lv.male_conf and min(top_c) > lv.female_max_male
+                    and median >= lv.male_conf and female_share <= VOTE_FEMALE_MAX_SHARE):
+                return "man"      # the body model cannot overturn clear faces
+        if f is None:
+            if b is None:
+                return "person_without_clear_face"
+            if b <= BODY_WOMAN_NOFACE:
+                return "woman"
+            if b >= lv.body_male_conf:
+                return "man"
+            return "uncertain_gender"
+        if b is not None and b <= BODY_WOMAN_NOFACE:
+            return "woman"
+        return "uncertain_gender"
 
     def is_man(self, lv):
         return self.decide(lv) == "man"
