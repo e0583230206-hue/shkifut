@@ -26,7 +26,12 @@ if ($Stop) {
     if (Test-Path $pidFile) {
         $id = [int](Get-Content $pidFile)
         $p = Get-Process -Id $id -ErrorAction SilentlyContinue
-        if ($p -and $p.ProcessName -eq 'ssh') { Stop-Process -Id $id; Write-Host "tunnel closed (pid $id)" } else { Write-Host 'no running tunnel found' }
+        if ($p -and $p.ProcessName -in @('ssh', 'powershell', 'pwsh')) {
+            # background mode runs a small loop that reconnects when the connection drops: stop the loop first, then its ssh
+            Stop-Process -Id $id -Force
+            Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" | Where-Object { $_.CommandLine -match '-L 127\.0\.0\.1:\d+:127\.0\.0\.1:\d+' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            Write-Host "tunnel closed (pid $id)"
+        } else { Write-Host 'no running tunnel found' }
         Remove-Item $pidFile -Force
     } else { Write-Host 'no background tunnel recorded' }
     return
@@ -42,7 +47,7 @@ function Test-PortFree([int]$p) {
 if (-not (Test-Path $KeyFile)) { throw "SSH key not found: $KeyFile" }
 if (Test-Path $pidFile) {
     $old = Get-Process -Id ([int](Get-Content $pidFile)) -ErrorAction SilentlyContinue
-    if ($old -and $old.ProcessName -eq 'ssh') { throw "A background tunnel is already running (pid $($old.Id)). Close it with: .\deploy\tunnel.ps1 -Stop" }
+    if ($old -and $old.ProcessName -in @('ssh', 'powershell', 'pwsh')) { throw "A background tunnel is already running (pid $($old.Id)). Close it with: .\deploy\tunnel.ps1 -Stop" }
 }
 $use = $Port
 if (-not (Test-PortFree $use)) {
@@ -55,11 +60,16 @@ $sshArgs = @('-N', '-L', "127.0.0.1:${use}:127.0.0.1:${RemotePort}", '-i', $KeyF
     '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3', "$User@$Server")
 Write-Host "Site from the server: http://localhost:$use   (opens only on this computer)"
 if ($Background) {
-    $p = Start-Process -FilePath 'ssh' -ArgumentList $sshArgs -WindowStyle Hidden -PassThru
-    Start-Sleep -Seconds 3
-    if ($p.HasExited) { throw 'The tunnel did not start (check the key / connection).' }
+    # ssh -N exits when the connection is lost (network blip, Wi-Fi sleep, a filter resetting it): a hidden loop starts it again.
+    $loopFile = Join-Path $env:TEMP 'thechannel-tunnel-loop.ps1'
+    $quoted = ($sshArgs | ForEach-Object { "'" + ($_ -replace "'", "''") + "'" }) -join ', '
+    Set-Content -Path $loopFile -Encoding UTF8 -Value ('$a = @(' + $quoted + ")`nwhile (`$true) { & ssh @a; Start-Sleep -Seconds 5 }")
+    $ps = (Get-Command pwsh -ErrorAction SilentlyContinue) ?? (Get-Command powershell)
+    $p = Start-Process -FilePath $ps.Source -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $loopFile) -WindowStyle Hidden -PassThru
+    Start-Sleep -Seconds 4
+    if ($p.HasExited) { throw 'The tunnel loop did not start.' }
     Set-Content -Path $pidFile -Value $p.Id
-    Write-Host "Running in the background (pid $($p.Id)). Close it with: .\deploy\tunnel.ps1 -Stop"
+    Write-Host "Running in the background (pid $($p.Id)); it reconnects by itself when the connection drops. Close it with: .\deploy\tunnel.ps1 -Stop"
 } else {
     Write-Host 'Tunnel is open. Press Ctrl+C to close it.'
     & ssh @sshArgs
