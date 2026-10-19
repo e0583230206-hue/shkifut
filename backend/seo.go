@@ -107,7 +107,9 @@ func renderIndex(w http.ResponseWriter, r *http.Request, m pageMeta, status int)
 	fmt.Fprintf(&head, "<title>%s</title>\n", e(m.Title))
 	fmt.Fprintf(&head, "  <meta name=\"description\" content=\"%s\">\n", e(m.Description))
 	fmt.Fprintf(&head, "  <link rel=\"canonical\" href=\"%s\">\n", e(canonical))
-	if m.NoIndex {
+	if noindexSite {
+		head.WriteString("  <meta name=\"robots\" content=\"noindex, nofollow\">\n")
+	} else if m.NoIndex {
 		head.WriteString("  <meta name=\"robots\" content=\"noindex\">\n")
 	}
 	fmt.Fprintf(&head, "  <meta property=\"og:site_name\" content=\"%s\">\n", e(defaultSiteName))
@@ -209,7 +211,7 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 
 func serveRobots(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if privateSite {
+	if privateSite || noindexSite {
 		fmt.Fprint(w, "User-agent: *\nDisallow: /\n")
 		return
 	}
@@ -218,6 +220,10 @@ func serveRobots(w http.ResponseWriter, r *http.Request) {
 
 // serveSitemap lists the home page, static pages and the latest 5000 published messages.
 func serveSitemap(w http.ResponseWriter, r *http.Request) {
+	if noindexSite { // NOINDEX_SITE: there is no sitemap
+		http.NotFound(w, r)
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	base := baseURL(r)

@@ -16,6 +16,8 @@ var (
 	// PUBLIC_URL is the site's public origin, e.g. https://30206.co.il (no trailing slash).
 	// Used for the OAuth redirect URI instead of trusting the request's Origin header.
 	publicURL = strings.TrimRight(os.Getenv("PUBLIC_URL"), "/")
+	// NOINDEX_SITE=1 asks search engines to stay away from the whole site (header, meta tag, robots.txt, no sitemap), independently of PRIVATE_SITE.
+	noindexSite = os.Getenv("NOINDEX_SITE") == "1"
 )
 
 // checkProductionConfig refuses to start with settings that must never reach production.
@@ -42,6 +44,9 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-Frame-Options", "SAMEORIGIN")
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		if noindexSite {
+			h.Set("X-Robots-Tag", "noindex, nofollow")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

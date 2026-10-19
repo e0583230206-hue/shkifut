@@ -165,3 +165,10 @@ Images are not affected at all. The automatic check and the blur run as usual.
   next to `bridge.js` in the bridge's compose.
 - **Before opening to the public:** turn the flag on (it only affects videos uploaded afterwards).
 - Tests: `tests/e2e_hold_videos.py` (API), `bridge/run-tests.sh` (notify guard and endpoint).
+
+## NOINDEX_SITE (backend, off by default)
+
+`NOINDEX_SITE=1` asks search engines to stay away from the whole site, independently of `PRIVATE_SITE`: every response carries
+`X-Robots-Tag: noindex, nofollow` (pages, API and files), the app's HTML has `<meta name="robots" content="noindex, nofollow">`,
+`/robots.txt` says `Disallow: /`, and `/sitemap.xml` is a 404. Link previews (Open Graph) still work. It is a request, not access
+control: only login restricts who can read.

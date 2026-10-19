@@ -1,0 +1,5 @@
+# Local test overlay for tests/e2e_noindex.py:  docker compose -f docker-compose.local.yml -f tests/docker-compose.port.yml -f tests/docker-compose.noindex-test.yml up -d --no-deps backend
+services:
+  backend:
+    environment:
+      NOINDEX_SITE: "1"
