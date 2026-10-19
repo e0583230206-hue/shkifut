@@ -140,3 +140,27 @@ people: only the fully blurred version; a video flagged "needs review" (crowd): 
 Moderators see everything as usual (`?view=public` shows them what readers get). It only ever hides more: automatic release is
 unchanged. "Check again" resets the review. Files processed before this build have no crowd flag until they are re-checked (they
 are still fully blurred while unreviewed). Verified with two backends on the same data (old vs new, flag off): 84 responses, 0 differences.
+
+## HOLD_VIDEOS_UNTIL_APPROVED (backend, off by default)
+
+`HOLD_VIDEOS_UNTIL_APPROVED=1` makes every video that is **uploaded while the flag is on** wait for a human before readers get it.
+The flag is read at upload time (`holdRequired` in the file's metadata): videos that already exist have no such mark and stay
+visible. With the flag off the mark is ignored (everything is served as usual); turning the flag on again holds the unapproved ones again.
+Images are not affected at all. The automatic check and the blur run as usual.
+
+- **Readers:** a held video is a 404 and the page says "ממתין לאישור". "פתח לכולם" does not publish it either.
+- **Moderators and approvers** see the video as always. While the flag is on, only the approvers (`ADMIN_USERS` + `APPROVER_EMAILS`;
+  an approver must also be a moderator in the users list) can open the review grid, save corrections and approve. Without the flag
+  every moderator keeps the grid, as before.
+- **"אשר פרסום"** (in the grid) works only after the approver requested the video the way readers get it (`?view=public`, the button
+  "הצג כמו הקוראים") **in the current check**. The server remembers which version they looked at (variant, file revision,
+  check number). A saved correction, "check again" or a manual decision changes it, ends the approval and starts over.
+  The approval stores who approved and when (`approvedBy`, `approvedAt`, and a line `approved` in `logs/moderation.yaml`).
+- **Notification:** when the first automatic check of a held video finishes, the backend posts a text (no media) with a link
+  `PUBLIC_URL/review/<fileId>` to `BRIDGE_NOTIFY_URL` with `X-Notify-Key: BRIDGE_NOTIFY_KEY`. The bridge forwards it to the private
+  Chat space. Bridge side: `NOTIFY_KEY` (same value) turns `POST /notify` on; it answers only connections from loopback/private
+  addresses, refuses anything that came through a proxy header, and compares the key in constant time (`bridge/notify-guard.js`).
+  The bridge container publishes no port, so the backend has to share a Docker network with it (e.g. attach the backend to the
+  bridge's network); the extra module `notify-guard.js` must be mounted next to `bridge.js`.
+- **Before opening to the public:** turn the flag on (it only affects videos uploaded afterwards).
+- Tests: `tests/e2e_hold_videos.py` (API), `bridge/run-tests.sh` (notify guard and endpoint).

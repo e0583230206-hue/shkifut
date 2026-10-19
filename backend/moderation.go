@@ -173,8 +173,16 @@ func regionalExists(hash, kind string) bool {
 	return err == nil
 }
 
-// publicVariant decides what readers get. Anything uncertain falls back to the fully blurred version.
+// publicVariant decides what readers get. A video that waits for approval (HOLD_VIDEOS_UNTIL_APPROVED) is not served at all.
 func publicVariant(meta map[string]any) string {
+	if holdActive(meta) {
+		return VariantHidden
+	}
+	return baseVariant(meta)
+}
+
+// baseVariant: what readers get once the video is allowed out. Anything uncertain falls back to the fully blurred version.
+func baseVariant(meta map[string]any) string {
 	kind := metaString(meta, "type")
 	if !isModeratedType(kind) {
 		return VariantOriginal
@@ -467,6 +475,7 @@ func moderateFile(id string) error {
 		delete(meta, "autoLikelyMen")
 	}
 	meta["autoCheckedAt"] = time.Now().UTC().Format(time.RFC3339)
+	notifyHold := holdMarkNotified(meta) // a video waiting for approval: tell the approvers once
 	if blurredExists(hash) {
 		meta["blurredPath"] = filepath.ToSlash(blurredRelPath(hash))
 	}
@@ -478,6 +487,9 @@ func moderateFile(id string) error {
 	metaMu.Unlock()
 	if err != nil {
 		return err
+	}
+	if notifyHold {
+		go notifyHoldPending(id, metaString(meta, "filename"))
 	}
 
 	ctx, cancel = redisCtx()
@@ -531,6 +543,11 @@ type FileModerationInfo struct {
 	// Rev changes whenever the picture/video readers get is regenerated (saved corrections, "check again"). The page puts it in the
 	// media URL, otherwise a browser keeps showing its copy of an unchanged address.
 	Rev string `json:"rev,omitempty"`
+	// Moderators only: HOLD_VIDEOS_UNTIL_APPROVED state of a video (held / approved by / viewed as readers see), and whether this person
+	// may open the review grid.
+	Hold           map[string]any `json:"hold,omitempty"`
+	CanReview      bool           `json:"canReview,omitempty"`
+	PreviewVariant string         `json:"previewVariant,omitempty"` // moderators only: what readers get once a held video is approved
 }
 
 // getFileModeration returns the status of a file. Review details are for moderators only.
@@ -550,8 +567,12 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			info.Status = ModPending
 		}
 		info.PublicVariant = publicVariant(meta)
+		revVariant := info.PublicVariant
+		if revVariant == VariantHidden && checkPrivilege(r, Moderator) {
+			revVariant = baseVariant(meta) // a held video: the address of what moderators see changes with every regeneration
+		}
 		if hash, ok := metaHash(meta); ok {
-			switch info.PublicVariant {
+			switch revVariant {
 			case VariantRegional:
 				info.Rev = versionTag(filepath.Join(rootBlurredPath, regionalRelPath(hash, kind)))
 			case VariantBlurred:
@@ -572,6 +593,11 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		info.Unreviewed = strictUnreviewed(meta)
+		info.Hold = holdInfoFor(r, meta)
+		info.CanReview = canReviewFigures(r)
+		if holdActive(meta) {
+			info.PreviewVariant = baseVariant(meta)
+		}
 		info.NeedsReview, _ = meta["autoNeedsReview"].(bool)
 		if reasons, ok := meta["autoReviewReasons"].([]any); ok {
 			for _, v := range reasons {
@@ -643,6 +669,7 @@ func setFileModeration(w http.ResponseWriter, r *http.Request) {
 	meta["moderation"] = req.Status
 	meta["reviewedBy"] = user.Email
 	meta["reviewedAt"] = time.Now().UTC().Format(time.RFC3339)
+	clearApproval(meta) // a manual decision ends the approval of a held video; "open" does not publish it
 	if blurredExists(hash) {
 		meta["blurredPath"] = filepath.ToSlash(blurredRelPath(hash))
 	}
@@ -723,6 +750,7 @@ func reprocessFile(w http.ResponseWriter, r *http.Request) {
 	delete(meta, "reviewedAt")
 	delete(meta, "figuresReviewedAt") // a fresh automatic check: the figures have to be looked at again
 	delete(meta, "figuresReviewedBy")
+	clearApproval(meta)
 	err = writeMetadata(req.ID, meta)
 	metaMu.Unlock()
 	if err != nil {

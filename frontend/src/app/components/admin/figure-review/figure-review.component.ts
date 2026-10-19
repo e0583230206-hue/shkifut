@@ -1,7 +1,17 @@
 import { Component, OnInit } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { NbButtonModule, NbCardModule, NbDialogRef, NbToastrService } from '@nebular/theme';
+
+interface HoldState {
+  held: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
+  viewed?: boolean;
+  pending?: boolean;
+  canApprove?: boolean;
+}
 
 interface ReviewFigure {
   key: string;
@@ -27,7 +37,7 @@ const DECISIONS: Record<string, string> = {
  */
 @Component({
   selector: 'app-figure-review',
-  imports: [NbCardModule, NbButtonModule],
+  imports: [NbCardModule, NbButtonModule, DatePipe],
   templateUrl: './figure-review.component.html',
   styleUrl: './figure-review.component.scss'
 })
@@ -40,6 +50,9 @@ export class FigureReviewComponent implements OnInit {
   /** STRICT_UNTIL_REVIEWED: the file is not shown normally to readers until a moderator saves, even without changes. */
   reviewed = true;
   strictMode = false;
+  /** HOLD_VIDEOS_UNTIL_APPROVED: the state of this video (null for images and videos that are not held). */
+  hold: HoldState | null = null;
+  approving = false;
   /** A bulk approval waiting for the moderator's explicit confirmation (inline panel, no browser dialog). */
   pendingBulk: { kind: 'all' | 'likely'; keys: string[] } | null = null;
   /** pending choices: key -> 'man' | 'blur' | '' (remove correction) */
@@ -53,11 +66,12 @@ export class FigureReviewComponent implements OnInit {
 
   async ngOnInit() {
     try {
-      const res = await firstValueFrom(this.http.get<{ figures: ReviewFigure[]; total: number; reviewed?: boolean; strictMode?: boolean }>(`/api/admin/files/${this.fileId}/figures`));
+      const res = await firstValueFrom(this.http.get<{ figures: ReviewFigure[]; total: number; reviewed?: boolean; strictMode?: boolean; hold?: HoldState | null }>(`/api/admin/files/${this.fileId}/figures`));
       this.figures = res.figures || [];
       this.total = res.total || 0;
       this.reviewed = res.reviewed !== false;
       this.strictMode = !!res.strictMode;
+      this.hold = res.hold ?? null;
     } catch {
       this.toastr.danger('', 'שגיאה בטעינת הדמויות');
     } finally {
@@ -142,6 +156,34 @@ export class FigureReviewComponent implements OnInit {
       this.toastr.danger('', 'שמירת התיקונים נכשלה');
     } finally {
       this.saving = false;
+    }
+  }
+
+  /** "Approve publication" needs: the approver looked at the video as readers see it (in this check), and nothing is waiting to be saved. */
+  get canApprove() {
+    return !!this.hold?.held && !!this.hold.canApprove && !!this.hold.viewed && !this.hold.pending && this.changes === 0 && !this.approving;
+  }
+
+  get approveHint() {
+    const h = this.hold;
+    if (!h?.held) return '';
+    if (h.pending) return 'הבדיקה האוטומטית עדיין רצה';
+    if (this.changes > 0) return 'יש שינויים שלא נשמרו: שמור אותם קודם (השמירה מעבדת את הסרטון מחדש)';
+    if (!h.viewed) return 'כדי לאשר: סגור את הרשת, לחץ \"הצג כמו הקוראים\" בסרטון והפעל אותו, וחזור לכאן';
+    return 'ראית את הסרטון כפי שהקוראים יראו אותו';
+  }
+
+  async approve() {
+    if (!this.canApprove) return;
+    this.approving = true;
+    try {
+      await firstValueFrom(this.http.post(`/api/admin/files/${this.fileId}/approve`, {}));
+      this.toastr.success('', 'הסרטון אושר לפרסום');
+      this.dialogRef.close(true);
+    } catch {
+      this.toastr.danger('', 'האישור נכשל. ייתכן שהסרטון עובד מחדש מאז שצפית בו: צפה בו שוב');
+    } finally {
+      this.approving = false;
     }
   }
 

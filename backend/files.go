@@ -116,8 +116,14 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 		}
 		// Server-side enforcement: only moderators get the original of a non-open file.
 		// ?view=public lets a moderator see exactly what readers see.
-		if (status != ModOpen || strictUntilReviewed) && readerView {
-			switch publicVariant(metaData) {
+		if (status != ModOpen || strictUntilReviewed || holdActive(metaData)) && readerView {
+			variant := publicVariant(metaData)
+			if variant == VariantHidden && holdActive(metaData) && r.URL.Query().Get("view") == "public" && canReviewFigures(r) && emailIsApprover(sessionEmail(r)) {
+				// An approver previews what readers will get once the video is approved; this is the "looked at it" the approval needs.
+				variant = baseVariant(metaData)
+				recordHoldView(fileId, sessionEmail(r))
+			}
+			switch variant {
 			case VariantHidden:
 				http.Error(w, "File not found", http.StatusNotFound)
 				return
@@ -276,6 +282,9 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if isModeratedType(t.MIME.Type) {
 		fileMetadata["moderation"] = ModPending
+		if holdVideos && t.MIME.Type == "video" {
+			fileMetadata["holdRequired"] = true // decided at upload time: videos that exist before the flag was turned on stay visible
+		}
 	}
 	metadataFilePath := filepath.Join(rootUploadPath, id[:2], id[2:4], id+".yaml")
 	metadataFile, err := os.Create(metadataFilePath)

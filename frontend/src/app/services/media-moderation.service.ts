@@ -31,6 +31,22 @@ export interface FileModeration {
   unreviewed?: boolean;
   /** Changes whenever the picture/video readers get is regenerated: part of the media URL so that browsers fetch the new one. */
   rev?: string;
+  /** Moderators only, HOLD_VIDEOS_UNTIL_APPROVED: a video that readers do not get until an approver approves it. */
+  hold?: HoldInfo;
+  /** Moderators only: what readers will get once the held video is approved. */
+  previewVariant?: 'original' | 'regional' | 'blurred';
+  /** Moderators only: may this person open the review grid (every moderator, or only approvers while the hold flag is on). */
+  canReview?: boolean;
+}
+
+export interface HoldInfo {
+  held: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
+  /** This approver has opened the video as readers see it, in the current check. */
+  viewed?: boolean;
+  pending?: boolean;
+  canApprove?: boolean;
 }
 
 const REASONS: Record<string, string> = {
@@ -147,14 +163,15 @@ export class MediaModerationService {
     const asReader = wrap.dataset['asReader'] === '1';
     const url = `${src}?m=${info.status}-${variant}${info.rev ? '&r=' + info.rev : ''}${asReader ? '&view=public' : ''}`;
     // Readers can play a video only when the server sends them a video (original or regionally blurred).
-    const readerGetsVideo = variant !== 'blurred';
+    // A held video: moderators preview what readers will get after the approval.
+    const readerGetsVideo = (info.previewVariant ?? variant) !== 'blurred';
     wrap.replaceChildren();
 
     // STRICT_UNTIL_REVIEWED: the server refuses to send readers this file at all (crowd video waiting for a moderator).
     if (!isModerator && info.publicVariant === 'hidden') {
       const hidden = document.createElement('div');
       hidden.className = 'mod-hidden';
-      hidden.textContent = 'התוכן ממתין לאישור מנהל';
+      hidden.textContent = 'ממתין לאישור';
       wrap.appendChild(hidden);
       return;
     }
@@ -163,7 +180,7 @@ export class MediaModerationService {
     frame.className = 'mod-frame';
     wrap.appendChild(frame);
 
-    if (isVideo && (isModerator || readerGetsVideo)) {
+    if (isVideo && (asReader ? readerGetsVideo : (isModerator || readerGetsVideo))) {
       const video = document.createElement('video');
       video.controls = true;
       video.preload = 'metadata';
@@ -195,6 +212,19 @@ export class MediaModerationService {
     badge.textContent = BADGES[info.status] ?? info.status;
     badge.title = this.describe(info);
     bar.appendChild(badge);
+    if (info.hold?.held) {
+      const held = document.createElement('span');
+      held.className = 'mod-badge mod-attention mod-held';
+      held.textContent = 'ממתין לאישור פרסום · הקוראים לא רואים';
+      held.title = 'הסרטון לא מוגש לקוראים עד שמאשר ילחץ "אשר פרסום" (ברשת הדמויות), אחרי שצפה בו כפי שהקוראים יראו.';
+      bar.appendChild(held);
+    } else if (info.hold?.approvedBy) {
+      const ok = document.createElement('span');
+      ok.className = 'mod-badge mod-approved';
+      ok.textContent = 'אושר לפרסום';
+      ok.title = `אושר על ידי ${info.hold.approvedBy} ${info.hold.approvedAt ? new Date(info.hold.approvedAt).toLocaleString('he-IL') : ''}`;
+      bar.appendChild(ok);
+    }
     if (info.unreviewed) {
       const un = document.createElement('span');
       un.className = 'mod-badge mod-attention';
@@ -224,7 +254,7 @@ export class MediaModerationService {
       }
     }
 
-    if (info.status !== 'pending') {
+    if (info.status !== 'pending' && info.canReview) {
       const review = document.createElement('button');
       review.type = 'button';
       review.className = 'mod-btn mod-btn-review' + (info.needsReview || info.likelyMen || info.unreviewed ? ' mod-btn-attention' : '');
@@ -321,7 +351,7 @@ export class MediaModerationService {
     if (info.reviewedBy) {
       lines.push(`החלטה ידנית: ${info.reviewedBy} ${info.reviewedAt ? new Date(info.reviewedAt).toLocaleString('he-IL') : ''}`);
     }
-    const readers = { original: 'המקור', regional: 'גרסה עם טשטוש אזורי', blurred: 'גרסה מטושטשת לגמרי', hidden: 'כלום (ממתין לאישור מנהל)' };
+    const readers = { original: 'המקור', regional: 'גרסה עם טשטוש אזורי', blurred: 'גרסה מטושטשת לגמרי', hidden: 'כלום (ממתין לאישור)' };
     lines.push(`קוראים רואים: ${readers[info.publicVariant ?? 'blurred']}`);
     return lines.join('\n');
   }

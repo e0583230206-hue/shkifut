@@ -1,0 +1,12 @@
+# Local test overlay for tests/e2e_hold_videos.py (flag ON):
+#   docker compose -f docker-compose.local.yml -f tests/docker-compose.hold-test.yml up -d --no-deps backend
+# Back to the normal local setup (flag off): docker compose -f docker-compose.local.yml up -d --no-deps backend
+services:
+  backend:
+    environment:
+      HOLD_VIDEOS_UNTIL_APPROVED: "1"
+      APPROVER_EMAILS: "approver@example.com"
+      BRIDGE_NOTIFY_URL: http://host.docker.internal:18099/notify
+      BRIDGE_NOTIFY_KEY: test-notify-key
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

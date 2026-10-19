@@ -155,7 +155,11 @@ func serveSpaFile(w http.ResponseWriter, r *http.Request) {
 	case "/login":
 		m.NoIndex = true
 	}
-	if !spaRoutes[r.URL.Path] {
+	isReviewLink := strings.HasPrefix(r.URL.Path, "/review/") && validFileId(strings.TrimPrefix(r.URL.Path, "/review/"))
+	if isReviewLink { // the link in the "video waits for approval" notification (the app asks for login and the moderator privilege)
+		m.NoIndex = true
+	}
+	if !spaRoutes[r.URL.Path] && !isReviewLink {
 		status = http.StatusNotFound
 		m.Title, m.NoIndex, m.Path = "הדף לא נמצא | "+name, true, "/"
 	}
@@ -209,7 +213,7 @@ func serveRobots(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "User-agent: *\nDisallow: /\n")
 		return
 	}
-	fmt.Fprintf(w, "User-agent: *\nDisallow: /api/\nDisallow: /auth/\nDisallow: /login\nAllow: /api/files/\n\nSitemap: %s/sitemap.xml\n", baseURL(r))
+	fmt.Fprintf(w, "User-agent: *\nDisallow: /api/\nDisallow: /auth/\nDisallow: /login\nDisallow: /review/\nAllow: /api/files/\n\nSitemap: %s/sitemap.xml\n", baseURL(r))
 }
 
 // serveSitemap lists the home page, static pages and the latest 5000 published messages.

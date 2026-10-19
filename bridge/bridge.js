@@ -28,6 +28,8 @@ const log = (...a) => console.log(new Date().toISOString(), ...a);
 const seen = new Set();
 const { makeChatSender } = require('./chat-sender.js');
 const chat = makeChatSender({ fetch, env: E, log });
+const { checkNotifyRequest } = require('./notify-guard.js');
+const NOTIFY_KEY = E.NOTIFY_KEY || ''; // POST /notify from the site; without a key the endpoint is off
 
 function waToMd(t) {
   return (t || '')
@@ -166,6 +168,21 @@ http.createServer((req, res) => {
       res.end('ok');
       let ev; try { ev = JSON.parse(b); } catch { return; }
       handle(ev).catch(e => log('handle error', e.message));
+    });
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/notify') {
+    // The site tells the private space that a video waits for approval (text only). Internal network + key only.
+    const g = checkNotifyRequest(req, NOTIFY_KEY);
+    if (!g.ok) { res.statusCode = g.status; return res.end(); }
+    let b = '';
+    req.on('data', c => { b += c; if (b.length > 4096) req.destroy(); });
+    req.on('end', async () => {
+      let text; try { text = JSON.parse(b).text; } catch {}
+      if (typeof text !== 'string' || !text.trim() || text.length > 1500) { res.statusCode = 400; return res.end(); }
+      if (!GCHAT) { res.statusCode = 503; return res.end(); }
+      await postToGChat(text);
+      res.end('ok');
     });
     return;
   }

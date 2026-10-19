@@ -15,6 +15,7 @@ Object.assign(process.env, {
   CHANNEL_IMPORT_URL: 'https://site.test/api/import/post', CHANNEL_UPLOAD_URL: 'https://site.test/api/import/upload',
   GCHAT_WEBHOOK: 'https://chat.googleapis.com/v1/spaces/AAAA/messages?key=K&token=T',
 });
+if (SCENARIO === 'notify') process.env.NOTIFY_KEY = 'nk-123';
 if (enabled) Object.assign(process.env, { GCHAT_SPACE: 'spaces/AAAA', GCHAT_OAUTH_CLIENT_ID: 'cid', GCHAT_OAUTH_CLIENT_SECRET: 'sec', GCHAT_REFRESH_TOKEN: 'rt' });
 
 const R = (status, obj, headers = {}) => new Response(typeof obj === 'string' || Buffer.isBuffer(obj) ? obj : JSON.stringify(obj), { status, headers });
@@ -94,6 +95,28 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
   if (SCENARIO === 'duplicate') {
     await send(media); await send(media); await sleep(600);
     check('the same WhatsApp message is handled once', byUrl('/attachments:upload').length === 1 && byUrl('site.test/api/import/post').length === 1);
+  }
+  if (SCENARIO === 'notify' || SCENARIO === 'notify-off') {
+    const post = (headers, body, method = 'POST') => new Promise((res) => {
+      const r = http.request({ host: '127.0.0.1', port: 8080, path: '/notify', method, headers }, (x) => { x.resume(); x.on('end', () => res(x.statusCode)); });
+      r.end(body);
+    });
+    const ok = JSON.stringify({ text: 'סרטון חדש ממתין לאישור https://site.test/review/abc' });
+    if (SCENARIO === 'notify') {
+      check('notify without a key: 401', (await post({}, ok)) === 401);
+      check('notify with a wrong key: 401', (await post({ 'X-Notify-Key': 'nope' }, ok)) === 401);
+      check('notify through a proxy (X-Forwarded-For) with the right key: 403', (await post({ 'X-Notify-Key': 'nk-123', 'X-Forwarded-For': '8.8.8.8' }, ok)) === 403);
+      check('nothing was sent to Chat by the refused requests', webhookPosts().length === 0, JSON.stringify(webhookPosts()));
+      check('notify with a bad body: 400', (await post({ 'X-Notify-Key': 'nk-123' }, '{}')) === 400);
+      check('notify GET: 404', (await post({ 'X-Notify-Key': 'nk-123' }, undefined, 'GET')) === 404);
+      check('notify with the key from the local network: 200', (await post({ 'X-Notify-Key': 'nk-123' }, ok)) === 200);
+      await sleep(200);
+      check('the text went to the private Chat by the webhook, text only', JSON.stringify(webhookPosts()) === JSON.stringify([JSON.parse(ok).text]), JSON.stringify(webhookPosts()));
+      check('no media call and no site call', byUrl('site.test').length === 0 && byUrl('/attachments:upload').length === 0);
+    } else {
+      check('no NOTIFY_KEY configured: the endpoint does not exist (404)', (await post({ 'X-Notify-Key': 'anything' }, ok)) === 404);
+      check('nothing was sent to Chat', webhookPosts().length === 0);
+    }
   }
   process.exit(results.every(Boolean) ? 0 : 1);
 })();

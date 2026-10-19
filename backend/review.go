@@ -79,7 +79,7 @@ func getFigures(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"id": id, "status": metaString(meta, "moderation"), "level": m.Level, "total": m.Total,
 		"figures": m.Figures, "overrides": metaOverrides(meta),
-		"reviewed": figuresReviewed(meta), "strictMode": strictUntilReviewed,
+		"reviewed": figuresReviewed(meta), "strictMode": strictUntilReviewed, "hold": holdInfoFor(r, meta),
 	})
 }
 
@@ -168,6 +168,7 @@ func setFigures(w http.ResponseWriter, r *http.Request) {
 	meta["modGen"] = metaGeneration(meta) + 1
 	delete(meta, "reviewedBy")
 	delete(meta, "reviewedAt")
+	clearApproval(meta) // a saved correction changes what readers get: the approval starts over
 	err = writeMetadata(id, meta)
 	metaMu.Unlock()
 	if err != nil {

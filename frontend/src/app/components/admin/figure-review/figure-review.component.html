@@ -6,6 +6,19 @@
     </small>
   </nb-card-header>
   <nb-card-body>
+    @if (hold) {
+    <div class="hold-panel" [class.held]="hold.held" role="status">
+      @if (hold.held) {
+      <strong>הסרטון הזה ממתין לאישור פרסום: הקוראים לא רואים אותו.</strong>
+      <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+        <button nbButton size="small" status="success" class="approve-publish" [disabled]="!canApprove" (click)="approve()">אשר פרסום</button>
+        <small class="hold-hint">{{ approveHint }}</small>
+      </div>
+      } @else {
+      <strong class="hold-approved">אושר לפרסום על ידי {{ hold.approvedBy }}</strong> <small>{{ hold.approvedAt ? (hold.approvedAt | date:'dd/MM/yyyy HH:mm') : '' }}</small>
+      }
+    </div>
+    }
     @if (loading) {
     <div>טוען...</div>
     } @else if (!figures.length) {
