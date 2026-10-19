@@ -19,17 +19,19 @@
 - **נטפרי:** לא לעקוף חסימות. תמונות עם נשים נחסמות להורדה, ולא מציגים בצ'אט פריימים שעלולים להכיל נשים.
 - סודות (`.env`, `certs/`, `channel_data/`, קבצי `client_secret*`) לא נכנסים ל-git.
 
-## מצב הדמו (נפרס ב-19.10.2026, מ-`main` נקי בקומיט `001dcb8`)
-- כתובת: `demo.30206.co.il` על `45.93.95.182`, תיקייה `/opt/thechannel`, אתר פרטי (`PRIVATE_SITE=true`, `ALLOWED_EMAILS` + `ADMIN_USERS`). מפתח SSH: `~/.ssh/thechannel_deploy`.
+## מצב הדמו (נפרס ב-19.10.2026; עודכן אחרי הפתיחה, `main` בקומיט `93dceda`)
+- כתובת: `demo.30206.co.il` על `45.93.95.182`, תיקייה `/opt/thechannel`, **האתר פתוח (נפתח ב-19.10 באישור): כל חשבון גוגל יכול להתחבר לקריאה בלבד.** `PRIVATE_SITE=false`, `ALLOWED_EMAILS` ריק, והגדרת הניהול `require_auth=1` (כל ה-API והקבצים דורשים התחברות; אנונימי מקבל 401). אפשר לסגור בחזרה עם `bash /root/demo-close.sh` בשרת (שחזור מ-`/opt/thechannel/backup-open-20261019-103903`), ולפתוח שוב עם `bash /root/demo-open.sh`. מפתח SSH: `~/.ssh/thechannel_deploy`.
 - **פריסה:** התמונות נבנות מקומית מ-`main` נקי (`docker compose -f docker-compose.prod.yml build`), ארכיון קוד (`git archive HEAD`) ותמונות (`docker save`) עולים ב-scp, ובשרת `docker load` ואז `docker compose -f docker-compose.prod.yml -f docker-compose.bridge-net.yml up -d --no-build`. את `deploy/install.sh` לא מריצים בעדכון, כי הוא טוען מחדש את nginx.
-- **דגלים ב-`.env` של הדמו:** `HOLD_VIDEOS_UNTIL_APPROVED=1`, `STRICT_UNTIL_REVIEWED=1`, `DECISION_V2=1`, `APPROVER_EMAILS=` (ריק: רק הבעלים מאשרים), `BRIDGE_NETWORK=bridge_default`, `BRIDGE_NOTIFY_URL=http://bridge:8080/notify`, `BRIDGE_NOTIFY_KEY` (סוד, לא בגיט), `PUBLIC_URL=https://demo.30206.co.il`.
+- **דגלים ב-`.env` של הדמו:** `NOINDEX_SITE=1`, `HOLD_VIDEOS_UNTIL_APPROVED=1`, `STRICT_UNTIL_REVIEWED=1`, `DECISION_V2=1`, `APPROVER_EMAILS=` (ריק: רק הבעלים מאשרים), `BRIDGE_NETWORK=bridge_default`, `BRIDGE_NOTIFY_URL=http://bridge:8080/notify`, `BRIDGE_NOTIFY_KEY` (סוד, לא בגיט), `PUBLIC_URL=https://demo.30206.co.il`.
 - **גשר (`/opt/bridge`):** `bridge.js` חדש עם `POST /notify` (רשת Docker בלבד + מפתח `NOTIFY_KEY`), ו-`notify-guard.js` מחובר ב-mount. הגשר לא מפרסם פורט. WAHA לא נגע.
 - **החזרה:** גיבוי הגשר ב-`/opt/bridge/backup-hold-20261019-100341` (החזרת הקבצים ו-`docker compose up -d --no-deps bridge`). גיבוי `.env` ב-`/opt/thechannel/backup-hold-20261019-100341`. תמונות קודמות: `thechannel-backend:before-hold-20261019-100341`, `thechannel-moderation:before-hold-20261019-100341` (החזרת התג ל-`latest` ו-`up -d`).
 - **תור הבדיקה האוטומטית:** שירות אחד על מעבד אחד, כמה דקות לסרטון. אחרי כל הפעלה מחדש של ה-backend הוא מכניס שוב לתור את כל הקבצים שסומנו "ממתין" (ב-19.10 היו 28, חלקם מאתמול). סרטון חדש עלול לחכות שעות.
+- **nginx:** הגבלות קצב לאתר הזה בלבד ב-`/etc/nginx/conf.d/thechannel-limits.conf` ושני קבצי snippets (גיבוי: `/root/nginx-backups/nginx-before-limits-20261019-103220.tgz`). לא נוסו בעומס.
+- **רשימת "מחוברים" (מנהלים בלבד):** מומשה בענף `presence-online`, **עדיין לא נפרסה** (נדרשת הפעלה מחדש של ה-backend, שמחזירה לתור את כל הקבצים הממתינים).
 - נטפרי חוסם את `demo.30206.co.il` מהמחשב שלי (418), ולכן נכנסים דרך מנהרת SSH (`deploy/tunnel.ps1`) בפורט 8080. **פורט 8080 במחשב הוא לא ה-stack המקומי:** בדיקות מקומיות רצות על 18080 (`tests/docker-compose.port.yml`, `BASE_URL`).
 - לדמו אין כניסת פיתוח, ולכן אי אפשר לבדוק שם כקורא בלי להתחבר עם גוגל. את זה עושה הבעלים בדפדפן.
 
-**לפני פתיחה לציבור:** הדגל `HOLD_VIDEOS_UNTIL_APPROVED` כבר דלוק בדמו (הוא נקבע בזמן ההעלאה, ומשפיע רק על סרטונים שהועלו אחרי שהודלק). לא משנים את `PRIVATE_SITE` ולא פותחים לקוראים בלי אישור מפורש.
+**שינוי ב-`PRIVATE_SITE`, ב-`ALLOWED_EMAILS` או ב-`require_auth` רק באישור מפורש.** `HOLD_VIDEOS_UNTIL_APPROVED` נקבע בזמן ההעלאה: הוא משפיע רק על סרטונים שהועלו אחרי שהודלק.
 
 ## ענפים
 - `main`: `bf4c004`. עבודה נוכחית ב-`moderation-vote-fix` (7 commits לפני main). אין remote.

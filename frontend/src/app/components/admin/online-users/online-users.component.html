@@ -1,0 +1,38 @@
+<nb-card>
+  <nb-card-header class="d-flex justify-content-between align-items-center">
+    <span>מחוברים</span>
+    <button nbButton size="small" [disabled]="loading" (click)="load()">רענן</button>
+  </nb-card-header>
+  <nb-card-body>
+    @if (error) {
+    <div class="text-danger">שגיאה בטעינת הנתונים (הדף למנהלים בלבד)</div>
+    } @else if (data) {
+    <div class="summary mb-2">
+      <strong class="online-count">{{ data.online }}</strong> מחוברים עכשיו
+      · {{ data.users.length }} נראו ב-{{ data.retentionDays }} הימים האחרונים
+    </div>
+    <small class="text-muted d-block mb-3">
+      "מחובר עכשיו" = חיבור פתוח לאתר, או פעילות ב-{{ windowMinutes }} הדקות האחרונות. נרשמים רק קוראים שהתחברו.
+      הנתונים נשמרים {{ data.retentionDays }} ימים ונמחקים אוטומטית.
+    </small>
+    @if (!data.users.length) {
+    <div>עדיין לא נרשמו כניסות.</div>
+    }
+    <div class="users">
+      @for (u of data.users; track u.email) {
+      <div class="user-row" [class.is-online]="u.online">
+        <span class="dot" [class.on]="u.online" [attr.aria-label]="u.online ? 'מחובר' : 'לא מחובר'"></span>
+        <div class="who">
+          <strong dir="ltr">{{ u.email }}</strong>
+          @if (u.name) { <small class="text-muted">{{ u.name }}</small> }
+          @if (roles(u)) { <small class="role">{{ roles(u) }}</small> }
+        </div>
+        <span class="seen">{{ seen(u) }}</span>
+      </div>
+      }
+    </div>
+    } @else {
+    <div>טוען...</div>
+    }
+  </nb-card-body>
+</nb-card>

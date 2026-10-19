@@ -9,6 +9,8 @@ import { StatisticsComponent } from "./statistics/statistics.component";
 import { ContactInboxComponent } from "./contact-inbox/contact-inbox.component";
 import { AdsSettingsComponent } from "./ads-settings/ads-settings.component";
 import { TopicsComponent } from "./topics/topics.component";
+import { OnlineUsersComponent } from "./online-users/online-users.component";
+import { AuthService } from "../../services/auth.service";
 
 @Component({
   selector: 'admin-dashboard',
@@ -25,7 +27,8 @@ import { TopicsComponent } from "./topics/topics.component";
     StatisticsComponent,
     ContactInboxComponent,
     AdsSettingsComponent,
-    TopicsComponent
+    TopicsComponent,
+    OnlineUsersComponent
 ],
   templateUrl: './admin-panel.component.html',
   styleUrls: ['./admin-panel.component.scss']
@@ -43,6 +46,7 @@ export class AdminPanelComponent implements OnInit {
   readonly contact = "contact";
   readonly ads = "ads";
   readonly topics = "topics";
+  readonly online = "online";
 
   selectedMenuItem = this.info;
 
@@ -63,6 +67,10 @@ export class AdminPanelComponent implements OnInit {
     {
       title: 'סטטיסטיקות',
       icon: 'bar-chart-outline',
+    },
+    {
+      title: 'מחוברים',
+      icon: 'activity-outline',
     },
     {
       title: 'נושאים',
@@ -101,10 +109,15 @@ export class AdminPanelComponent implements OnInit {
   ];
 
   constructor(
-    private menuService: NbMenuService
+    private menuService: NbMenuService,
+    private authService: AuthService
   ) { }
 
   ngOnInit(): void {
+    // "Who is online" is for admins only (the server enforces it too)
+    if (!this.authService.userInfo?.privileges?.['admin']) {
+      this.navigationMenu = this.navigationMenu.filter(i => i.icon !== 'activity-outline');
+    }
     this.handleMenuItemClick()
   }
 
@@ -137,6 +150,9 @@ export class AdminPanelComponent implements OnInit {
           break;
         case 'bar-chart-outline':
           this.selectedMenuItem = this.statistics;
+          break;
+        case 'activity-outline':
+          this.selectedMenuItem = this.online;
           break;
         case 'email-outline':
           this.selectedMenuItem = this.contact;

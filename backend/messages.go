@@ -175,6 +175,10 @@ func getEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	flusher.Flush()
 
+	if s, ok := sessionUser(r); ok { // an open live-update connection = this reader is online
+		presenceConnOpened(s)
+		defer presenceConnClosed(s)
+	}
 	go increaseCounterSSE()
 	defer decreaseCounterSSE()
 

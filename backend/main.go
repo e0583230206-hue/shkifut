@@ -42,6 +42,7 @@ func main() {
 	go statLogger()
 	startModeration()
 	startMediaCleanup()
+	startPresenceCleanup()
 
 	var err error
 	store, err = redistore.NewRediStore(10, redisType, redisAddr, "", redisPass, []byte(secretKey))
@@ -94,14 +95,14 @@ func main() {
 			api.Post("/channel/notifications-subscribe", subscribeNotifications)
 
 			api.Get("/channel/info", getChannelInfo)
-			api.Get("/messages", getMessages)
+			api.Get("/messages", withPresence(getMessages))
 			api.Get("/messages/search", searchMessages)
 			api.Get("/messages/pinned", getPinnedMessages)
 			api.Get("/topics", getTopics)
 			api.Get("/events", getEvents)
 			api.Get("/files/{fileid}", serveFile)
 			api.Get("/files/{fileid}/moderation", getFileModeration)
-			api.Get("/user-info", getUserInfo)
+			api.Get("/user-info", withPresence(getUserInfo))
 
 			api.Route("/admin", func(protected chi.Router) {
 				// ⚠️ WARNING: Route not check privilege use protectedWithPrivilege to check privilege.
@@ -125,6 +126,7 @@ func main() {
 				protected.Get("/files/{fileid}/figures/{name}", protectedWithApprover(getFigureCrop))
 				protected.Post("/files/{fileid}/figures", protectedWithApprover(setFigures))
 				protected.Post("/files/{fileid}/approve", protectedWithApprover(approveVideo))
+				protected.Get("/presence", protectedWithPrivilege(Admin, getPresence))
 				protected.Get("/contact", protectedWithPrivilege(Moderator, getContactMessages))
 				protected.Post("/contact/set", protectedWithPrivilege(Moderator, setContactHandled))
 
