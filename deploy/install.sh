@@ -1,3 +1,5 @@
+# Optional: join the backend to the bridge's Docker network (see docker-compose.bridge-net.yml)
+grep -q '^BRIDGE_NETWORK=.+' .env && COMPOSE+=(-f docker-compose.bridge-net.yml)
 #!/usr/bin/env bash
 # One-command install / update of TheChannel ("שקיפות") on Ubuntu, behind the server's existing nginx.
 #
@@ -82,6 +84,8 @@ else
     echo ".env exists - kept as is"
     grep -q '^APP_PORT=' .env && PORT="$(grep '^APP_PORT=' .env | cut -d= -f2)"
 fi
+# Optional: join the backend to the WhatsApp bridge's Docker network (see docker-compose.bridge-net.yml)
+grep -q '^BRIDGE_NETWORK=.\+' .env && COMPOSE+=(-f docker-compose.bridge-net.yml)
 grep -q '^GOOGLE_CLIENT_ID=.\+' .env || echo "!! GOOGLE_CLIENT_ID is empty in .env - Google login will not work until it is set (see docs/GOOGLE_OAUTH.md)"
 export APP_PORT="$PORT"
 

@@ -160,7 +160,8 @@ Images are not affected at all. The automatic check and the blur run as usual.
   `PUBLIC_URL/review/<fileId>` to `BRIDGE_NOTIFY_URL` with `X-Notify-Key: BRIDGE_NOTIFY_KEY`. The bridge forwards it to the private
   Chat space. Bridge side: `NOTIFY_KEY` (same value) turns `POST /notify` on; it answers only connections from loopback/private
   addresses, refuses anything that came through a proxy header, and compares the key in constant time (`bridge/notify-guard.js`).
-  The bridge container publishes no port, so the backend has to share a Docker network with it (e.g. attach the backend to the
-  bridge's network); the extra module `notify-guard.js` must be mounted next to `bridge.js`.
+  The bridge container publishes no port, so the backend joins the bridge's Docker network: set `BRIDGE_NETWORK=bridge_default` in the
+  backend's `.env` (`deploy/install.sh` then adds `docker-compose.bridge-net.yml`); the extra module `notify-guard.js` must be mounted
+  next to `bridge.js` in the bridge's compose.
 - **Before opening to the public:** turn the flag on (it only affects videos uploaded afterwards).
 - Tests: `tests/e2e_hold_videos.py` (API), `bridge/run-tests.sh` (notify guard and endpoint).

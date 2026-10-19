@@ -1,0 +1,11 @@
+# Optional extra file (used by deploy/install.sh when BRIDGE_NETWORK is set in .env): joins the backend to the Docker network of the
+# WhatsApp bridge, so that it can call the bridge's POST /notify ("a video waits for approval"). The bridge publishes no port.
+#   .env:  BRIDGE_NETWORK=bridge_default   BRIDGE_NOTIFY_URL=http://bridge:8080/notify   BRIDGE_NOTIFY_KEY=<same as NOTIFY_KEY of the bridge>
+#   docker compose -f docker-compose.prod.yml -f docker-compose.bridge-net.yml up -d
+services:
+  backend:
+    networks: [default, bridge_net]
+networks:
+  bridge_net:
+    external: true
+    name: ${BRIDGE_NETWORK:?set BRIDGE_NETWORK in .env}
