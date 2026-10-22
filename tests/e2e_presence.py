@@ -1,4 +1,4 @@
-"""End-to-end test of the admin "who is online" list (BASE_URL, default http://localhost:8080; the LOCAL stack, DEV_LOGIN on).
+"""End-to-end test of the admin "who is online" list (BASE_URL, default http://localhost:18080; the LOCAL stack, DEV_LOGIN on).
 
     BASE_URL=http://localhost:18080 python -I tests/e2e_presence.py
 
@@ -16,7 +16,9 @@ import urllib.request
 import uuid
 
 sys.stdout.reconfigure(encoding="utf-8")
-B = os.environ.get("BASE_URL", "http://localhost:8080")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url()
 failures = []
 RUN = uuid.uuid4().hex[:6]
 READER, MOD, OLD = f"reader-{RUN}@example.com", f"mod-{RUN}@example.com", f"old-{RUN}@example.com"

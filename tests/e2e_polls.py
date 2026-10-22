@@ -1,4 +1,4 @@
-"""End-to-end test of polls against a local stack (http://localhost:8080, DEV_LOGIN on).
+"""End-to-end test of polls against a local stack (http://localhost:18080 by default, BASE_URL to change; DEV_LOGIN on).
 
     python -I tests/e2e_polls.py            # includes a scheduled poll (waits up to ~70s for the scheduler)
     python -I tests/e2e_polls.py --quick    # skips the scheduled poll
@@ -8,6 +8,7 @@ settings and scheduled messages are restored.
 """
 import http.cookiejar
 import json
+import os
 import sys
 import threading
 import time
@@ -17,7 +18,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 sys.stdout.reconfigure(encoding="utf-8")
-B = "http://localhost:8080"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url()
 QUICK = "--quick" in sys.argv
 failures = []
 

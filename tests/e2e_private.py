@@ -3,7 +3,7 @@
     python -I tests/e2e_private.py
 
 Starts a second backend from the local image on 127.0.0.1:8091 with ALLOWED_EMAILS set (same data as the
-local stack), checks that only approved accounts get in, then removes it. localhost:8080 stays public.
+local stack), checks that only approved accounts get in, then removes it. the local stack (BASE_URL, default localhost:18080) stays public.
 """
 import http.cookiejar
 import os
@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 
 sys.stdout.reconfigure(encoding="utf-8")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
 P = "http://127.0.0.1:8091"
 ALLOWED = "allowed-tester@example.com"
 NAME = "thechannel-private-test"
@@ -101,8 +103,8 @@ try:
     admin, st = login_as(admin_email)
     check("admins (ADMIN_USERS) are always allowed", st == 302 and get(admin, "/api/user-info")[0] == 200, (admin_email, st))
 
-    pub = urllib.request.urlopen("http://localhost:8080/api/messages?offset=0&limit=1", timeout=10).status
-    check("localhost:8080 (no ALLOWED_EMAILS) stays public", pub == 200, pub)
+    pub = urllib.request.urlopen(base_url() + "/api/messages?offset=0&limit=1", timeout=10).status
+    check("the local stack (no ALLOWED_EMAILS) stays public", pub == 200, pub)
 finally:
     subprocess.run(["docker", "rm", "-f", NAME], capture_output=True, env=ENV)
 

@@ -1,4 +1,4 @@
-# Local development: http://localhost:8080 only (bound to 127.0.0.1, nothing exposed to the network).
+# Local development: http://localhost:18080 only (bound to 127.0.0.1, nothing exposed to the network).
 # Models (one time): docker build -f moderation/Dockerfile.models --output type=local,dest=moderation_models .
 # Usage: docker compose -f docker-compose.local.yml up --build -d
 name: thechannel-local
@@ -32,7 +32,7 @@ services:
       # (added to the system roots, nothing is disabled). The shipped image itself contains none of them.
       SSL_CERT_DIR: /usr/local/share/extra-ca
     ports:
-      - "127.0.0.1:8080:3000"
+      - "127.0.0.1:18080:3000"
     volumes:
       - ./channel_data:/app/files
       - blurred:/app/blurred:ro

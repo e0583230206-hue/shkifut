@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Runs tests/ui/ui_check.mjs in headless Chromium against the local stack (docker-compose.local.yml).
+# Runs tests/ui/ui_check.mjs in headless Chromium against the local stack (docker-compose.local.yml, http://localhost:18080;
+# BASE_URL changes it, but only to a local address: tests/_guard.py stops on anything else).
 # Needs the images "local-chromium" (alpine + chromium + Hebrew fonts) and node:24-alpine.
 # Temporarily enables test ads (embed code every 2 messages) and restores the settings afterwards.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export MSYS_NO_PATHCONV=1
+BASE_URL="$(python -I tests/_guard.py "${BASE_URL:-}")" || exit 2
+export BASE_URL
 NET=thechannel-local_default
 HERE="$(pwd)/tests/ui"
 command -v cygpath >/dev/null 2>&1 && HERE="$(cygpath -m "$HERE")"
@@ -18,35 +21,37 @@ fi
 BACKUP=tests/ui/.settings_backup.json
 python -I - "$BACKUP" <<'EOF'
 import http.cookiejar, json, os, sys, urllib.request
+BASE = os.environ["BASE_URL"]
 backup = sys.argv[1]
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-op.open("http://localhost:8080/auth/dev-login").read()
+op.open(BASE + "/auth/dev-login").read()
 if os.path.exists(backup):
     orig = json.load(open(backup, encoding="utf-8"))
 else:
-    orig = json.loads(op.open("http://localhost:8080/api/admin/settings/get").read() or b"[]") or []
+    orig = json.loads(op.open(BASE + "/api/admin/settings/get").read() or b"[]") or []
     json.dump(orig, open(backup, "w", encoding="utf-8"), ensure_ascii=False)
 test = [s for s in orig if not s["key"].startswith(("ads_", "ad-iframe"))] + [
     {"key": "ads_embed_code", "value": "<div style='font:16px sans-serif'>פרסומת לבדיקה</div>"},
     {"key": "ads_feed_every", "value": 2}]
-op.open(urllib.request.Request("http://localhost:8080/api/admin/settings/set", data=json.dumps(test).encode(),
+op.open(urllib.request.Request(BASE + "/api/admin/settings/set", data=json.dumps(test).encode(),
                                headers={"Content-Type": "application/json"})).read()
 EOF
 restore() {
   python -I - "$BACKUP" <<'EOF' && rm -f "$BACKUP"
-import http.cookiejar, json, sys, urllib.request
+import http.cookiejar, json, os, sys, urllib.request
+BASE = os.environ["BASE_URL"]
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-op.open("http://localhost:8080/auth/dev-login").read()
+op.open(BASE + "/auth/dev-login").read()
 orig = open(sys.argv[1], encoding="utf-8").read()
-op.open(urllib.request.Request("http://localhost:8080/api/admin/settings/set", data=orig.encode(),
+op.open(urllib.request.Request(BASE + "/api/admin/settings/set", data=orig.encode(),
                                headers={"Content-Type": "application/json"})).read()
-assert (json.loads(op.open("http://localhost:8080/api/admin/settings/get").read() or b"[]") or []) == json.loads(orig)
+assert (json.loads(op.open(BASE + "/api/admin/settings/get").read() or b"[]") or []) == json.loads(orig)
 EOF
   docker rm -f ui-chromium >/dev/null 2>&1 || true
 }
 trap 'restore; trap - EXIT' EXIT INT TERM
 
-MSG_ID="$(curl -s 'http://localhost:8080/api/messages?offset=0&limit=1' | python -I -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["id"] if d else "")')"
+MSG_ID="$(curl -s "$BASE_URL/api/messages?offset=0&limit=1" | python -I -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["id"] if d else "")')"
 
 docker rm -f ui-chromium >/dev/null 2>&1 || true
 # Docker's default /dev/shm (64MB) is too small for Chromium at desktop size: pages freeze with

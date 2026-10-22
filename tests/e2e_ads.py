@@ -1,14 +1,17 @@
-"""End-to-end test of the ads settings API (http://localhost:8080, DEV_LOGIN on). Restores settings at the end.
+"""End-to-end test of the ads settings API (http://localhost:18080 by default, BASE_URL to change; DEV_LOGIN on). Restores settings at the end.
 
     python -I tests/e2e_ads.py
 """
 import http.cookiejar
 import json
+import os
 import sys
 import urllib.request
 
 sys.stdout.reconfigure(encoding="utf-8")
-B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url(sys.argv[1] if len(sys.argv) > 1 else None)
 failures = []
 
 

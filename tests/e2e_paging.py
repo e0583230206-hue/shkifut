@@ -1,4 +1,4 @@
-"""Regression test for message paging (http://localhost:8080, DEV_LOGIN on).
+"""Regression test for message paging (http://localhost:18080 by default, BASE_URL to change; DEV_LOGIN on).
 
     python -I tests/e2e_paging.py
 
@@ -7,12 +7,15 @@ ZRANGE bounds). Creates 30 messages, deletes every other one, and pages through 
 """
 import http.cookiejar
 import json
+import os
 import sys
 import urllib.request
 import uuid
 
 sys.stdout.reconfigure(encoding="utf-8")
-B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url(sys.argv[1] if len(sys.argv) > 1 else None)
 failures = []
 
 

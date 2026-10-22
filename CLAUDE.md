@@ -28,7 +28,7 @@
 - **תור הבדיקה האוטומטית:** שירות אחד על מעבד אחד, כמה דקות לסרטון. אחרי כל הפעלה מחדש של ה-backend הוא מכניס שוב לתור את כל הקבצים שסומנו "ממתין" (ב-19.10 היו 28, חלקם מאתמול). סרטון חדש עלול לחכות שעות.
 - **nginx:** הגבלות קצב לאתר הזה בלבד ב-`/etc/nginx/conf.d/thechannel-limits.conf` ושני קבצי snippets (גיבוי: `/root/nginx-backups/nginx-before-limits-20261019-103220.tgz`). לא נוסו בעומס.
 - **פריסה אחרונה (22.10.2026, `main` בקומיט `f6eb093`):** לשונית "מחוברים" למנהלים ובורר בהיר/כהה/לפי המערכת. הוחלפה רק תמונת ה-backend (תג להחזרה: `thechannel-backend:before-presence-20261022-093818`, החזרת התג ל-`latest` ו-`up -d --no-deps backend`). ההפעלה מחדש החזירה לתור הבדיקה את כל הקבצים הממתינים (83 לפני הפריסה).
-- נטפרי חוסם את `demo.30206.co.il` מהמחשב שלי (418), ולכן נכנסים דרך מנהרת SSH (`deploy/tunnel.ps1`) בפורט 8080. **פורט 8080 במחשב הוא לא ה-stack המקומי:** בדיקות מקומיות רצות על 18080 (`tests/docker-compose.port.yml`, `BASE_URL`).
+- נטפרי חוסם את `demo.30206.co.il` מהמחשב שלי (418). `deploy/tunnel.ps1` (מנהרת SSH) **לא בשימוש** כרגע, והפורט שלו עבר ל-18081. ה-stack המקומי והבדיקות רצים על **18080** (`BASE_URL`); הבדיקות עוצרות מול כל כתובת לא מקומית, מול `30206.co.il` ומול הפורטים 8080/8081 (`tests/_guard.py`, `tests/ui/guard.mjs`).
 - לדמו אין כניסת פיתוח, ולכן אי אפשר לבדוק שם כקורא בלי להתחבר עם גוגל. את זה עושה הבעלים בדפדפן.
 
 **שינוי ב-`PRIVATE_SITE`, ב-`ALLOWED_EMAILS` או ב-`require_auth` רק באישור מפורש.** `HOLD_VIDEOS_UNTIL_APPROVED` נקבע בזמן ההעלאה: הוא משפיע רק על סרטונים שהועלו אחרי שהודלק.
@@ -45,5 +45,5 @@
 - אני לא אדמין במחשב. כונן C ממעט מקום: לא ליצור קבצים גדולים שם.
 
 ## הרצה מקומית
-`docker compose -f docker-compose.local.yml up -d` ואז http://localhost:8080 (כניסת פיתוח: `/auth/dev-login`, דורש `DEV_LOGIN=true`).
+`docker compose -f docker-compose.local.yml up -d` ואז http://localhost:18080 (כניסת פיתוח: `/auth/dev-login`, דורש `DEV_LOGIN=true`).
 המחשב מאחורי נטפרי MITM: `winget --source winget`, והתעודות ב-`certs/*.crt`.
