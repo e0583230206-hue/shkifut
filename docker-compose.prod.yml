@@ -37,6 +37,7 @@ services:
       OUTPUT_MAX_SIDE: "1280"
       MAX_VIDEO_SEC: "900"
       DECISION_V2: "${DECISION_V2:-0}"   # 1 = "likely man" queue for the moderators (automatic release unchanged), see moderation/README.md
+      PERSON_BACKEND: "${PERSON_BACKEND:-ort}"   # ov = same YOLOX weights through OpenVINO, input shaped like the video (-43% analysis time), see moderation/README.md
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s
