@@ -29,6 +29,7 @@ const seen = new Set();
 const { makeChatSender } = require('./chat-sender.js');
 const chat = makeChatSender({ fetch, env: E, log });
 const { checkNotifyRequest } = require('./notify-guard.js');
+const { skipReason } = require('./message-filter.js');
 const NOTIFY_KEY = E.NOTIFY_KEY || ''; // POST /notify from the site; without a key the endpoint is off
 
 function waToMd(t) {
@@ -113,6 +114,8 @@ async function postToChannel(text) {
 async function handle(ev) {
   if (!ev || !String(ev.event).startsWith('message')) return;
   const p = ev.payload || {};
+  const skip = skipReason(ev.event, p, p.body);
+  if (skip) { log('skipped (' + skip + ')', p.id || ''); return; }
   if (p.id && seen.has(p.id)) return;
   if (p.id) { seen.add(p.id); if (seen.size > 5000) seen.clear(); }
   const chat = p.fromMe ? p.to : p.from;
