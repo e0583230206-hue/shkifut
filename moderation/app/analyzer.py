@@ -276,15 +276,34 @@ class YuNetFaceDetector:
         return out
 
 
+class _OvModel:
+    """An OpenVINO model whose infer requests are per thread.
+
+    `compiled_model(x)` runs on ONE shared infer request, and a request is not thread-safe: when the service handles an image and a
+    video at the same time (separate locks, one thread per HTTP request) the second thread got RuntimeError "Infer Request is busy",
+    which the server turns into a final "blurred / analysis_error" decision. Here every thread creates its own request on first use."""
+
+    def __init__(self, xml_path, threads):
+        import openvino as ov  # imported only when a model is present
+        core = ov.Core()
+        core.set_property("CPU", {"INFERENCE_NUM_THREADS": threads})
+        self.model = core.compile_model(core.read_model(xml_path), "CPU")
+        self.outputs = self.model.outputs
+        self.local = threading.local()
+
+    def __call__(self, blob):
+        req = getattr(self.local, "req", None)
+        if req is None:
+            req = self.local.req = self.model.create_infer_request()
+        return req.infer({0: blob})  # {output port: array}; read before this thread infers again
+
+
 class OmzGenderClassifier:
     """OpenVINO Open Model Zoo age-gender-recognition-retail-0013 (Apache-2.0): 62x62 BGR face crop,
     outputs prob [female, male] and age/100. Commercial-friendly replacement for InsightFace genderage."""
 
     def __init__(self, xml_path, threads):
-        import openvino as ov
-        core = ov.Core()
-        core.set_property("CPU", {"INFERENCE_NUM_THREADS": threads})
-        self.model = core.compile_model(core.read_model(xml_path), "CPU")
+        self.model = _OvModel(xml_path, threads)
         self.prob = next(o for o in self.model.outputs if "prob" in o.get_any_name())
         self.age = next((o for o in self.model.outputs if "age" in o.get_any_name()), None)
         self.size = 62
@@ -317,10 +336,7 @@ class BodyGenderClassifier:
     face is small, turned away or not visible. Optional: used only when par.xml/par.bin exist."""
 
     def __init__(self, xml_path, threads):
-        import openvino as ov  # imported only when the model is present
-        core = ov.Core()
-        core.set_property("CPU", {"INFERENCE_NUM_THREADS": threads})
-        self.model = core.compile_model(core.read_model(xml_path), "CPU")
+        self.model = _OvModel(xml_path, threads)
         self.output = self.model.outputs[0]  # "453": 8 attribute probabilities, is_male first
 
     def male_prob(self, bgr, box):
