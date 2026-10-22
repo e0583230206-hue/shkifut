@@ -98,8 +98,14 @@ export class ChannelHeaderComponent implements OnInit {
       .pipe(filter(({ tag }) => tag === 'theme-menu'))
       .subscribe(({ item }) => this.themeService.set(item.data as ThemeMode));
 
+    // The server already put the right title in the page (channel name / custom title / "שקיפות - חדשות ועדכונים"; the text of a message on /m/<id>).
+    // Keep it: the app used to replace it with the channel name or "TheChannel", which is what the browser tab and Google (it runs the page) showed.
+    const serverTitle = this.titleService.getTitle();
     this.chatService.updateChannelInfo()
-      .then(() => this.titleService.setTitle(this.chatService.channelInfo?.name || 'TheChannel'));
+      .then(() => {
+        if (window.location.pathname !== '/') return; // message pages, privacy, terms: the title from the server stays
+        this.titleService.setTitle(serverTitle || this.chatService.channelInfo?.name || 'שקיפות');
+      });
 
     this.contextMenuService.onItemClick()
       .pipe(filter(({ tag }) => tag === this.userMenuTag))

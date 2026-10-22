@@ -184,3 +184,9 @@
 
 ## Participants number (branch `participants-offset`, not deployed)
 `PARTICIPANTS_OFFSET` (env, default 0) is added to the "N משתתפים" in the header (`/api/channel/info`, field `views`), because the same audience reads in other groups too. Only the shown number changes; nothing stored, the admin statistics are not touched. Test: `tests/e2e_participants.py`.
+
+## Push text and tab title (branch `push-text-and-title`, not deployed)
+- Push notifications: the body is now plain and short (`backend/pushtext/`): media embeds, markdown, HTML and web addresses removed (an address becomes "קישור"), at most 140 characters cut at a word with "…";
+  a picture / video / recording / poll without text gets a label ("📷 תמונה חדשה", "🎬 סרטון חדש", "🎧 הקלטה חדשה", "📊 סקר חדש"), a text with media gets the icon in front. The title is the channel name, or "שקיפות" when none is set.
+- Tab title: the app no longer replaces the title that the server rendered (it showed "TheChannel" when the channel had no name, also to Google, which runs the page). On the home page the server title stays
+  (custom title, else channel name, else "שקיפות - חדשות ועדכונים"); message, privacy and terms pages keep their own titles. Test: `tests/ui/title_check.mjs`; Go tests: `go test ./pushtext/`.

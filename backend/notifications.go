@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	"channel/pushtext"
 	"firebase.google.com/go/v4/messaging"
 	"github.com/appleboy/go-fcm"
 )
@@ -202,10 +203,14 @@ func pushFcmMessage(m *Message) {
 		return
 	}
 
+	title := channelName["name"]
+	if title == "" {
+		title = defaultSiteName // no channel name set: the site name, not an empty title
+	}
 	data := map[string]string{
 		"url":   settingConfig.ProjectDomain,
-		"title": channelName["name"],
-		"body":  m.Text,
+		"title": title,
+		"body":  pushtext.Body(m.Text, m.Poll != nil, 140), // plain and short: no media markers, markdown or file addresses
 	}
 
 	for chunk := range slices.Chunk(list, 500) {
