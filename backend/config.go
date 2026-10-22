@@ -18,6 +18,14 @@ var (
 	publicURL = strings.TrimRight(os.Getenv("PUBLIC_URL"), "/")
 	// NOINDEX_SITE=1 asks search engines to stay away from the whole site (header, meta tag, robots.txt, no sitemap), independently of PRIVATE_SITE.
 	noindexSite = os.Getenv("NOINDEX_SITE") == "1"
+	// GOOGLE_SITE_VERIFICATION: the content of Google Search Console's "HTML tag" verification (only letters, digits, - and _), put in the <head> of every page.
+	googleSiteVerification = func() string {
+		v := strings.TrimSpace(os.Getenv("GOOGLE_SITE_VERIFICATION"))
+		if regexp.MustCompile(`^[A-Za-z0-9_-]{10,120}$`).MatchString(v) {
+			return v
+		}
+		return ""
+	}()
 )
 
 // checkProductionConfig refuses to start with settings that must never reach production.

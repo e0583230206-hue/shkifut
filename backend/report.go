@@ -3,9 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
+
+	"channel/formlimits"
 )
 
 type Report struct {
@@ -37,13 +42,6 @@ func (s ReportStatus) IsValid() bool {
 func reportMessage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	defer r.Body.Close()
-
-	var report Report
-	if err := json.NewDecoder(r.Body).Decode(&report); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
 
 	session, _ := store.Get(r, cookieName)
 	s, ok := session.Values["user"].(Session)
@@ -51,11 +49,62 @@ func reportMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	report.CreatedAt = time.Now()
-	report.ReporterID = s.ID
-	report.ReportedEmail = s.Email
-	report.ReporterName = s.Username
 
+	// Only the message number and the reason are taken from the request; everything else is filled in here.
+	r.Body = http.MaxBytesReader(w, r.Body, reportBodyMax)
+	defer r.Body.Close()
+	var in struct {
+		MessageId int64  `json:"messageId"`
+		Reason    string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	reason, err := formlimits.Clean(in.Reason, reportReasonMin, reportReasonMax)
+	if err != nil {
+		http.Error(w, "reason must be "+strconv.Itoa(reportReasonMin)+"-"+strconv.Itoa(reportReasonMax)+" characters", http.StatusBadRequest)
+		return
+	}
+	if in.MessageId <= 0 {
+		http.Error(w, "Invalid message", http.StatusBadRequest)
+		return
+	}
+	if n, err := rdb.Exists(ctx, fmt.Sprintf("messages:%d", in.MessageId)).Result(); err != nil || n == 0 {
+		http.Error(w, "Message not found", http.StatusNotFound)
+		return
+	}
+
+	reporter := s.ID
+	if reporter == "" {
+		reporter = s.Email
+	}
+	for _, c := range []struct {
+		key   string
+		rules []formlimits.Rule
+	}{{"report:user:" + reporter, reportUserRules}, {"report:ip:" + clientIP(r), reportIPRules}, {"report:all", reportAllRules}} {
+		allowed, broken, err := formLimiter.Allow(c.key, c.rules...)
+		if err != nil {
+			log.Println("report rate limit counter:", err)
+		}
+		if !allowed {
+			log.Printf("report refused: too many (%s, rule %s)", c.key, broken.Name)
+			http.Error(w, "too many reports, try again later", http.StatusTooManyRequests)
+			return
+		}
+	}
+	// The same account reports the same message only once a day.
+	if fresh, err := rdb.SetNX(ctx, fmt.Sprintf("report:seen:%s:%d", reporter, in.MessageId), 1, 24*time.Hour).Result(); err == nil && !fresh {
+		http.Error(w, "already reported", http.StatusConflict)
+		return
+	}
+
+	report := Report{MessageId: in.MessageId, Reason: reason, CreatedAt: time.Now(), ReporterID: s.ID, ReportedEmail: s.Email, ReporterName: s.Username}
 	if err := dbReportMessage(ctx, &report); err != nil {
 		log.Println("Error saving report:", err)
 		http.Error(w, "Error saving report", http.StatusInternalServerError)

@@ -10,7 +10,9 @@ services:
       - "127.0.0.1:18083:3000"
     environment:
       MODERATION_URL: ""
+      NOINDEX_SITE: "0"
       DEV_LOGIN: "true"
+      GOOGLE_SITE_VERIFICATION: "test-verification-token-123"
     volumes: !override
       - ./.ui-test/channel_data:/app/files
       - kvrocks_sock:/app/data

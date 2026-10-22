@@ -65,7 +65,7 @@ def png():
 
 
 _, info, _ = get("/api/channel/info")
-channel = json.loads(info).get("name") or "שקיפות"
+channel = json.loads(info).get("name") or "שקיפות - חדשות ועדכונים"  # no channel name set: the clearer default title
 settings0 = json.loads(get("/api/admin/settings/get", admin)[1] or "[]") or []
 created = []
 try:
@@ -99,7 +99,12 @@ try:
     check("message page: 200", st == 200, st)
     check("message page: title from text (markdown removed)", (title(html) or "").startswith("ידיעה חשובה על"), title(html))
     check("message page: og:type article", meta(html, "og:type") == "article")
-    check("message page: og:image is the message image", (meta(html, "og:image") or "").endswith(up["url"]), meta(html, "og:image"))
+    # Files need a login (default): no page may mention the address of a file, so the preview has no image.
+    check("message page: no og:image and no file address anywhere while files need a login", meta(html, "og:image") is None and "/api/files/" not in html, meta(html, "og:image"))
+    # With public files the message image is the preview image (the earlier behaviour).
+    post("/api/admin/settings/set", settings0 + [{"key": "require_auth_for_view_files", "value": False}])
+    check("message page: og:image is the message image when files are public", (meta(get(f"/m/{msg['id']}")[1], "og:image") or "").split("?")[0].endswith(up["url"].split("?")[0]), meta(get(f"/m/{msg['id']}")[1], "og:image"))
+    post("/api/admin/settings/set", settings0)
     check("message page: text for crawlers without JS (<noscript>)", "<noscript><article>" in html)
     # HTML in a message never reaches the page: tags are stripped from the text (then the rest is escaped)
     check("message page: injected HTML never reaches the page", "<script>alert" not in html and "&lt;script" not in html)
@@ -116,7 +121,14 @@ try:
 
     check("invalid message id: 404", get("/m/abc")[0] == 404)
     st, robots, _ = get("/robots.txt")
-    check("robots.txt with sitemap, admin API blocked", st == 200 and "Sitemap:" in robots and "Disallow: /api/" in robots)
+    check("robots.txt: sitemap, files and admin API closed, the texts (/api/messages) and pages open", st == 200 and "Sitemap:" in robots and "Disallow: /api/files/" in robots
+          and "Disallow: /api/admin/" in robots and "Disallow: /api/\n" not in robots and "Disallow: /\n" not in robots, robots)
+    st, html, _ = get("/")
+    check("home: no verification tag unless GOOGLE_SITE_VERIFICATION is set", (meta(html, "google-site-verification") is None) or bool(re.fullmatch(r"[A-Za-z0-9_-]+", meta(html, "google-site-verification"))))
+    exp = os.environ.get("EXPECT_VERIFICATION")
+    if exp:
+        check("home: Google Search Console verification tag", meta(html, "google-site-verification") == exp, meta(html, "google-site-verification"))
+    check("home: no file address anywhere in the page", "/api/files/" not in html)
 finally:
     post("/api/admin/settings/set", settings0)
     for mid in created:

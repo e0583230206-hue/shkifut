@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"channel/formlimits"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -29,8 +31,7 @@ type ContactMessage struct {
 }
 
 const (
-	contactPerIPPerHour = 5
-	contactMinFillMs    = 3000 // humans need a few seconds to fill the form
+	contactMinFillMs = 3000 // humans need a few seconds to fill the form
 )
 
 var (
@@ -49,7 +50,15 @@ func clientIP(r *http.Request) string {
 func submitContact(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, contactBodyMax)
+	// Every try counts loosely, even an invalid one (cheap junk), before anything is read.
+	if ok, broken, err := formLimiter.Allow("contact:try:"+clientIP(r), contactTryRules...); err != nil {
+		log.Println("contact rate limit counter:", err)
+	} else if !ok {
+		log.Printf("contact refused: too many tries (rule %s)", broken.Name)
+		http.Error(w, "too many attempts, try again later", http.StatusTooManyRequests)
+		return
+	}
 
 	var req struct {
 		Name      string `json:"name"`
@@ -73,7 +82,7 @@ func submitContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
-	case utf8.RuneCountInString(req.Message) < 5 || utf8.RuneCountInString(req.Message) > 5000:
+	case utf8.RuneCountInString(req.Message) < 5 || utf8.RuneCountInString(req.Message) > contactMessageMax:
 		http.Error(w, "message length", http.StatusBadRequest)
 		return
 	case utf8.RuneCountInString(req.Name) > 100 || utf8.RuneCountInString(req.Subject) > 200 || len(req.Phone) > 30:
@@ -90,15 +99,20 @@ func submitContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rate limit per IP.
-	key := "contact:rate:" + clientIP(r)
-	n, err := rdb.Incr(ctx, key).Result()
-	if err == nil && n == 1 {
-		rdb.Expire(ctx, key, time.Hour)
-	}
-	if n > contactPerIPPerHour {
-		http.Error(w, "too many messages, try again later", http.StatusTooManyRequests)
-		return
+	// Rate limit per address (10 minutes, hour, day) and for the whole site.
+	for _, c := range []struct {
+		key   string
+		rules []formlimits.Rule
+	}{{"contact:send:" + clientIP(r), contactSendRules}, {"contact:all", contactAllRules}} {
+		allowed, broken, err := formLimiter.Allow(c.key, c.rules...)
+		if err != nil {
+			log.Println("contact rate limit counter:", err)
+		}
+		if !allowed {
+			log.Printf("contact refused: too many messages (%s, rule %s)", c.key, broken.Name)
+			http.Error(w, "too many messages, try again later", http.StatusTooManyRequests)
+			return
+		}
 	}
 
 	id, err := rdb.Incr(ctx, "contact:next_id").Result()

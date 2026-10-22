@@ -22,7 +22,8 @@ import (
 
 const (
 	defaultSiteName    = "שקיפות"
-	defaultDescription = "שקיפות - ערוץ חדשות ועדכונים"
+	defaultTitle       = "שקיפות - חדשות ועדכונים"
+	defaultDescription = "שקיפות - ערוץ חדשות ועדכונים שוטפים. קראו את העדכונים האחרונים, והתחברו עם חשבון Google כדי לצפות בתמונות ובסרטונים ולהגיב."
 )
 
 type pageMeta struct {
@@ -107,6 +108,9 @@ func renderIndex(w http.ResponseWriter, r *http.Request, m pageMeta, status int)
 	fmt.Fprintf(&head, "<title>%s</title>\n", e(m.Title))
 	fmt.Fprintf(&head, "  <meta name=\"description\" content=\"%s\">\n", e(m.Description))
 	fmt.Fprintf(&head, "  <link rel=\"canonical\" href=\"%s\">\n", e(canonical))
+	if googleSiteVerification != "" { // Google Search Console: proves that the site is ours
+		fmt.Fprintf(&head, "  <meta name=\"google-site-verification\" content=\"%s\">\n", e(googleSiteVerification))
+	}
 	if noindexSite {
 		head.WriteString("  <meta name=\"robots\" content=\"noindex, nofollow\">\n")
 	} else if m.NoIndex {
@@ -119,6 +123,10 @@ func renderIndex(w http.ResponseWriter, r *http.Request, m pageMeta, status int)
 	fmt.Fprintf(&head, "  <meta property=\"og:description\" content=\"%s\">\n", e(m.Description))
 	fmt.Fprintf(&head, "  <meta property=\"og:url\" content=\"%s\">\n", e(canonical))
 	card := "summary"
+	// While files need a login no page may mention the address of a file (a picture, a video, not even the logo if it is one).
+	if settingConfig.RequireAuthForViewFiles && strings.Contains(m.Image, "/api/files/") {
+		m.Image = ""
+	}
 	if m.Image != "" {
 		fmt.Fprintf(&head, "  <meta property=\"og:image\" content=\"%s\">\n", e(m.Image))
 		card = "summary_large_image"
@@ -144,6 +152,9 @@ func serveSpaFile(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	name, description, logo := channelMeta(ctx)
 	title := name
+	if name == defaultSiteName {
+		title = defaultTitle // no channel name set yet: a clearer title than the bare site name
+	}
 	if settingConfig.CustomTitle != "" {
 		title = settingConfig.CustomTitle
 	}
@@ -215,7 +226,13 @@ func serveRobots(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "User-agent: *\nDisallow: /\n")
 		return
 	}
-	fmt.Fprintf(w, "User-agent: *\nDisallow: /api/\nDisallow: /auth/\nDisallow: /login\nDisallow: /review/\nAllow: /api/files/\n\nSitemap: %s/sitemap.xml\n", baseURL(r))
+	// The texts are public and the page loads them from /api/messages, so that stays open for crawlers (a crawler that renders the page
+	// needs it). Files, the admin API, the live stream, login and review pages are closed.
+	files := "Disallow: /api/files/\n"
+	if !settingConfig.RequireAuthForViewFiles {
+		files = "Allow: /api/files/\n" // files are public: crawlers may see them (as before)
+	}
+	fmt.Fprintf(w, "User-agent: *\n%sDisallow: /api/admin/\nDisallow: /api/events\nDisallow: /api/user-info\nDisallow: /api/contact\nDisallow: /api/reactions/\nDisallow: /auth/\nDisallow: /login\nDisallow: /review/\n\nSitemap: %s/sitemap.xml\n", files, baseURL(r))
 }
 
 // serveSitemap lists the home page, static pages and the latest 5000 published messages.

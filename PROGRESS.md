@@ -163,3 +163,13 @@
 - Round profile picture next to every message and a reserved, empty logo slot in the header (no temporary logo).
 - Tests: `tests/e2e_files_auth.py`, `tests/ui/layout_check.mjs` (desktop + phone screenshots, needs `tests/docker-compose.ui-test.yml` and
   `tests/ui/seed_ui_data.py`), `go test ./backend/mediadims/`, `node --test tests/unit/gallery.test.mjs`.
+
+## Limits on the forms and preparation for Google (branch `seo-and-limits`, 22.10.2026)
+- Report (logged-in accounts): the reason is 3-500 characters, the request at most 8 KB, the message must exist, only the message number and the reason are taken from the request (the
+  client cannot set `closed`, `reporterId`, `id`), one report per account and message per day, 3 per 10 minutes and 10 per day per account, 30 a day per address, 300 an hour for the whole site.
+  Contact form: message at most 2000 characters, body 16 KB, every try counted (30 per 10 min per address), delivered messages 3 per 10 min / 5 per hour / 15 per day per address, 100 an hour for the site.
+  Code: `backend/formlimits/` (tested alone), `backend/form_limits.go`; tests `tests/e2e_form_limits.py`.
+- Search engines: `robots.txt` leaves the pages and `/api/messages` open and closes `/api/files/`, `/api/admin/`, `/api/events`, `/api/user-info`, `/api/contact`, `/api/reactions/`, `/auth/`, `/login`, `/review/`;
+  sitemap of the home page, privacy, terms and the messages; title "שקיפות - חדשות ועדכונים" and a description (replaced by the channel name / `custom_title` when set); canonical from `PUBLIC_URL`;
+  `GOOGLE_SITE_VERIFICATION` (Search Console HTML tag) in every page; while files need a login no page mentions the address of a file (no `og:image`, also not the logo if it is a file).
+  `NOINDEX_SITE=1` still switches everything off (robots `Disallow: /`, header, meta tag, no sitemap). Tests: `tests/e2e_seo.py`.
