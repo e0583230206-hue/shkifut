@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -16,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"channel/mediadims"
 
 	"github.com/go-chi/chi"
 	"github.com/h2non/filetype"
@@ -80,6 +83,12 @@ func detectMime(meta map[string]any, filePath string) string {
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request) {
+	// Texts are public, files are for logged-in readers only (setting require_auth_for_view_files, on unless an admin turns it off).
+	// Enforced here, so the direct address of a file does not work without a login either.
+	if settingConfig.RequireAuthForViewFiles && !viewerLoggedIn(r) {
+		http.Error(w, "login required", http.StatusUnauthorized)
+		return
+	}
 	fileId := stripExtension(chi.URLParam(r, "fileid"))
 
 	metaData, err := readMetadata(fileId)
@@ -280,6 +289,10 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		// upload time (the YAML's mtime changes on every moderation update)
 		"uploadedAt": time.Now().UTC().Format(time.RFC3339),
 	}
+	mediaW, mediaH := mediadims.Size(filepath.Join(hashSubDir, fileHash), t.MIME.Type)
+	if mediaW > 0 && mediaH > 0 {
+		fileMetadata["width"], fileMetadata["height"] = mediaW, mediaH
+	}
 	if isModeratedType(t.MIME.Type) {
 		fileMetadata["moderation"] = ModPending
 		if holdVideos && t.MIME.Type == "video" {
@@ -313,6 +326,9 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	fileUrl := "/api/files/" + id
 	if t != filetype.Unknown && t.Extension != "" {
 		fileUrl += "." + t.Extension
+	}
+	if mediaW > 0 && mediaH > 0 { // lets the page reserve the right box before the file loads (ignored by serveFile)
+		fileUrl += fmt.Sprintf("?w=%d&h=%d", mediaW, mediaH)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

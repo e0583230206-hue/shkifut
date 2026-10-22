@@ -6,6 +6,19 @@
 const imageRun = /(?:\[image-embedded#\]\([^)\s|]+\)[ \t]*(?:\r?\n[ \t]*)*){2,}/g;
 const imageUrl = /\[image-embedded#\]\(([^)\s|]+)\)/g;
 
+const anyEmbed = /\[(image|video|audio|gallery)-embedded#\]\(([^)]*)\)/g;
+
+/**
+ * Readers who are not logged in get the texts but no files: every image, video, audio or gallery embed becomes a "locked" box of the same
+ * proportions (the browser never asks for the file; the server refuses it anyway). Kept in the text, so it re-renders when the login state changes.
+ */
+export function lockEmbeds(text: string): string {
+  return text.replace(anyEmbed, (_all, kind: string, url: string) => {
+    const d = kind === 'gallery' ? null : /[?&]w=(\d{1,5})&h=(\d{1,5})/.exec(url); // the size the server put in the address (see media-dims.ts)
+    return `[locked-embedded#](${kind}|${d ? d[1] : ''}|${d ? d[2] : ''})`;
+  });
+}
+
 export function groupImageEmbeds(text: string): string {
   return text.replace(imageRun, (run) => {
     const urls = [...run.matchAll(imageUrl)].map(m => m[1]);

@@ -98,6 +98,9 @@ def analyze(a, boxes, ref=None, same=None):
 admin = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 admin.open(B + "/auth/dev-login").read()
 anon = urllib.request.build_opener()
+# Files are for logged-in readers only (require_auth_for_view_files): "a reader" here is a logged-in dev user without privileges.
+reader = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+reader.open(B + "/auth/dev-login?email=reader-wm@example.com").read()
 
 orig_settings = call(admin, "/api/admin/settings/get")[1] or []
 orig_info = call(anon, "/api/channel/info")[1]
@@ -131,7 +134,7 @@ try:
     check("test photo is open after the automatic check (no people)", call(admin, f"/api/files/{fid}/moderation")[1].get("status") == "open")
 
     set_watermark(enabled=True, position="bottom-left", size=20, opacity=100)
-    a, ctype, etag1 = fetch(anon, url)
+    a, ctype, etag1 = fetch(reader, url)
     m = analyze(a, {"bl": inner(BL), "tr": inner(TR)}, ref=photo, same={"top": (0, 0, W, H // 2)})
     check("reader gets the same image size", m.get("size") == [W, H], m.get("size"))
     check("logo at bottom-left (solid red)", m.get("red_bl", 0) > 0.95, m.get("red_bl"))
@@ -144,7 +147,7 @@ try:
     check("moderator ?view=public shows the reader version", p == a)
 
     set_watermark(enabled=True, position="top-right", size=20, opacity=100)
-    a2, _, etag2 = fetch(anon, url)
+    a2, _, etag2 = fetch(reader, url)
     m = analyze(a2, {"bl": inner(BL), "tr": inner(TR)})
     check("position setting moves the logo to top-right", m.get("red_tr", 0) > 0.95 and m.get("red_bl", 1) < 0.05, m)
     check("ETag changes with the configuration", etag1 != etag2, (etag1, etag2))
@@ -152,12 +155,12 @@ try:
         if call(admin, f"/api/files/{logo_url.rsplit('/', 1)[1].split('.')[0]}/moderation")[1].get("status") != "pending":
             break
         time.sleep(1)
-    lg, _, _ = fetch(anon, logo_url)
+    lg, _, _ = fetch(reader, logo_url)
     check("the logo file itself is never watermarked", lg == logo)
 
     # blurred: the watermark must be applied AFTER blurring (a crisp logo on a blurred image)
     call(admin, "/api/admin/files/moderation", {"id": fid, "status": "blurred"})
-    b, ctype, _ = fetch(anon, url)
+    b, ctype, _ = fetch(reader, url)
     hsh = None
     meta = subprocess.run(COMPOSE + ["exec", "-T", "backend", "sh", "-c", f"cat /app/files/{fid[:2]}/{fid[2:4]}/{fid}.yaml"],
                           capture_output=True, timeout=30, env={"MSYS_NO_PATHCONV": "1", **os.environ}).stdout.decode()
@@ -183,7 +186,7 @@ try:
         if call(admin, f"/api/files/{jid}/moderation")[1].get("status") != "pending":
             break
         time.sleep(1)
-    j, _, _ = fetch(anon, jurl)
+    j, _, _ = fetch(reader, jurl)
     # upright size is 200 x 300; logo 20% of 200 = 40 wide (x 20 high), top-right with a 6px margin
     m = analyze(j, {"tr": (200 - 40 - 6 + 4, 6 + 4, 200 - 6 - 4, 6 + 20 - 4)})
     check("EXIF-rotated photo comes out upright (300 tall)", m.get("size") == [200, 300], m.get("size"))
@@ -191,7 +194,7 @@ try:
 
     call(admin, "/api/admin/files/moderation", {"id": fid, "status": "open"})
     set_watermark(enabled=False, position="top-right", size=20, opacity=100)
-    c, _, _ = fetch(anon, url)
+    c, _, _ = fetch(reader, url)
     check("watermark off -> reader gets the original again", c == photo)
 finally:
     call(admin, "/api/admin/settings/set", orig_settings)

@@ -40,3 +40,23 @@ test('render: attribute values are escaped', () => {
   assert.ok(!html.includes('" onerror="'));
   assert.ok(html.includes('&quot; onerror=&quot;'));
 });
+
+// ---- lockEmbeds: visitors who are not logged in get the texts but no files
+import { lockEmbeds } from '../../frontend/src/app/gallery.ts';
+
+test('lock: every file embed becomes a locked box of the same proportions, the text stays', () => {
+  const out = lockEmbeds('שלום\n[image-embedded#](/api/files/a.jpg?w=848&h=480)\n[video-embedded#](/api/files/b.mp4?w=478&h=850)\n[audio-embedded#](/api/files/c.ogg)\nסוף');
+  assert.equal(out, 'שלום\n[locked-embedded#](image|848|480)\n[locked-embedded#](video|478|850)\n[locked-embedded#](audio||)\nסוף');
+  assert.ok(!out.includes('/api/files/'), 'the address of no file is left in the text');
+});
+
+test('lock: an old message without a size, a gallery and quotes', () => {
+  assert.equal(lockEmbeds('[image-embedded#](/api/files/a.jpg)'), '[locked-embedded#](image||)');
+  assert.equal(lockEmbeds('[gallery-embedded#](/api/files/a.jpg?w=1&h=1|/api/files/b.jpg)'), '[locked-embedded#](gallery||)');
+  assert.equal(lockEmbeds('[quote-embedded#](12@תמונה 📷)'), '[quote-embedded#](12@תמונה 📷)');
+});
+
+test('lock: grouping first, so a row of images becomes ONE locked box', () => {
+  const out = lockEmbeds(groupImageEmbeds(`${img(1)}\n${img(2)}\n${img(3)}`));
+  assert.equal(out, '[locked-embedded#](gallery||)');
+});

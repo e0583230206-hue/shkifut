@@ -1,0 +1,19 @@
+# Local stack for looking at the UI (screenshots, tests/ui/*) on http://localhost:18083, in its own compose project and its own data
+# directory (.ui-test/, not in git), with the frontend taken from frontend/dist (built with: ng build --configuration development), so a CSS
+# change needs only a rebuild of the frontend, not of the image. No moderation service: a moderator opens files by hand (API).
+#   docker compose -p tc-ui -f docker-compose.local.yml -f tests/docker-compose.ui-test.yml up -d --build --no-deps redis backend
+#   BASE_URL=http://localhost:18083 node tests/ui/<script>.mjs ...
+#   docker compose -p tc-ui -f docker-compose.local.yml -f tests/docker-compose.ui-test.yml down -v
+services:
+  backend:
+    ports: !override
+      - "127.0.0.1:18083:3000"
+    environment:
+      MODERATION_URL: ""
+      DEV_LOGIN: "true"
+    volumes: !override
+      - ./.ui-test/channel_data:/app/files
+      - kvrocks_sock:/app/data
+      - ./.ui-test/logs:/app/logs
+      - ./.ui-test/training:/app/training
+      - ./frontend/dist/channel/browser:/usr/share/ng:ro

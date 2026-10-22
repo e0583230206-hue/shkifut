@@ -24,14 +24,56 @@ markdown p {
     font-family: 'Noto Color Emoji', sans-serif;
 }
 /* Media moderation (elements are created at runtime inside rendered markdown) */
+/* Pictures and videos use the full width of the message. The box has the picture's proportions from the start (the server puts the size in the
+   address; older messages get a default box that is corrected after loading), so the page does not jump while it loads. */
 .mod-wrap {
-    display: inline-block;
-    max-width: 300px;
+    display: block;
     width: 100%;
+    max-width: none;
+}
+
+.msg-media {
+    width: 100%;
+}
+
+.msg-media img,
+.msg-media video {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    object-fit: contain;
+    cursor: pointer;
 }
 
 .mod-frame {
     position: relative;
+    width: 100%;
+}
+
+.mod-frame-wait {
+    background: var(--tc-surface-2, #e9ecef);
+    border-radius: 8px;
+}
+
+/* A frame with proportions: the picture fills it (letterboxed when very tall: the box is never higher than 80% of the screen). */
+.mod-frame-ar {
+    max-height: 80vh;
+    background: var(--tc-surface-2, #e9ecef);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.mod-frame-ar.mod-frame-video {
+    background: #000;
+}
+
+.mod-frame-ar > .mod-media {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .mod-media {
@@ -39,6 +81,35 @@ markdown p {
     height: auto;
     border-radius: 8px;
     display: block;
+}
+
+/* In place of a file for visitors who are not logged in: a black box of the same proportions */
+.mod-locked {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    background: #000;
+    color: #fff;
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 2px 0;
+}
+
+.mod-locked-link {
+    display: inline-block;
+    margin-top: 6px;
+    color: #9ec1ff;
+    text-decoration: underline;
+}
+
+.mod-locked-audio {
+    min-height: 64px;
 }
 
 .mod-chip {
@@ -101,7 +172,8 @@ markdown p {
 .msg-gallery {
     display: grid;
     gap: 3px;
-    max-width: 320px;
+    width: 100%;
+    max-width: none;
     border-radius: 10px;
     overflow: hidden;
     margin: 2px 0;

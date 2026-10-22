@@ -77,6 +77,8 @@ func init() {
 func (s *Settings) ToConfig() *SettingConfig {
 	config := &SettingConfig{}
 	config.FcmJson = &FcmJsonConfing{}
+	// Default: files (images, videos, audio) only for logged-in readers, texts stay public. Setting "require_auth_for_view_files" = false turns it off.
+	config.RequireAuthForViewFiles = true
 
 	if rootStaticFolder != "" {
 		config.RootStaticFolder = rootStaticFolder

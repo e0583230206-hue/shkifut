@@ -151,3 +151,15 @@
 
 ## הבא בתור
 הסתיים. ההמשך אצל המשתמש, לפי MORNING_REPORT.md: DNS, Google OAuth, העלאה, ובדיקת דליפה בשרת.
+
+## Message layout, media and file access (branch `site-media-layout`, 22.10.2026, not deployed)
+- Messages: one fixed width (390 px, shrinks to the screen on a phone), free height; pictures and videos use the full width of the message
+  (click still opens them full screen). The server puts the display size in the address of every new upload (`?w=&h=`, `backend/mediadims/`),
+  so the box has the right proportions before the file loads; older messages get a default box that is corrected once.
+- Emoji: no hover list; a small smiley button next to "report" and "link" opens the list on a click or a tap. Reaction tags stay under the message.
+- Files: texts are public, files only for logged-in readers, enforced in `serveFile` (setting `require_auth_for_view_files`, ON by default;
+  `false` in the settings turns it off). A visitor sees a black box of the same size with "יש להתחבר כדי לצפות בקבצים". Side effect: link
+  previews (WhatsApp) cannot fetch the picture of a message.
+- Round profile picture next to every message and a reserved, empty logo slot in the header (no temporary logo).
+- Tests: `tests/e2e_files_auth.py`, `tests/ui/layout_check.mjs` (desktop + phone screenshots, needs `tests/docker-compose.ui-test.yml` and
+  `tests/ui/seed_ui_data.py`), `go test ./backend/mediadims/`, `node --test tests/unit/gallery.test.mjs`.

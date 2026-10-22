@@ -1,12 +1,15 @@
 @if (message && message.text) {
-<div class="d-flex flex-row align-content-center my-1 mx-4">
-  <div class="d-flex flex-column">
-    <nb-user class="pt-4" [shape]="'round'" [color]="'white'" [size]="'large'"
-      [picture]="chatService.channelInfo?.logoUrl || ''" [name]="chatService.channelInfo?.name || ''"
-      onlyPicture></nb-user>
+<div class="msg-row d-flex flex-row align-content-start my-1">
+  <div class="msg-avatar-col d-flex flex-column">
+    @if (chatService.channelInfo?.logoUrl?.length) {
+    <img class="msg-avatar" [src]="chatService.channelInfo?.logoUrl" alt="" aria-hidden="true">
+    } @else {
+    <!-- no logo yet: an empty round placeholder, same size -->
+    <span class="msg-avatar msg-avatar-empty" aria-hidden="true"></span>
+    }
   </div>
-  <div class="d-flex flex-column gap-1 overflow-auto">
-    <div class="d-flex flex-row gap-2 pe-1">
+  <div class="msg-col d-flex flex-column gap-1">
+    <div class="msg-head d-flex flex-row flex-wrap align-items-center gap-2 pe-1">
       <strong class="text-black-50">{{_authService.userInfo?.privileges?.['admin'] ? message.author :
         chatService.channelInfo?.name
         }}</strong>
@@ -64,11 +67,18 @@
         title="העתק קישור להודעה">
         <nb-icon icon="link-2"></nb-icon>
       </button>
+      @if (reacts.length && !isSchedulingMessage && !message.is_ads) {
+      <!-- opens the list of reactions on a click or a tap (works on a phone); the reactions themselves stay under the message -->
+      <button #emojiPopover="ngbPopover" class="icon-button emoji-button" nbButton ghost shape="round" size="small" type="button"
+        [ngbPopover]="emojiMenu" [popoverContext]="{ message, popover: emojiPopover }" triggers="click" [autoClose]="'outside'"
+        container="body" popoverClass="emoji-picker-popover" [placement]="['bottom', 'top']"
+        title="הגב באימוג'י" aria-label="הגב באימוג'י">
+        <nb-icon icon="smiling-face-outline"></nb-icon>
+      </button>
+      }
     </div>
-    <div [ngbPopover]="emojiMenu" [placement]="['top', 'bottom']" [disablePopover]="!reacts.length"
-      [triggers]="'manual'" [popoverContext]="{message}" [autoClose]="'outside'" [popoverClass]="'emoji-picker-popover'"
-      (mouseenter)="showEmojiMenu()" (mouseleave)="scheduleEmojiMenuClose()" #p="ngbPopover">
-      <div class="d-flex flex-column bg-light rounded-4 border fs-5 f lh-base message-card"
+    <div>
+      <div class="d-flex flex-column bg-light rounded-4 border lh-base message-card"
         [ngStyle]="{'opacity': (message.deleted || isSchedulingMessage) ? 0.5 : 1}">
         <div class="m-2" #media>
           <markdown [data]="displayText" [disableSanitizer]="true" (click)="viewLargeImage($event)" (ready)="decorateMedia()">
@@ -102,10 +112,10 @@
 </div>
 }
 
-<ng-template #emojiMenu let-message="message">
-  <div class="emoji-picker-menu" (mouseenter)="cancelEmojiMenuClose()" (mouseleave)="scheduleEmojiMenuClose()">
+<ng-template #emojiMenu let-message="message" let-popover="popover">
+  <div class="emoji-picker-menu">
     @for (react of reacts; track react) {
-    <button class="emoji-option emoji" (click)="setReact(message.id, react)">
+    <button class="emoji-option emoji" type="button" (click)="pickReact(message.id, react, popover)">
       {{ react }}
     </button>
     }
