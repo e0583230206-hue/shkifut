@@ -74,3 +74,10 @@ func privateAccess(next http.Handler) http.Handler {
 		http.Error(w, "login required", http.StatusUnauthorized)
 	})
 }
+
+// viewerLoggedIn: the request carries a login session (any account; the closed-site rules above are separate).
+func viewerLoggedIn(r *http.Request) bool {
+	session, _ := store.Get(r, cookieName)
+	_, ok := session.Values["user"].(Session)
+	return ok
+}

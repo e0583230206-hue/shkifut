@@ -4,6 +4,7 @@ import { firstValueFrom, Subject } from 'rxjs';
 import { ResponseResult } from '../models/response-result.model';
 import { NbDialogService } from '@nebular/theme';
 import { FigureReviewComponent } from '../components/admin/figure-review/figure-review.component';
+import { boxRatio, dimsFromUrl } from '../media-dims';
 
 export type ModerationStatus = 'pending' | 'open' | 'regional' | 'blurred';
 export type ModerationChoice = 'open' | 'regional' | 'blurred';
@@ -128,21 +129,40 @@ export class MediaModerationService {
   /** Wrap every moderated <img>/<video> in the container. Safe to call repeatedly. */
   async decorate(container: HTMLElement | undefined, isModerator: boolean, onlyId?: string) {
     if (!container) return;
-    const items = Array.from(container.querySelectorAll<HTMLElement>('img, video, .mod-wrap'));
-    for (const el of items) {
+    // First every picture / video gets its box with the right proportions (all of them at once, synchronously), so nothing jumps while
+    // the statuses are fetched one by one below.
+    const wraps: HTMLElement[] = [];
+    for (const el of Array.from(container.querySelectorAll<HTMLElement>('img, video, .mod-wrap'))) {
       let wrap = el.classList.contains('mod-wrap') ? el : null;
       if (!wrap) {
         if (el.closest('.mod-wrap')) continue;
         const src = el.tagName === 'VIDEO' ? (el.querySelector('source')?.getAttribute('src') ?? el.getAttribute('src')) : el.getAttribute('src');
         const match = src?.match(FILE_URL);
         if (!src || !match) continue;
+        const isVideo = el.tagName === 'VIDEO';
+        const box = boxRatio(dimsFromUrl(src), isVideo ? 'video' : 'image');
+        const inGallery = !!el.closest('.msg-gallery');
         wrap = document.createElement('div');
         wrap.className = 'mod-wrap';
         wrap.dataset['fileId'] = match[1];
         wrap.dataset['src'] = src.split('?')[0];
         wrap.dataset['tag'] = el.tagName.toLowerCase();
+        wrap.dataset['ar'] = box.css;
+        wrap.dataset['arKnown'] = box.known ? '1' : '0';
+        if (inGallery) wrap.dataset['gallery'] = '1'; // gallery cells are squares (CSS), not the picture's own proportions
+        const placeholder = document.createElement('div');
+        placeholder.className = 'mod-frame mod-frame-wait';
+        if (!inGallery) {
+          placeholder.style.aspectRatio = box.css;
+          placeholder.classList.add('mod-frame-ar');
+          if (isVideo) placeholder.classList.add('mod-frame-video');
+        }
+        wrap.appendChild(placeholder);
         el.replaceWith(wrap);
       }
+      wraps.push(wrap);
+    }
+    for (const wrap of wraps) {
       const id = wrap.dataset['fileId']!;
       if (onlyId && id !== onlyId) continue;
       try {
@@ -178,6 +198,18 @@ export class MediaModerationService {
 
     const frame = document.createElement('div');
     frame.className = 'mod-frame';
+    if (wrap.dataset['ar'] && !wrap.dataset['gallery']) {
+      frame.style.aspectRatio = wrap.dataset['ar'];
+      frame.classList.add('mod-frame-ar');
+      if (isVideo) frame.classList.add('mod-frame-video');
+    }
+    // Without a size from the server (older messages) the default box is corrected once the file has loaded.
+    const fit = (w: number, h: number) => {
+      if (wrap.dataset['arKnown'] === '1' || !w || !h) return;
+      wrap.dataset['ar'] = `${w} / ${h}`;
+      wrap.dataset['arKnown'] = '1';
+      if (!wrap.dataset['gallery']) frame.style.aspectRatio = wrap.dataset['ar'];
+    };
     wrap.appendChild(frame);
 
     if (isVideo && (asReader ? readerGetsVideo : (isModerator || readerGetsVideo))) {
@@ -186,6 +218,7 @@ export class MediaModerationService {
       video.preload = 'metadata';
       video.src = url;
       video.className = 'mod-media';
+      video.addEventListener('loadedmetadata', () => fit(video.videoWidth, video.videoHeight));
       video.setAttribute('aria-label', 'וידאו');
       frame.appendChild(video);
     } else {
@@ -195,7 +228,7 @@ export class MediaModerationService {
       img.className = 'img-fluid mod-media';
       img.alt = isVideo ? 'וידאו ממתין לאישור (תמונה מטושטשת)' : info.status === 'open' ? 'תמונה' : 'תמונה (חלקה מטושטש)';
       img.loading = 'lazy';
-      img.width = 300;
+      img.addEventListener('load', () => fit(img.naturalWidth, img.naturalHeight));
       if (isVideo) img.style.cursor = 'default';
       frame.appendChild(img);
     }

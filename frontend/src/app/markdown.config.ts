@@ -1,8 +1,9 @@
 import { Token, Tokens, TokensList } from "marked";
 import { MarkdownModuleConfig, MARKED_EXTENSIONS, MARKED_OPTIONS, MarkedRenderer } from "ngx-markdown";
 import { renderGallery } from "./gallery";
+import { boxRatio, dimsFromUrl } from "./media-dims";
 
-const matchCustomEmbedRegEx = /^\[(video|audio|image|quote|gallery)-embedded#]\((.*?)\)/;
+const matchCustomEmbedRegEx = /^\[(video|audio|image|quote|gallery|locked)-embedded#]\((.*?)\)/;
 
 //https://regexr.com/3dj5t
 const matchYoutubeRegEx = /^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)(?<id>[\w\-]+)(\S+)?$/;
@@ -49,14 +50,23 @@ const customEmbedExtension = {
     renderer: (token: Tokens.Generic) => {
       const { type, url, id } = token['meta'];
       switch (type) {
-        case 'video':
-          return `<div style="max-width: 300px; height: auto;"><video controls preload="metadata" aria-label="וידאו" style="width: 100%; height: auto;"><source src="${url}" type="video/mp4"></video></div>`;
+        case 'video': {
+          const box = boxRatio(dimsFromUrl(String(url)), 'video');
+          return `<div class="msg-media"><video controls preload="metadata" aria-label="וידאו" style="aspect-ratio: ${box.css}"><source src="${url}" type="video/mp4"></video></div>`;
+        }
         case 'audio':
           return `<div><audio src="${url}" controls preload="metadata" aria-label="קטע שמע"></audio></div>`;
-        case 'image':
-          return `<div style="max-width: 300px; height: auto;"><img src="${url}" class="img-fluid" width="300px" alt="תמונה" loading="lazy"></div>`;
+        case 'image': {
+          const box = boxRatio(dimsFromUrl(String(url)), 'image');
+          return `<div class="msg-media"><img src="${url}" class="img-fluid" alt="תמונה" loading="lazy" style="aspect-ratio: ${box.css}"></div>`;
+        }
+        case 'locked': {
+          const [kind, w, h] = String(url).split('|');
+          const box = boxRatio(+w > 0 && +h > 0 ? { w: +w, h: +h } : null, kind === 'video' ? 'video' : 'image');
+          return `<div class="mod-locked${kind === 'audio' ? ' mod-locked-audio' : ''}" role="button" tabindex="0"${kind === 'audio' ? '' : ` style="aspect-ratio: ${box.css}"`}><div><div>יש להתחבר כדי לצפות בקבצים</div><a class="mod-locked-link">לחצו כאן להתחברות</a></div></div>`;
+        }
         case 'youtube':
-          return `<div style="position: relative; max-width: 300px; height: auto;"><img youtubeid="${id}" src="https://ytimg.googleusercontent.com/vi/${id}/hqdefault.jpg" class="img-fluid" width="300px"><i
+          return `<div class="msg-media" style="position: relative;"><img youtubeid="${id}" src="https://ytimg.googleusercontent.com/vi/${id}/hqdefault.jpg" class="img-fluid" style="width: 100%; aspect-ratio: 4 / 3; object-fit: cover;"><i
           class="bi bi-youtube" youtubeid="${id}" style="position: absolute; place-self: anchor-center; color: red; font-size: 70px;"></i></div>`;
         case 'quote':
           return `<blockquote class="quote" quote-id="${id}"><p>${url}</p></blockquote>`;

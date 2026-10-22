@@ -7,6 +7,7 @@ api_secret_key and restores the settings afterwards; the test message is deleted
 (The display grouping itself is covered by tests/unit/gallery.test.mjs and the browser test.)
 """
 import http.cookiejar
+from html import unescape
 import json
 import re
 import struct
@@ -53,6 +54,8 @@ def png(color):
 admin = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 admin.open(B + "/auth/dev-login").read()
 anon = urllib.request.build_opener()
+reader = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))  # files need a login (require_auth_for_view_files)
+reader.open(B + "/auth/dev-login?email=reader-gallery@example.com").read()
 jh = {"Content-Type": "application/json"}
 original = call(admin, "/api/admin/settings/get")[1] or []
 key = uuid.uuid4().hex + uuid.uuid4().hex
@@ -85,12 +88,12 @@ try:
         if all(call(admin, f"/api/files/{i}/moderation")[1].get("status") != "pending" for i in ids):
             break
         time.sleep(1)
-    served = [call(anon, u)[2].get("Content-Type", "") for u in urls]
+    served = [call(reader, u)[2].get("Content-Type", "") for u in urls]
     check("every album image is served to readers", all(c.startswith("image/") for c in served), served)
 
     st, html, _ = call(anon, f"/m/{msg_id}")
     og = re.search(rb'property="og:image" content="([^"]+)"', html or b"")
-    check("link preview uses the first album image", bool(og) and og.group(1).decode().endswith(urls[0]), og and og.group(1))
+    check("link preview uses the first album image", bool(og) and unescape(og.group(1).decode()).endswith(urls[0]), og and og.group(1))
 
     st, res, _ = call(anon, "/api/messages/search?" + urllib.parse.urlencode({"q": marker}))
     check("album message is found by its text", st == 200 and [r["id"] for r in res] == [msg_id], res)

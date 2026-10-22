@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, HostListener, Input, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, Input, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from "@angular/common";
 import {
   NbButtonModule,
@@ -7,7 +7,7 @@ import {
   NbIconModule,
   NbPopoverModule,
   NbPosition,
-  NbToastrService, NbUserModule
+  NbToastrService
 } from "@nebular/theme";
 import { MarkdownComponent } from "ngx-markdown";
 import Viewer from 'viewerjs';
@@ -21,7 +21,7 @@ import { ReportComponent } from './report/report.component';
 import { PollComponent } from './poll/poll.component';
 import { MediaModerationService } from '../../../../services/media-moderation.service';
 import { Subscription } from 'rxjs';
-import { groupImageEmbeds } from '../../../../gallery';
+import { groupImageEmbeds, lockEmbeds } from '../../../../gallery';
 @Component({
   selector: 'app-message',
   imports: [
@@ -34,14 +34,13 @@ import { groupImageEmbeds } from '../../../../gallery';
     NbPopoverModule,
     NgbPopoverModule,
     NbChatModule,
-    NbUserModule,
     PollComponent
   ],
   templateUrl: './message.component.html',
   styleUrl: './message.component.scss'
 })
 
-export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
+export class MessageComponent implements OnInit, OnDestroy {
   protected readonly NbPosition = NbPosition;
 
   @Input()
@@ -53,7 +52,6 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input()
   indexId: number | undefined;
 
-  @ViewChild(NgbPopover) popover!: NgbPopover;
   @ViewChild('media') mediaContainer!: ElementRef;
 
   private viewer: Viewer | null = null;
@@ -69,10 +67,6 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
   ) { }
 
   reacts: string[] = [];
-  private closeEmojiMenuTimeout: any;
-  private isScrolling = false;
-  private hoverTimer: any;
-  private readonly minimalHoverMs = 200;
   private readonly matchFindCustomEmbedReg = /^\[(video|audio|image|quote)-embedded#].*/;
   private moderationSub?: Subscription;
 
@@ -83,8 +77,6 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.chatService.getEmojisList()
       .then(emojis => this.reacts = emojis)
       .catch(() => this.toastrService.danger('', 'שגיאה בהגדרת אימוגים'));
-
-    window.addEventListener('scroll', this.onScroll, true);
 
     this.moderationSub = this.mediaModeration.updates$.subscribe(({ id }) => this.decorateMedia(id));
   }
@@ -99,70 +91,11 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    window.removeEventListener('scroll', this.onScroll, true);
     this.moderationSub?.unsubscribe();
-    this.cancelEmojiMenuClose();
-    this.clearHoverTimer();
     if (this.viewer) {
       this.viewer.destroy();
       this.viewer = null;
     }
-  }
-
-  private scrollTimeout: any;
-
-  onScroll = () => {
-    this.isScrolling = true;
-    if (this.scrollTimeout) {
-      clearTimeout(this.scrollTimeout);
-    }
-    this.scrollTimeout = setTimeout(() => {
-      this.isScrolling = false;
-      this.scrollTimeout = undefined;
-    }, 150)
-  };
-
-  ngAfterViewInit(): void {
-    setTimeout(() => {
-      const media = this.mediaContainer?.nativeElement.querySelectorAll('img, video');
-      media?.forEach((item: HTMLMediaElement) => {
-        if (this.chatService.channelInfo?.require_auth_for_view_files && !this._authService.userInfo) {
-          const wrapper = document.createElement('div');
-          wrapper.style.position = 'relative';
-          wrapper.style.display = 'inline-block';
-          wrapper.style.width = item.offsetWidth + 'px';
-          wrapper.style.height = item.offsetHeight + 'px';
-
-          const overlay = document.createElement('div');
-          overlay.style.position = 'absolute';
-          overlay.style.top = '0';
-          overlay.style.left = '0';
-          overlay.style.width = '100%';
-          overlay.style.height = '100%';
-          overlay.style.background = 'rgba(0,0,0,0.5)';
-          overlay.style.backdropFilter = 'blur(4px)';
-          overlay.style.display = 'flex';
-          overlay.style.alignItems = 'center';
-          overlay.style.justifyContent = 'center';
-          overlay.style.color = 'white';
-          overlay.style.fontSize = '14px';
-          overlay.style.cursor = 'pointer';
-          overlay.style.zIndex = '1';
-          overlay.innerHTML = '<div style="text-align: center;">יש להתחבר כדי לצפות בקבצים <br>לחצו כאן להתחברות</div>';
-
-          overlay.addEventListener('click', () => {
-            this._authService.loginWithGoogle();
-          });
-
-          const parent = item.parentElement;
-          if (parent) {
-            parent.replaceChild(wrapper, item);
-            wrapper.appendChild(item);
-            wrapper.appendChild(overlay);
-          }
-        }
-      });
-    }, 1000);
   }
 
   editMessage(message: ChatMessage) {
@@ -222,17 +155,31 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private displayCache?: { text: string; out: string };
+  private displayCache?: { text: string; locked: boolean; out: string };
 
-  /** Message text as rendered: consecutive images become a gallery. */
+  /** Texts are public; files only for logged-in readers (the server refuses them otherwise, setting require_auth_for_view_files). */
+  get filesLocked(): boolean {
+    return !this._authService.userInfo && this.chatService.channelInfo?.require_auth_for_view_files !== false;
+  }
+
+  /** Message text as rendered: consecutive images become a gallery; for visitors who are not logged in every file becomes a locked box. */
   get displayText(): string {
     const text = this.message?.text || '';
-    if (this.displayCache?.text !== text) this.displayCache = { text, out: groupImageEmbeds(text) };
+    const locked = this.filesLocked;
+    if (this.displayCache?.text !== text || this.displayCache.locked !== locked) {
+      const grouped = groupImageEmbeds(text);
+      this.displayCache = { text, locked, out: locked ? lockEmbeds(grouped) : grouped };
+    }
     return this.displayCache.out;
   }
 
   viewLargeImage(event: MouseEvent) {
     let target = event.target as HTMLElement;
+
+    if (target.closest('.mod-locked')) { // "click here to log in" in place of a file
+      this._authService.loginWithGoogle();
+      return;
+    }
 
     // Gallery: open a viewer over all of its images, starting at the clicked one ("+N" opens the 4th).
     const gallery = target.closest('.msg-gallery') as HTMLElement | null;
@@ -291,6 +238,12 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /** A reaction chosen from the list opened by the smiley button: close the list, then react. */
+  pickReact(id: number | undefined, react: string, popover?: NgbPopover) {
+    popover?.close();
+    this.setReact(id, react);
+  }
+
   setReact(id: number | undefined, react: string) {
     if (this.isSchedulingMessage) return;
     if (!this._authService.userInfo) {
@@ -300,40 +253,6 @@ export class MessageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (id && react)
       this.chatService.setReact(id, react).catch(() => this.toastrService.danger('', "הייתה בעיה, נסו שנית."));
   }
-
-  showEmojiMenu() {
-    if (!this._authService.userInfo || this.isScrolling || this.message?.is_ads || this.isSchedulingMessage) return;
-    this.clearHoverTimer();
-    this.hoverTimer = setTimeout(() => {
-      if (!this.isScrolling) {
-        this.cancelEmojiMenuClose();
-        this.popover.open();
-      }
-    }, this.minimalHoverMs);
-  }
-
-  scheduleEmojiMenuClose() {
-    this.clearHoverTimer();
-    this.closeEmojiMenuTimeout = setTimeout(() => {
-      this.popover.close();
-    }, 150);
-  }
-
-  cancelEmojiMenuClose() {
-    this.clearHoverTimer();
-    if (this.closeEmojiMenuTimeout) {
-      clearTimeout(this.closeEmojiMenuTimeout);
-      this.closeEmojiMenuTimeout = undefined;
-    }
-  }
-
-  clearHoverTimer() {
-    if (this.hoverTimer) {
-      clearTimeout(this.hoverTimer);
-      this.hoverTimer = undefined;
-    }
-  }
-
 
   isEdited(message: ChatMessage): boolean {
     if (!message.last_edit) return false;

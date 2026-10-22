@@ -7,3 +7,10 @@
   color: inherit;
   opacity: 0.75;
 }
+
+/* Reserved place for the logo (not ready yet): an empty round slot, no temporary logo. */
+.logo-slot {
+    background: var(--tc-surface-2, #edf1f7);
+    border: 1px solid var(--tc-border, #e4e9f2);
+    cursor: default;
+}
