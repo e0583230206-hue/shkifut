@@ -16,7 +16,7 @@ import { AuthService } from '../../services/auth.service';
       @if (message) { <p class="review-message">{{ message }}</p> }
     </div>
   `,
-  styles: [`.review-page { max-width: 640px; margin: 24px auto; padding: 0 16px; } .review-message { color: #7a5200; }`],
+  styles: [`.review-page { max-width: 640px; margin: 24px auto; padding: 0 16px; } .review-message { color: var(--tc-warn-fg, #7a5200); }`],
 })
 export class ReviewLinkComponent implements AfterViewInit {
   private route = inject(ActivatedRoute);

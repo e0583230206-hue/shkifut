@@ -1,3 +1,4 @@
+import { initialThemeName } from './services/theme.service';
 import { ApplicationConfig, importProvidersFrom, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -55,7 +56,7 @@ export const appConfig: ApplicationConfig = {
       heroLockOpen
     }),
     importProvidersFrom(
-      NbThemeModule.forRoot({ name: 'custom' }, undefined, undefined, NbLayoutDirection.RTL),
+      NbThemeModule.forRoot({ name: initialThemeName() }, undefined, undefined, NbLayoutDirection.RTL),
       NbIconModule,
       NbEvaIconsModule,
       NbMenuModule.forRoot(),

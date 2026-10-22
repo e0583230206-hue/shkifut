@@ -28,6 +28,11 @@
     <nb-icon icon="search-outline"></nb-icon>
   </button>
 
+  <button nbButton shape="round" class="m-2 theme-switch" title="מצב תצוגה" aria-label="מצב תצוגה: בהיר, כהה או לפי המערכת" status="basic"
+    [nbContextMenu]="themeMenu" nbContextMenuTag="theme-menu">
+    <nb-icon [icon]="themeIcon"></nb-icon>
+  </button>
+
   <button nbButton shape="round" class="m-2" title="צור קשר" aria-label="צור קשר" (click)="openContactUs()" status="info">
     <nb-icon icon="email-outline"></nb-icon>
   </button>

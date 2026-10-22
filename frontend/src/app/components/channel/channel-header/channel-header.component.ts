@@ -20,6 +20,7 @@ import { AdminPanelComponent } from "../../admin/admin-panel.component";
 import { User } from '../../../models/user.model';
 import { ContactComponent } from '../contact/contact.component';
 import { SearchComponent } from '../search/search.component';
+import { ThemeMode, ThemeService } from '../../../services/theme.service';
 
 @Component({
   selector: 'app-channel-header',
@@ -63,6 +64,13 @@ export class ChannelHeaderComponent implements OnInit {
   userMenu: NbMenuItem[] = [];
   isSmallScreen = false;
 
+  /** Light / dark / system switch next to the search button. */
+  readonly themeMenu: NbMenuItem[] = [
+    { title: 'בהיר', icon: 'sun-outline', data: 'light' },
+    { title: 'כהה', icon: 'moon-outline', data: 'dark' },
+    { title: 'לפי המערכת', icon: 'monitor-outline', data: 'system' },
+  ];
+
   constructor(
     public chatService: ChatService,
     public _authService: AuthService,
@@ -72,7 +80,12 @@ export class ChannelHeaderComponent implements OnInit {
     public notificationsService: NotificationsService,
     private titleService: Title,
     private dialogService: NbDialogService,
+    public themeService: ThemeService,
   ) {
+  }
+
+  get themeIcon() {
+    return ({ light: 'sun-outline', dark: 'moon-outline', system: 'monitor-outline' } as Record<ThemeMode, string>)[this.themeService.mode];
   }
 
   @HostListener('window:resize')
@@ -81,6 +94,10 @@ export class ChannelHeaderComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.contextMenuService.onItemClick()
+      .pipe(filter(({ tag }) => tag === 'theme-menu'))
+      .subscribe(({ item }) => this.themeService.set(item.data as ThemeMode));
+
     this.chatService.updateChannelInfo()
       .then(() => this.titleService.setTitle(this.chatService.channelInfo?.name || 'TheChannel'));
 

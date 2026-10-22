@@ -69,13 +69,13 @@ markdown p {
     white-space: pre-line;
 }
 
-.mod-open { background: #d1f2d9; color: #146c2e; }
-.mod-blurred { background: #fadbd8; color: #a1271b; }
-.mod-pending { background: #fdebc8; color: #8a5300; }
+.mod-open { background: var(--tc-ok-bg, #d1f2d9); color: var(--tc-ok-fg, #146c2e); }
+.mod-blurred { background: var(--tc-bad-bg, #fadbd8); color: var(--tc-bad-fg, #a1271b); }
+.mod-pending { background: var(--tc-warn-bg, #fdebc8); color: var(--tc-warn-fg, #8a5300); }
 
 .mod-btn {
-    border: 1px solid #c7c7c7;
-    background: #fff;
+    border: 1px solid var(--tc-border, var(--tc-border, #c7c7c7));
+    background: var(--tc-surface, #fff);
     border-radius: 10px;
     padding: 1px 10px;
     font-size: 0.8rem;
@@ -83,19 +83,19 @@ markdown p {
 }
 
 .mod-btn:disabled { opacity: 0.5; cursor: wait; }
-.mod-btn-open:hover { background: #e7f6ea; }
-.mod-btn-blurred:hover { background: #fdeceb; }
+.mod-btn-open:hover { background: var(--tc-ok-bg, #e7f6ea); }
+.mod-btn-blurred:hover { background: var(--tc-bad-bg, #fdeceb); }
 
 .mod-link {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: var(--tc-muted, #6c757d);
 }
-.mod-regional { background: #e3ecfb; color: #1d4f9c; }
-.mod-hidden { padding: 28px 16px; text-align: center; background: #f1f3f5; color: #495057; border-radius: 8px; font-size: 0.9rem; }
-.mod-attention { background: #fff0b3; color: #7a5200; border: 1px solid #e0b100; }
-.mod-approved { background: #e4f5e8; color: #1b5e2e; border: 1px solid #8fcf9f; }
-.mod-btn-attention { border-color: #e0b100; background: #fff7d6; font-weight: 600; }
-.mod-btn-regional:hover { background: #eaf1fd; }
+.mod-regional { background: var(--tc-info-bg, #e3ecfb); color: var(--tc-info-fg, #1d4f9c); }
+.mod-hidden { padding: 28px 16px; text-align: center; background: var(--tc-surface-2, #f1f3f5); color: var(--tc-muted, #495057); border-radius: 8px; font-size: 0.9rem; }
+.mod-attention { background: var(--tc-warn-bg, #fff0b3); color: var(--tc-warn-fg, #7a5200); border: 1px solid #e0b100; }
+.mod-approved { background: var(--tc-ok-bg, #e4f5e8); color: var(--tc-ok-fg, #1b5e2e); border: 1px solid #8fcf9f; }
+.mod-btn-attention { border-color: #e0b100; background: var(--tc-warn-bg, #fff7d6); font-weight: 600; }
+.mod-btn-regional:hover { background: var(--tc-info-bg, #eaf1fd); }
 
 /* Gallery: consecutive images in one message (rendered inside markdown) */
 .msg-gallery {
@@ -157,4 +157,35 @@ markdown p {
 
 .msg-gallery .mod-bar {
     font-size: 0.7rem;
+}
+
+/* Dark theme ("custom-dark", see themes.scss / theme.service.ts): colour variables used by the components. The light theme uses the
+   fallback values written next to each var(--tc-...) */
+.nb-theme-custom-dark {
+    --tc-surface: #222b45;
+    --tc-surface-2: #2c3554;
+    --tc-border: #3b4666;
+    --tc-text: #edf1f7;
+    --tc-muted: #a4aec6;
+    --tc-ok-bg: rgba(0, 214, 143, 0.18);
+    --tc-ok-fg: #7be0b4;
+    --tc-bad-bg: rgba(255, 61, 113, 0.2);
+    --tc-bad-fg: #ff9fb5;
+    --tc-warn-bg: rgba(255, 170, 0, 0.18);
+    --tc-warn-fg: #ffd479;
+    --tc-info-bg: rgba(51, 102, 255, 0.24);
+    --tc-info-fg: #9db8ff;
+    --tc-accent: #8aa6ff;
+    --tc-glass-1: rgba(255, 255, 255, 0.05);
+    --tc-glass-2: rgba(255, 255, 255, 0.1);
+    color-scheme: dark;
+
+    /* Bootstrap utility classes used in templates */
+    .bg-light { background-color: var(--tc-surface) !important; }
+    .text-black, .text-black-50 { color: var(--tc-muted) !important; }
+    .text-muted { color: var(--tc-muted) !important; }
+    .border { border-color: var(--tc-border) !important; }
+    .vr { background-color: var(--tc-border); }
+    .mod-link { color: var(--tc-muted); }
+    .user-row { border-color: var(--tc-border); }
 }

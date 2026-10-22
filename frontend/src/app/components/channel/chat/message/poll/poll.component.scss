@@ -17,9 +17,9 @@
   width: 100%;
   margin: 0.25rem 0;
   padding: 0.35rem 0.6rem;
-  border: 1px solid #c5cee0;
+  border: 1px solid var(--tc-border, var(--tc-border, #c5cee0));
   border-radius: 0.5rem;
-  background: #fff;
+  background: var(--tc-surface, #fff);
   overflow: hidden;
   text-align: right;
   font-size: 0.95rem;
@@ -35,14 +35,14 @@
   }
 
   &.selected {
-    background: #edf1ff;
+    background: var(--tc-info-bg, #edf1ff);
   }
 }
 
 .poll-bar {
   position: absolute;
   inset: 0 0 0 auto;
-  background: #dfe7ff;
+  background: var(--tc-info-bg, #dfe7ff);
   transition: width 0.3s;
 }
 
@@ -57,7 +57,7 @@
 }
 
 .poll-mine {
-  color: #3366ff;
+  color: var(--tc-accent, #3366ff);
   margin-inline-start: 0.25rem;
 }
 
@@ -75,7 +75,7 @@
 .poll-action {
   border: 0;
   background: none;
-  color: #3366ff;
+  color: var(--tc-accent, #3366ff);
   font-size: 0.85rem;
   padding: 0;
   cursor: pointer;

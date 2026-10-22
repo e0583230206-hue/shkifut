@@ -12,5 +12,5 @@ iframe.feed {
   width: min(100%, 728px);
   margin: 0 auto;
   border-radius: 12px;
-  background: #f3f4f6;
+  background: var(--tc-surface-2, #f3f4f6);
 }

@@ -11,7 +11,7 @@
   flex: none;
   border: 1px solid var(--chip-color);
   color: var(--chip-color);
-  background: #fff;
+  background: var(--tc-surface, #fff);
   border-radius: 999px;
   padding: 0.15rem 0.85rem;
   font-size: 0.9rem;

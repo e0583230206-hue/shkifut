@@ -17,7 +17,7 @@ h2 {
 }
 
 .draft {
-  background: #fff4d6;
+  background: var(--tc-warn-bg, #fff4d6);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 0.9rem;

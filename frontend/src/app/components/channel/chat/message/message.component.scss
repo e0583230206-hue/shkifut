@@ -58,11 +58,11 @@ nb-icon {
   border-top: 1px solid rgba(102, 111, 255, 0.15);
   padding: 6px 8px 4px 8px;
   margin-top: 4px;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--tc-glass-1, rgba(255, 255, 255, 0.3));
   border-radius: 0 0 10px 10px;
 
   .emoji-reaction {
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--tc-glass-2, rgba(255, 255, 255, 0.8));
     border: 1px solid rgba(102, 111, 255, 0.25);
     border-radius: 12px;
     padding: 6px 6px;
@@ -86,7 +86,7 @@ nb-icon {
     }
 
     .count {
-      color: #555;
+      color: var(--tc-muted, #555);
       font-weight: 500;
       font-size: 11px;
       min-width: 12px;
@@ -124,11 +124,11 @@ nb-icon {
     cursor: pointer;
 
     &:hover {
-      background: #f0f0f0;
+      background: var(--tc-surface-2, #f0f0f0);
     }
 
     &:active {
-      background: #e0e0e0;
+      background: var(--tc-border, #e0e0e0);
     }
   }
 }
