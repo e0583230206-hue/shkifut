@@ -1,4 +1,4 @@
-/* Every message has the same width (about 10 cm, 390 px) and shrinks to the screen on a small phone; the height is free (long text wraps,
+/* Every message has the same width (about 15 cm, 570 px) and shrinks to the screen on a small phone; the height is free (long text wraps,
    nothing is cut off, no "show more"). */
 :host {
   display: block;
@@ -17,7 +17,7 @@
 
 .msg-col {
   flex: 0 1 auto;
-  width: 390px;
+  width: 570px;
   max-width: 100%;
   min-width: 0;
 }
