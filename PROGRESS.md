@@ -177,7 +177,7 @@
 ## Logo (branch `site-logo`, 22.10.2026, not deployed)
 - Header: the animated logo (`frontend/public/brand/logo-animated.gif`, 480x166, 13 frames, shown 56 px high, 36 px on a phone, `alt="שקיפות"`; people with "reduce motion" get `logo-static.png`) replaces the empty slot;
   a channel logo set in the admin panel (`logoUrl`) still takes precedence. On a phone the buttons are smaller so that the logo, the text and all buttons fit in one row at 360 px.
-- Next to every message: the round lens (`brand/lens-96.png`, 2x `lens-192.png`).
+- Next to every message: a round profile picture with the WHOLE logo inside, like a group icon (`brand/logo-profile.png` 72 px, 2x `logo-profile-2x.png`; 52 px on a phone): a white circle with the wide logo scaled to 88% of the diameter, so its corners stay inside the circle. (The lens alone was first used; a plain round crop of the wide logo cut its ends.)
 - Icons: `favicon.ico` (16/32/48) and `favicon-32.png` from lens-192, `apple-touch-icon.png` (180x180, on white) from lens-512; linked in `index.html`; `/apple-touch-icon.png` is also served at the root.
   The favicon still follows the channel logo when one is set (`getFavicon`).
 - The first files received had been replaced by NetFree ("התמונה לא נבדקה לפי הגדרותיך"); the real ones were checked: PNGs with a transparent circle, a real GIF89a with 13 frames and a loop.

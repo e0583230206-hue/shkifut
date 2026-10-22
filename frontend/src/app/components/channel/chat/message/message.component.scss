@@ -29,12 +29,11 @@
 
 .msg-avatar {
   display: block;
-  width: 44px;
-  height: 44px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
-  object-fit: cover;
-  /* the picture is a round lens with a transparent corner: no frame or background of our own */
-  background: transparent;
+  object-fit: contain;
+  box-shadow: 0 0 0 1px var(--tc-border, #d5dbe8);
 }
 
 .msg-head {
@@ -55,8 +54,8 @@
   }
 
   .msg-avatar {
-    width: 36px;
-    height: 36px;
+    width: 52px;
+    height: 52px;
   }
 }
 
