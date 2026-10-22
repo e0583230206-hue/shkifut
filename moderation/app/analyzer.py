@@ -23,6 +23,7 @@ def _env_float(name, default):
 BODY_MODEL = os.environ.get("BODY_MODEL", "1") == "1"
 MODEL_PROFILE = os.environ.get("MODEL_PROFILE", "auto")  # auto: commercial models when installed; research: originals
 FACE_TILING = os.environ.get("FACE_TILING", "0") == "1"  # +~125% analysis time; helps only high-res video
+PERSON_BACKEND = os.environ.get("PERSON_BACKEND", "ort")  # "ov": the same YOLOX weights through OpenVINO, input shaped like the video
 
 
 def _iou(a, b):
@@ -103,7 +104,7 @@ class PersonDetector:
         self.input_name = self.sess.get_inputs()[0].name
         self.size = 640
 
-    def detect(self, bgr, min_score):
+    def detect(self, bgr, min_score, max_side=None):  # max_side: only the OpenVINO backend scales by it
         h, w = bgr.shape[:2]
         scale = min(self.size / w, self.size / h)
         nw, nh = int(round(w * scale)), int(round(h * scale))
@@ -221,7 +222,7 @@ class YoloxPersonDetector:
         self.grids = np.concatenate(grids).astype(np.float32)
         self.strides = np.concatenate(strides).astype(np.float32)
 
-    def detect(self, bgr, min_score):
+    def detect(self, bgr, min_score, max_side=None):  # max_side: only the OpenVINO backend scales by it
         h, w = bgr.shape[:2]
         r = min(self.size / h, self.size / w)
         canvas = np.full((self.size, self.size, 3), 114, dtype=np.uint8)
@@ -230,6 +231,81 @@ class YoloxPersonDetector:
         out = self.sess.run(None, {self.input_name: blob})[0][0]    # (8400, 85)
         xy = (out[:, :2] + self.grids) * self.strides
         wh = np.exp(out[:, 2:4]) * self.strides
+        scores = out[:, 4] * out[:, 5]  # objectness x class 0 (person)
+        keep = scores >= min_score
+        if not np.any(keep):
+            return []
+        xy, wh, scores = xy[keep], wh[keep], scores[keep]
+        boxes = np.concatenate([xy - wh / 2, xy + wh / 2], axis=1) / r
+        boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, w)
+        boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, h)
+        return [(boxes[i], float(scores[i])) for i in _nms(boxes, scores, 0.45)]
+
+
+class YoloxOvPersonDetector(YoloxPersonDetector):
+    """The same YOLOX-s weights through OpenVINO, with the network input shaped like the picture.
+
+    YoloxPersonDetector always runs 640x640, so a 16:9 video spends ~44% of every inference on grey padding. Here the
+    picture is scaled exactly as before (same scale, same top-left position) and only the padding is cut: the input is
+    the scaled size rounded up to a multiple of 32 (848x480 -> 640x384). Results equal the 640x640 ones up to the
+    padding border; about 35% less compute. `max_side` runs a smaller scale for presence-only checks.
+    An OpenVINO infer request is not thread-safe, so every thread keeps its own (see Task "Infer Request is busy")."""
+
+    def __init__(self, path, threads):
+        import openvino as ov  # imported only when this backend is chosen
+        self.path, self.threads, self.size = path, threads, 640
+        self.ov = ov
+        self.core = ov.Core()
+        self.lock = threading.Lock()
+        self.compiled = {}  # (input h, input w) -> compiled model
+        self.local = threading.local()
+        self.grids = {}
+
+    def _compiled(self, ih, iw):
+        with self.lock:
+            cm = self.compiled.get((ih, iw))
+            if cm is None:
+                model = self.core.read_model(self.path)
+                model.reshape({model.inputs[0]: [1, 3, ih, iw]})
+                cm = self.core.compile_model(model, "CPU", {"INFERENCE_NUM_THREADS": self.threads,
+                                                            "PERFORMANCE_HINT": "LATENCY"})
+                self.compiled[(ih, iw)] = cm
+            return cm
+
+    def _request(self, ih, iw):
+        reqs = getattr(self.local, "reqs", None)
+        if reqs is None:
+            reqs = self.local.reqs = {}
+        req = reqs.get((ih, iw))
+        if req is None:
+            req = reqs[(ih, iw)] = self._compiled(ih, iw).create_infer_request()
+        return req
+
+    def _grid(self, ih, iw):
+        g = self.grids.get((ih, iw))
+        if g is None:
+            grids, strides = [], []
+            for stride in (8, 16, 32):
+                yv, xv = np.meshgrid(np.arange(ih // stride), np.arange(iw // stride), indexing="ij")
+                grids.append(np.stack((xv, yv), 2).reshape(-1, 2))
+                strides.append(np.full((grids[-1].shape[0], 1), stride))
+            g = self.grids[(ih, iw)] = (np.concatenate(grids).astype(np.float32),
+                                        np.concatenate(strides).astype(np.float32))
+        return g
+
+    def detect(self, bgr, min_score, max_side=None):
+        h, w = bgr.shape[:2]
+        side = max_side or self.size
+        r = min(side / h, side / w)
+        nh, nw = int(h * r), int(w * r)
+        ih, iw = -(-nh // 32) * 32, -(-nw // 32) * 32
+        canvas = np.full((ih, iw, 3), 114, dtype=np.uint8)
+        canvas[:nh, :nw] = cv2.resize(bgr, (nw, nh), interpolation=cv2.INTER_LINEAR)
+        blob = canvas.transpose(2, 0, 1)[None].astype(np.float32)  # BGR, 0..255 (official ONNX export)
+        out = self._request(ih, iw).infer({0: blob})[0][0]
+        grids, strides = self._grid(ih, iw)
+        xy = (out[:, :2] + grids) * strides
+        wh = np.exp(out[:, 2:4]) * strides
         scores = out[:, 4] * out[:, 5]  # objectness x class 0 (person)
         keep = scores >= min_score
         if not np.any(keep):
@@ -343,8 +419,11 @@ class Analyzer:
         research = MODEL_PROFILE == "research"
         self.models = {}
         if not research and os.path.exists(f("person_yolox.onnx")):
-            self.persons = YoloxPersonDetector(f("person_yolox.onnx"), threads)
-            self.models["person"] = "YOLOX-s (Apache-2.0)"
+            if PERSON_BACKEND == "ov":
+                self.persons = YoloxOvPersonDetector(f("person_yolox.onnx"), threads)
+            else:
+                self.persons = YoloxPersonDetector(f("person_yolox.onnx"), threads)
+            self.models["person"] = "YOLOX-s (Apache-2.0)" + (" via OpenVINO" if PERSON_BACKEND == "ov" else "")
         else:
             self.persons = PersonDetector(f("person.onnx"), threads)
             self.models["person"] = "YOLOv8s (AGPL-3.0)"

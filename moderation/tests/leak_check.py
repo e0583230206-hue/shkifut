@@ -23,6 +23,13 @@ LEVEL = os.environ.get("LEVEL", "strict")
 lv = regional.get_level(LEVEL)
 STRICT = regional.LEVELS["strict"]
 an = Analyzer(os.environ.get("MODELS_DIR", "/models"), int(os.environ.get("THREADS", "2")), Thresholds())
+# CHECK_PERSON_BACKEND=ort: examine the OUTPUT with another person-detector backend than the one that rendered it (independent check)
+chk = an
+if os.environ.get("CHECK_PERSON_BACKEND"):
+    import analyzer as _analyzer
+    _analyzer.PERSON_BACKEND = os.environ["CHECK_PERSON_BACKEND"]
+    chk = Analyzer(os.environ.get("MODELS_DIR", "/models"), int(os.environ.get("THREADS", "2")), Thresholds())
+    print(f"checker models={json.dumps(chk.models)}", flush=True)
 print(f"level={LEVEL} models={json.dumps(an.models)}", flush=True)
 
 
@@ -74,7 +81,7 @@ for path in sys.argv[1:]:
         if fr in full:
             continue
         checked += 1
-        persons, _, faces, _ = an.detect_all(frame, tiling=False)
+        persons, _, faces, _ = chk.detect_all(frame, tiling=False)
         bb, mb = blur.get(fr, []), men.get(fr, [])
         cand = []
         for f in faces:
@@ -95,7 +102,7 @@ for path in sys.argv[1:]:
             cand.append(("person", pb))
         if not cand or orig is None:
             continue
-        op, ow_, of, _ = an.detect_all(orig, weak_min=0.15, tiling=False)
+        op, ow_, of, _ = chk.detect_all(orig, weak_min=0.15, tiling=False)
         o_persons = [b for b, _ in op + ow_]
         o_faces = [x[0] for x in of]
         for kind, box in cand:
