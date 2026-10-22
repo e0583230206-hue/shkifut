@@ -172,3 +172,11 @@ Images are not affected at all. The automatic check and the blur run as usual.
 `X-Robots-Tag: noindex, nofollow` (pages, API and files), the app's HTML has `<meta name="robots" content="noindex, nofollow">`,
 `/robots.txt` says `Disallow: /`, and `/sitemap.xml` is a 404. Link previews (Open Graph) still work. It is a request, not access
 control: only login restricts who can read.
+
+## "Infer Request is busy" (fixed)
+The gender and body models run through OpenVINO. A compiled model used to run every call on one shared infer request, which is not
+thread-safe. The service checks an image and a video at the same time (separate locks, one thread per HTTP request), so when both
+reached a model together the second one got `RuntimeError: Infer Request is busy`. The server treats any analysis exception as final
+(`blurred` / `analysis_error`), so a file was blurred and marked "error in check" although nothing was wrong with it. Now every thread
+keeps its own infer request (`_OvModel` in `analyzer.py`). Regression test: `moderation/tests/test_infer_threads.py` (it fails with 400+
+"busy" errors on the old code).
