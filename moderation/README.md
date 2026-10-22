@@ -194,3 +194,17 @@ Now (`backend/moderation_retry.go`, counting logic and tests in `backend/modretr
 - The sweep (`MODERATION_SWEEP_INTERVAL`, default 2 min) queues a file only if it is not paused, not already waiting and not being checked.
 Tests: `go test ./modretry/` (in `backend/`, no Redis needed) and `tests/e2e_stuck_video.py` (needs `tests/docker-compose.stuck-test.yml`, a fake
 moderation service that crashes / hangs / answers; it fails on the old code).
+## Analysis speed (measured 22.10.2026, 60 s clip, 3 CPUs, strict level)
+Where the time goes: ~93% of the analysis is the YOLOX-s person detector (900 calls per minute of 25 fps video: 300 samples + 600
+between-sample frames, `dense_person_step=2` in strict). Faces, gender and body are ~5% together. Scaling with cores is almost linear up to
+`THREADS` (new server: 1 core 495 s, 2 cores 230 s, 3 cores 155 s, 4 cores 154 s because `THREADS=3`).
+
+Switches (all off by default, so nothing changes until they are set in `.env` / compose):
+| variable | effect | measured |
+|---|---|---|
+| `PERSON_BACKEND=ov` | same YOLOX-s weights through OpenVINO; the network input is shaped like the video (848x480 -> 640x384, not 640x640), so the grey padding is not computed | -43% time, 0 real leaks (leak check, both test videos) |
+| `DENSE_INPUT_SIDE=416/480` | between-sample frames at a smaller scale | -20% more, but **23 real leaks** on the crowd video: do not use |
+| `DENSE_PERSON_STEP=0/3` | fewer / no between-sample detections | misses boxes: do not use without a review |
+| `DETECT_FPS=3/4` | fewer samples | -18%, misses boxes: do not use without a review |
+Tools: `moderation/tests/bench_video.py` (time per model + comparison of the blur boxes with a baseline run), `leak_check.py`
+(`CHECK_PERSON_BACKEND=ort` checks the output with the other backend), `test_person_ov.py`.

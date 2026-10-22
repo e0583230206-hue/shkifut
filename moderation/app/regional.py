@@ -60,6 +60,11 @@ MAX_VIDEO_SEC = _env_float("MAX_VIDEO_SEC", 900)
 # Person-only frames between samples use a lower threshold than anything counted as a figure elsewhere,
 # so a faint figure at the edge of detection is caught on a neighbouring frame (safety margin).
 DENSE_PERSON_MIN = _env_float("DENSE_PERSON_MIN", 0.10)
+# Speed knobs (default = the behaviour so far). DENSE_PERSON_STEP: person-only detection every N frames between samples in strict
+# mode (0 = off; applies only where the level has it on). DENSE_INPUT_SIDE: run those person-only frames at this longer side instead
+# of 640 (OpenVINO backend only; 0 = same as samples).
+DENSE_PERSON_STEP = int(_env_float("DENSE_PERSON_STEP", -1))
+DENSE_INPUT_SIDE = int(_env_float("DENSE_INPUT_SIDE", 0))
 FFMPEG_THREADS = os.environ.get("FFMPEG_THREADS", "2")
 
 
@@ -558,7 +563,8 @@ def analyze_video(analyzer, path, fps, aw, ah, step, lv):
     max_gap = max(step, int(TRACK_MAX_GAP_SEC * fps))
     active = []
     next_id = 0
-    dense = lv.dense_person_step if 0 < lv.dense_person_step < step else 0
+    dense_cfg = lv.dense_person_step if DENSE_PERSON_STEP < 0 or not lv.dense_person_step else DENSE_PERSON_STEP
+    dense = dense_cfg if 0 < dense_cfg < step else 0
     if dense:  # decode each needed frame once: samples (every `step`) and person-only frames (every `dense`)
         vf = f"select='not(mod(n\\,{step}))+not(mod(n\\,{dense}))'"
         indices = (n for n in itertools.count() if n % step == 0 or n % dense == 0)
@@ -570,7 +576,7 @@ def analyze_video(analyzer, path, fps, aw, ah, step, lv):
         check_cancel()
         if f % step:
             # Person-only frame between samples: a figure that flashes up and matches no known figure is blurred.
-            for pb, _ in analyzer.persons.detect(frame, DENSE_PERSON_MIN):
+            for pb, _ in analyzer.persons.detect(frame, DENSE_PERSON_MIN, DENSE_INPUT_SIDE or None):
                 b = pb.tolist()
                 if not any(iou(tr.obs[tr.last_frame], b) >= 0.3 for tr in active):
                     plan.events.append((f, b))
