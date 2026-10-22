@@ -16,11 +16,11 @@ import (
 // Limits for the automatic check of one file (see package modretry for why):
 //
 //	MODERATION_MAX_ATTEMPTS    failed checks after which the file is given up and stays fully blurred for a moderator (default 3, 0 = never)
-//	MODERATION_ATTEMPT_TIMEOUT one check is stopped (and the service told to stop) after this long (default 30m)
+//	MODERATION_ATTEMPT_TIMEOUT one check is stopped (and the service told to stop) after this long (default 45m = the old HTTP limit, so no legitimate long video is cut off)
 //	MODERATION_RETRY_DELAY     pause before the next try, times the number of failures so far (default 3m)
 var (
 	moderationSweepInterval  = envDuration("MODERATION_SWEEP_INTERVAL", 2*time.Minute) // how often pending files are put back into the queue
-	moderationAttemptTimeout = envDuration("MODERATION_ATTEMPT_TIMEOUT", 30*time.Minute)
+	moderationAttemptTimeout = envDuration("MODERATION_ATTEMPT_TIMEOUT", 45*time.Minute)
 	moderationAttempts       = "moderation:attempts" // redis hash: file id -> failed checks
 	modTracker               = modretry.New(envInt("MODERATION_MAX_ATTEMPTS", 3), envDuration("MODERATION_RETRY_DELAY", 3*time.Minute), redisAttempts{})
 )

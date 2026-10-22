@@ -183,7 +183,7 @@ Now (`backend/moderation_retry.go`, counting logic and tests in `backend/modretr
 - After `MODERATION_MAX_ATTEMPTS` failures (default 3, 0 = never give up) the file is given up: it stays **fully blurred** for readers,
   gets `analysis_error` ("שגיאה בבדיקה"), is marked "needs review" for the moderators and leaves the queue. A moderator can open it by hand or press
   "check again" (counting starts from zero).
-- One check is stopped after `MODERATION_ATTEMPT_TIMEOUT` (default 30 min) and the service is told to `/cancel` the abandoned work.
+- One check is stopped after `MODERATION_ATTEMPT_TIMEOUT` (default 45 min, the old HTTP limit: a legitimate 15-minute video takes ~40 min at 3 cores before the speed-up) and the service is told to `/cancel` the abandoned work.
 - The sweep (`MODERATION_SWEEP_INTERVAL`, default 2 min) queues a file only if it is not paused, not already waiting and not being checked.
 Tests: `go test ./modretry/` (in `backend/`, no Redis needed) and `tests/e2e_stuck_video.py` (needs `tests/docker-compose.stuck-test.yml`, a fake
 moderation service that crashes / hangs / answers; it fails on the old code).
