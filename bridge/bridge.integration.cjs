@@ -9,7 +9,7 @@ const calls = [];
 const results = [];
 const check = (name, ok, detail = '') => { results.push(ok); console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  ' + detail)); };
 
-const enabled = ['media-enabled', 'chat-fails', 'auth-fails', 'text-only', 'duplicate'].includes(SCENARIO);
+const enabled = ['media-enabled', 'chat-fails', 'auth-fails', 'text-only', 'duplicate', 'edit-events', 'command-noise'].includes(SCENARIO);
 Object.assign(process.env, {
   WAHA_URL: 'http://waha:3000', WAHA_API_KEY: 'waha-key', CHANNEL_API_KEY: 'site-key', GROUP_IDS: GROUP, MEDIA_DIR: '/tmp/media-test',
   CHANNEL_IMPORT_URL: 'https://site.test/api/import/post', CHANNEL_UPLOAD_URL: 'https://site.test/api/import/upload',
@@ -35,8 +35,8 @@ globalThis.fetch = async (url, init = {}) => {
 
 require('./bridge.js');
 
-const send = (payload) => new Promise((res) => {
-  const body = JSON.stringify({ event: 'message.any', payload });
+const send = (payload, event = 'message.any') => new Promise((res) => {
+  const body = JSON.stringify({ event, payload });
   const r = http.request({ host: '127.0.0.1', port: 8080, path: '/webhook', method: 'POST' }, (x) => { x.resume(); x.on('end', res); });
   r.end(body);
 });
@@ -95,6 +95,32 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
   if (SCENARIO === 'duplicate') {
     await send(media); await send(media); await sleep(600);
     check('the same WhatsApp message is handled once', byUrl('/attachments:upload').length === 1 && byUrl('site.test/api/import/post').length === 1);
+  }
+  if (SCENARIO === 'edit-events') {
+    // A plain WhatsApp edit / delete arrives as message.edited / message.revoked. It must not become a second post.
+    await send({ ...base, id: 't1', hasMedia: false, body: 'טקסט מקורי' }); await sleep(300);
+    await send({ ...base, id: 't2', editedMessageId: 't1', hasMedia: false, body: 'טקסט מתוקן' }, 'message.edited'); // new id
+    await send({ ...base, id: 't1', editedMessageId: 't1', hasMedia: false, body: 'טקסט מתוקן' }, 'message.edited'); // same id
+    await send({ ...base, id: 't9', editedMessageId: 'unknown-after-restart', hasMedia: false, body: 'עריכה יתומה' }, 'message.edited');
+    await send({ ...base, id: 't3', editedMessageId: 't1', hasMedia: false, body: 'עריכה שהגיעה כאירוע רגיל' }); // edit marker on a normal event
+    await send({ ...base, id: 'r1', revokedMessageId: 't1', hasMedia: false, body: '' }, 'message.revoked');
+    await sleep(500);
+    const posts = byUrl('site.test/api/import/post').map(c => JSON.parse(c.body).text);
+    check('only the original reaches the site; edits and revokes do not', JSON.stringify(posts) === JSON.stringify(['טקסט מקורי']), JSON.stringify(posts));
+    check('only the original reaches the private Chat', JSON.stringify(webhookPosts()) === JSON.stringify(['טקסט מקורי']), JSON.stringify(webhookPosts()));
+  }
+  if (SCENARIO === 'command-noise') {
+    const noise = ['✅ הודעה עודכנה!', '✅ הצלחות: 3', '❌ שגיאות: 1', '📣 ערוצי טלגרם', '⏳ מעדכן הודעה', 'מעדכן הודעה', 'לא נמצאה במערכת',
+      '✅ הצלחות: 3\n❌ שגיאות: 0','!ערוך 123 טקסט חדש', '!מחק 123', '‏!מחק 123'];
+    let i = 0;
+    for (const body of noise) { await send({ ...base, id: 'n' + (i++), hasMedia: false, body }); }
+    await sleep(400);
+    check('status noise and !ערוך / !מחק reach neither the site nor the private Chat', calls.length === 0, JSON.stringify(calls.map(c => c.url)));
+    const keep = ['הודעה עודכנה אחרי הפגישה, תודה', 'הערוץ ערוצי טלגרם הוא אחד מכמה', 'סיימנו בהצלחה', 'מחק את זה מהרשימה'];
+    for (const body of keep) { await send({ ...base, id: 'k' + (i++), hasMedia: false, body }); }
+    await sleep(500);
+    const posts = byUrl('site.test/api/import/post').map(c => JSON.parse(c.body).text);
+    check('ordinary messages that merely contain those words are posted', JSON.stringify(posts) === JSON.stringify(keep), JSON.stringify(posts));
   }
   if (SCENARIO === 'notify' || SCENARIO === 'notify-off') {
     const post = (headers, body, method = 'POST') => new Promise((res) => {
