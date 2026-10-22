@@ -1,12 +1,7 @@
 @if (message && message.text) {
 <div class="msg-row d-flex flex-row align-content-start my-1">
   <div class="msg-avatar-col d-flex flex-column">
-    @if (chatService.channelInfo?.logoUrl?.length) {
-    <img class="msg-avatar" [src]="chatService.channelInfo?.logoUrl" alt="" aria-hidden="true">
-    } @else {
-    <!-- no logo yet: an empty round placeholder, same size -->
-    <span class="msg-avatar msg-avatar-empty" aria-hidden="true"></span>
-    }
+    <img class="msg-avatar" src="/assets/brand/lens-96.png" srcset="/assets/brand/lens-96.png 1x, /assets/brand/lens-192.png 2x" width="44" height="44" alt="" aria-hidden="true">
   </div>
   <div class="msg-col d-flex flex-column gap-1">
     <div class="msg-head d-flex flex-row flex-wrap align-items-center gap-2 pe-1">

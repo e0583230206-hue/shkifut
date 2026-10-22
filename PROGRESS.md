@@ -173,3 +173,11 @@
   sitemap of the home page, privacy, terms and the messages; title "שקיפות - חדשות ועדכונים" and a description (replaced by the channel name / `custom_title` when set); canonical from `PUBLIC_URL`;
   `GOOGLE_SITE_VERIFICATION` (Search Console HTML tag) in every page; while files need a login no page mentions the address of a file (no `og:image`, also not the logo if it is a file).
   `NOINDEX_SITE=1` still switches everything off (robots `Disallow: /`, header, meta tag, no sitemap). Tests: `tests/e2e_seo.py`.
+
+## Logo (branch `site-logo`, 22.10.2026, not deployed)
+- Header: the animated logo (`frontend/public/brand/logo-animated.gif`, 480x166, 13 frames, shown 56 px high, 36 px on a phone, `alt="שקיפות"`; people with "reduce motion" get `logo-static.png`) replaces the empty slot;
+  a channel logo set in the admin panel (`logoUrl`) still takes precedence. On a phone the buttons are smaller so that the logo, the text and all buttons fit in one row at 360 px.
+- Next to every message: the round lens (`brand/lens-96.png`, 2x `lens-192.png`).
+- Icons: `favicon.ico` (16/32/48) and `favicon-32.png` from lens-192, `apple-touch-icon.png` (180x180, on white) from lens-512; linked in `index.html`; `/apple-touch-icon.png` is also served at the root.
+  The favicon still follows the channel logo when one is set (`getFavicon`).
+- The first files received had been replaced by NetFree ("התמונה לא נבדקה לפי הגדרותיך"); the real ones were checked: PNGs with a transparent circle, a real GIF89a with 13 frames and a loop.

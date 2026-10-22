@@ -56,11 +56,12 @@ async function loggedIn(label, w, h, mobile, port) {
     const cards = await b.ev(`[...document.querySelectorAll('.message-card')].map(e => Math.round(e.getBoundingClientRect().width))`);
     const uniq = [...new Set(cards)];
     check(`${label}: all messages have the same width`, cards.length >= 8 && uniq.length === 1, JSON.stringify(cards));
-    if (!mobile) check(`${label}: width is about 10 cm (370-400 px)`, uniq[0] >= 370 && uniq[0] <= 400, uniq[0]);
+    if (!mobile) check(`${label}: width is about 15 cm (570 px)`, uniq[0] >= 560 && uniq[0] <= 580, uniq[0]);
     else check(`${label}: width fits the phone screen`, uniq[0] <= w, `${uniq[0]} of ${w}`);
     check(`${label}: no sideways scroll`, await b.ev('document.documentElement.scrollWidth <= window.innerWidth + 1'), await b.ev('document.documentElement.scrollWidth'));
     check(`${label}: round profile picture slot on every message`, await b.ev(`(() => { const a = [...document.querySelectorAll('.msg-avatar')]; return a.length >= 8 && a.every(e => getComputedStyle(e).borderRadius.includes('50%') || parseFloat(getComputedStyle(e).borderRadius) >= 18); })()`));
-    check(`${label}: logo slot in the header (empty, no temporary logo)`, await b.ev(`!!document.querySelector('.logo-slot') && !document.querySelector('app-channel-header img.img-circle')`));
+    check(`${label}: the site logo is in the header (alt "שקיפות", 50-60 px high on a desktop)`, await b.ev(`(() => { const i = document.querySelector('app-channel-header .site-logo img'); if (!i) return false; const h = i.getBoundingClientRect().height; return i.alt === 'שקיפות' && i.src.includes('logo-animated.gif') && (${mobile} ? h >= 30 && h <= 60 : h >= 50 && h <= 60); })()`));
+    check(`${label}: every message has the round lens picture`, await b.ev(`(() => { const a = [...document.querySelectorAll('.msg-avatar')]; return a.length >= 8 && a.every(e => e.src.includes('lens-96.png') && e.srcset.includes('lens-192.png 2x') && e.complete && e.naturalWidth > 0); })()`));
     console.log('  diag long:', await b.ev(`(() => { const m = [...document.querySelectorAll('.message-card')].find(e => e.textContent.includes('זהו טקסט ארוך בכוונה')); return m ? [m.scrollHeight, m.clientHeight, Math.round(m.getBoundingClientRect().height)] : null; })()`));
     check(`${label}: long text is not cut and has no "show more"`, await b.ev(`(() => { const m = [...document.querySelectorAll('.message-card')].find(e => e.textContent.includes('זהו טקסט ארוך בכוונה')); return !!m && m.scrollHeight <= m.clientHeight + 1 && ![...m.querySelectorAll('button, a')].some(x => /הצג עוד|show more/i.test(x.textContent)) && m.getBoundingClientRect().height > 150; })()`));
 

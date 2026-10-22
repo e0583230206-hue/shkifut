@@ -395,3 +395,13 @@ func getFavicon(w http.ResponseWriter, r *http.Request) {
 
 	http.ServeFile(w, r, filePath)
 }
+
+// getAppleTouchIcon serves the home-screen icon at the address iOS and some crawlers ask for without reading the page (the page also links /assets/apple-touch-icon.png).
+func getAppleTouchIcon(w http.ResponseWriter, r *http.Request) {
+	if settingConfig.RootStaticFolder == "" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	http.ServeFile(w, r, filepath.Join(settingConfig.RootStaticFolder, "apple-touch-icon.png"))
+}

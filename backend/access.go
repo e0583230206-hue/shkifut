@@ -43,7 +43,7 @@ func isAllowedEmail(email string) bool {
 // Reachable without an approved session in private mode.
 var privatePublicPaths = map[string]bool{
 	"/login": true, "/auth/google": true, "/auth/login": true, "/auth/logout": true, "/auth/dev-login": true,
-	"/favicon.ico": true, "/assets/favicon.ico": true, "/robots.txt": true,
+	"/favicon.ico": true, "/assets/favicon.ico": true, "/apple-touch-icon.png": true, "/robots.txt": true,
 	"/privacy": true, "/terms": true, // Google consent-screen links must be readable without signing in
 	"/api/import/post": true, "/api/import/upload": true, // bridge: X-API-Key
 }

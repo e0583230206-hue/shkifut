@@ -76,6 +76,7 @@ func main() {
 	r.Post("/auth/logout", logout)
 	r.Get("/assets/favicon.ico", getFavicon)
 	r.Get("/favicon.ico", getFavicon)
+	r.Get("/apple-touch-icon.png", getAppleTouchIcon)
 
 	r.Group(func(r chi.Router) {
 		r.Use(checkLogin)

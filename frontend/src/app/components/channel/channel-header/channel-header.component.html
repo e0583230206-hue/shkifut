@@ -1,15 +1,16 @@
-<div class="d-flex flex-row gap-2 align-items-center justify-content-between">
-  <div class="bg-light rounded-circle d-flex align-items-center justify-content-center"
-    style="width: 60px; height: 60px">
-    @if (chatService.channelInfo?.logoUrl?.length) {
-      <img [src]="chatService.channelInfo?.logoUrl" class="rounded-circle img-circle"
-        (click)="viewLargeImage($event)">
-    } @else {
-      <!-- the logo is not ready yet: an empty round slot of the same size (no temporary logo) -->
-      <div class="logo-slot rounded-circle img-circle" aria-hidden="true"></div>
-    }
+<div class="hdr d-flex flex-row gap-2 align-items-center justify-content-between">
+  @if (chatService.channelInfo?.logoUrl?.length) {
+  <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px">
+    <img [src]="chatService.channelInfo?.logoUrl" class="rounded-circle img-circle" (click)="viewLargeImage($event)">
   </div>
-  <div class="d-flex flex-column flex-grow-1">
+  } @else {
+  <!-- the site logo (animated); people who asked their system for less motion get the still picture -->
+  <picture class="site-logo">
+    <source srcset="/assets/brand/logo-static.png" media="(prefers-reduced-motion: reduce)">
+    <img src="/assets/brand/logo-animated.gif" alt="שקיפות" width="162" height="56">
+  </picture>
+  }
+  <div class="hdr-info d-flex flex-column flex-grow-1">
     <span class="fs-4 my-2 fw-bold">{{ chatService.channelInfo?.name }}</span>
     @if (chatService.channelInfo?.description) {
       <small>
