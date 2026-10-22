@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -18,6 +19,13 @@ var (
 	publicURL = strings.TrimRight(os.Getenv("PUBLIC_URL"), "/")
 	// NOINDEX_SITE=1 asks search engines to stay away from the whole site (header, meta tag, robots.txt, no sitemap), independently of PRIVATE_SITE.
 	noindexSite = os.Getenv("NOINDEX_SITE") == "1"
+	// PARTICIPANTS_OFFSET: added to the "participants" number shown in the header (the same audience reads in other groups too). Only the shown number changes, nothing stored. Default 0.
+	participantsOffset = func() int64 {
+		if n, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("PARTICIPANTS_OFFSET")), 10, 64); err == nil && n > 0 && n <= 10_000_000 {
+			return n
+		}
+		return 0
+	}()
 	// GOOGLE_SITE_VERIFICATION: the content of Google Search Console's "HTML tag" verification (only letters, digits, - and _), put in the <head> of every page.
 	googleSiteVerification = func() string {
 		v := strings.TrimSpace(os.Getenv("GOOGLE_SITE_VERIFICATION"))

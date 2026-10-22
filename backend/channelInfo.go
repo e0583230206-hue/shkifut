@@ -44,7 +44,7 @@ func getChannelInfo(w http.ResponseWriter, r *http.Request) {
 	channel.Name = c["name"]
 	channel.Description = c["description"]
 	channel.CreatedAt, _ = time.Parse(time.RFC3339, c["created_at"])
-	channel.Views = amount //strconv.Atoi(c["views"])
+	channel.Views = amount + participantsOffset // PARTICIPANTS_OFFSET: other groups of the same audience are counted too
 	channel.LogoUrl = c["logoUrl"]
 	channel.RequireAuthForViewFiles = settingConfig.RequireAuthForViewFiles
 	channel.ContactUs = settingConfig.ContactUs

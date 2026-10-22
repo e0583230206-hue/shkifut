@@ -181,3 +181,6 @@
 - Icons: `favicon.ico` (16/32/48) and `favicon-32.png` from lens-192, `apple-touch-icon.png` (180x180, on white) from lens-512; linked in `index.html`; `/apple-touch-icon.png` is also served at the root.
   The favicon still follows the channel logo when one is set (`getFavicon`).
 - The first files received had been replaced by NetFree ("התמונה לא נבדקה לפי הגדרותיך"); the real ones were checked: PNGs with a transparent circle, a real GIF89a with 13 frames and a loop.
+
+## Participants number (branch `participants-offset`, not deployed)
+`PARTICIPANTS_OFFSET` (env, default 0) is added to the "N משתתפים" in the header (`/api/channel/info`, field `views`), because the same audience reads in other groups too. Only the shown number changes; nothing stored, the admin statistics are not touched. Test: `tests/e2e_participants.py`.

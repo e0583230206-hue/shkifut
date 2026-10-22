@@ -11,6 +11,7 @@ services:
     environment:
       MODERATION_URL: ""
       NOINDEX_SITE: "0"
+      PARTICIPANTS_OFFSET: "3500"
       DEV_LOGIN: "true"
       GOOGLE_SITE_VERIFICATION: "test-verification-token-123"
     volumes: !override
