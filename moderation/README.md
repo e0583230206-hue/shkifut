@@ -180,3 +180,17 @@ reached a model together the second one got `RuntimeError: Infer Request is busy
 (`blurred` / `analysis_error`), so a file was blurred and marked "error in check" although nothing was wrong with it. Now every thread
 keeps its own infer request (`_OvModel` in `analyzer.py`). Regression test: `moderation/tests/test_infer_threads.py` (it fails with 400+
 "busy" errors on the old code).
+## A stuck video no longer blocks the queue (backend)
+Before: when the service could not check a file (it crashed or ran out of memory on it, or hung), the file stayed in the pending set and the
+2-minute sweep put it back in the queue again and again. Each try could hold the single video worker for up to 45 minutes, duplicates piled
+up in the queue, and every restart of the backend started over, so one bad video delayed all the others.
+Now (`backend/moderation_retry.go`, counting logic and tests in `backend/modretry/`):
+- A failed check is counted per file (Redis hash `moderation:attempts`, survives restarts). The file pauses for `MODERATION_RETRY_DELAY` x number
+  of failures (default 3 min, 6 min) while other files go first.
+- After `MODERATION_MAX_ATTEMPTS` failures (default 3, 0 = never give up) the file is given up: it stays **fully blurred** for readers,
+  gets `analysis_error` ("שגיאה בבדיקה"), is marked "needs review" for the moderators and leaves the queue. A moderator can open it by hand or press
+  "check again" (counting starts from zero).
+- One check is stopped after `MODERATION_ATTEMPT_TIMEOUT` (default 45 min, the old HTTP limit: a legitimate 15-minute video takes ~40 min at 3 cores before the speed-up) and the service is told to `/cancel` the abandoned work.
+- The sweep (`MODERATION_SWEEP_INTERVAL`, default 2 min) queues a file only if it is not paused, not already waiting and not being checked.
+Tests: `go test ./modretry/` (in `backend/`, no Redis needed) and `tests/e2e_stuck_video.py` (needs `tests/docker-compose.stuck-test.yml`, a fake
+moderation service that crashes / hangs / answers; it fails on the old code).

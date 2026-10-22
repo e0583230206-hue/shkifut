@@ -1,0 +1,19 @@
+# Local test stack for tests/e2e_stuck_video.py: only redis + backend, on http://localhost:18082, in its own compose project, with a
+# FAKE moderation service (run by the test itself on the host, port 18098) instead of the real one. Short limits so the test is quick.
+#   copy .env from the main project dir (DEV_LOGIN=true), then, from the project dir:
+#   docker compose -p tc-stuck -f docker-compose.local.yml -f tests/docker-compose.stuck-test.yml up -d --build --no-deps redis backend
+#   BASE_URL=http://localhost:18082 python -I tests/e2e_stuck_video.py
+#   docker compose -p tc-stuck -f docker-compose.local.yml -f tests/docker-compose.stuck-test.yml down -v
+services:
+  backend:
+    ports: !override
+      - "127.0.0.1:18082:3000"
+    environment:
+      MODERATION_URL: http://host.docker.internal:18098
+      MODERATION_MAX_ATTEMPTS: "2"
+      MODERATION_ATTEMPT_TIMEOUT: "6s"
+      MODERATION_RETRY_DELAY: "2s"
+      MODERATION_SWEEP_INTERVAL: "3s"
+      DEV_LOGIN: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

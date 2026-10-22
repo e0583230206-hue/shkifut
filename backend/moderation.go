@@ -301,10 +301,12 @@ func startModeration() {
 			cancel()
 			if err == nil {
 				for _, id := range ids {
-					queueModeration(id)
+					if modTracker.TryQueue(id) { // not paused after a failure, not already waiting or being checked
+						queueModeration(id)
+					}
 				}
 			}
-			time.Sleep(2 * time.Minute)
+			time.Sleep(moderationSweepInterval)
 		}
 	}()
 }
@@ -320,8 +322,13 @@ func moderationWorker(queue, urgent chan string) {
 			case id = <-queue:
 			}
 		}
-		if err := moderateFile(id); err != nil {
-			log.Printf("moderation of %s failed (will retry): %v", id, err)
+		if modTracker.Started(id) {
+			continue // paused after a failed check: the sweep queues it again later, the others go first
+		}
+		err := moderateFile(id)
+		modTracker.Finished(id)
+		if err != nil {
+			log.Printf("moderation of %s failed: %v", id, err)
 		}
 	}
 }
@@ -416,8 +423,11 @@ func moderateFile(id string) error {
 	inflightMu.Lock()
 	inflight[id] = runCancel
 	inflightMu.Unlock()
-	res, err := callModerationServiceCtx(runCtx, "/process", meta)
+	attemptCtx, attemptCancel := context.WithTimeout(runCtx, moderationAttemptTimeout)
+	res, err := callModerationServiceCtx(attemptCtx, "/process", meta)
 	canceled := runCtx.Err() != nil
+	timedOut := !canceled && attemptCtx.Err() == context.DeadlineExceeded
+	attemptCancel()
 	inflightMu.Lock()
 	delete(inflight, id)
 	inflightMu.Unlock()
@@ -427,12 +437,17 @@ func moderateFile(id string) error {
 		stopCtx, stopCancel := redisCtx()
 		rdb.SRem(stopCtx, moderationPending, id)
 		stopCancel()
+		modTracker.Reset(id)
 		appendYamlLog(moderationLogFile, map[string]any{"action": "cancelled", "fileId": id, "reason": "manual decision during the check"})
 		return nil
 	}
 	if err != nil {
-		return err
+		if timedOut {
+			cancelServiceJob(meta) // the service keeps working on the abandoned file and would block the next one
+		}
+		return moderationAttemptFailed(id, err, timedOut)
 	}
+	modTracker.Reset(id)
 	decision := res.Decision
 	if decision != ModOpen && decision != ModRegional {
 		decision = ModBlurred // anything unexpected is treated as fully blurred
@@ -686,12 +701,8 @@ func setFileModeration(w http.ResponseWriter, r *http.Request) {
 	// Open / blurred by hand: the automatic check of this file is no longer needed - stop it and tell the service to stop working.
 	if req.Status != ModRegional {
 		cancelInflight(req.ID)
-		go func(path string) {
-			body, _ := json.Marshal(map[string]string{"path": path})
-			if resp, err := moderationClient.Post(moderationURL+"/cancel", "application/json", bytes.NewReader(body)); err == nil {
-				resp.Body.Close()
-			}
-		}(filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash)))
+		modTracker.Reset(req.ID) // decided by hand: nothing left to count or retry
+		go cancelServiceJobPath(filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash)))
 	}
 
 	appendYamlLog(moderationLogFile, map[string]any{
@@ -767,6 +778,7 @@ func reprocessFile(w http.ResponseWriter, r *http.Request) {
 		"by":     user.Email,
 		"level":  moderationLevel(),
 	})
+	modTracker.Reset(req.ID) // a new check: counting starts again
 	enqueueModerationUrgent(req.ID)
 	publishFileModeration(r.Context(), req.ID, ModPending)
 
