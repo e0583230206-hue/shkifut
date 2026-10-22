@@ -27,14 +27,14 @@
 - **החזרה:** גיבוי הגשר ב-`/opt/bridge/backup-hold-20261019-100341` (החזרת הקבצים ו-`docker compose up -d --no-deps bridge`). גיבוי `.env` ב-`/opt/thechannel/backup-hold-20261019-100341`. תמונות קודמות: `thechannel-backend:before-hold-20261019-100341`, `thechannel-moderation:before-hold-20261019-100341` (החזרת התג ל-`latest` ו-`up -d`).
 - **תור הבדיקה האוטומטית:** שירות אחד על מעבד אחד, כמה דקות לסרטון. אחרי כל הפעלה מחדש של ה-backend הוא מכניס שוב לתור את כל הקבצים שסומנו "ממתין" (ב-19.10 היו 28, חלקם מאתמול). סרטון חדש עלול לחכות שעות.
 - **nginx:** הגבלות קצב לאתר הזה בלבד ב-`/etc/nginx/conf.d/thechannel-limits.conf` ושני קבצי snippets (גיבוי: `/root/nginx-backups/nginx-before-limits-20261019-103220.tgz`). לא נוסו בעומס.
-- **רשימת "מחוברים" (מנהלים בלבד):** בקוד ב-`main`, **עדיין לא נפרסה לדמו** (נדרשת הפעלה מחדש של ה-backend, שמחזירה לתור את כל הקבצים הממתינים). פירוט מה בוצע ומה מתוכנן: `PROGRESS.md`.
+- **פריסה אחרונה (22.10.2026, `main` בקומיט `f6eb093`):** לשונית "מחוברים" למנהלים ובורר בהיר/כהה/לפי המערכת. הוחלפה רק תמונת ה-backend (תג להחזרה: `thechannel-backend:before-presence-20261022-093818`, החזרת התג ל-`latest` ו-`up -d --no-deps backend`). ההפעלה מחדש החזירה לתור הבדיקה את כל הקבצים הממתינים (83 לפני הפריסה).
 - נטפרי חוסם את `demo.30206.co.il` מהמחשב שלי (418), ולכן נכנסים דרך מנהרת SSH (`deploy/tunnel.ps1`) בפורט 8080. **פורט 8080 במחשב הוא לא ה-stack המקומי:** בדיקות מקומיות רצות על 18080 (`tests/docker-compose.port.yml`, `BASE_URL`).
 - לדמו אין כניסת פיתוח, ולכן אי אפשר לבדוק שם כקורא בלי להתחבר עם גוגל. את זה עושה הבעלים בדפדפן.
 
 **שינוי ב-`PRIVATE_SITE`, ב-`ALLOWED_EMAILS` או ב-`require_auth` רק באישור מפורש.** `HOLD_VIDEOS_UNTIL_APPROVED` נקבע בזמן ההעלאה: הוא משפיע רק על סרטונים שהועלו אחרי שהודלק.
 
 ## ענפים
-- `main` כולל הכל עד כאן (אין remote). ענפי עבודה קודמים: `moderation-vote-fix`, `hold-videos-until-approved` (מוזגו). `presence-online` ("מחוברים") מוזג ל-`main` אך **לא נפרס**.
+- `main` כולל הכל עד כאן (אין remote). ענפי עבודה קודמים: `moderation-vote-fix`, `hold-videos-until-approved` (מוזגו). `presence-online` ו-`theme-switcher` מוזגו ל-`main` ונפרסו ב-22.10.
 
 ## העדפות שלי (איך לעבוד איתי)
 - **עברית.**
