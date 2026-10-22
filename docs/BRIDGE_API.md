@@ -87,4 +87,4 @@ async function publish(text, media = []) {
 ```
 
 ## בדיקה מקומית
-`python -I tests/e2e_bridge.py` מריץ את כל התהליך מול http://localhost:8080. המפתח בבדיקה זמני, וההגדרות משוחזרות בסיום.
+`python -I tests/e2e_bridge.py` מריץ את כל התהליך מול http://localhost:18080 (או BASE_URL; הבדיקה עוצרת מול כל כתובת שאינה מקומית). המפתח בבדיקה זמני, וההגדרות משוחזרות בסיום.

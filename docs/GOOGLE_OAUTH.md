@@ -1,6 +1,6 @@
 # יצירת התחברות עם Google (Client ID ו-Secret)
 
-המדריך כתוב לאתר הדמו `https://demo.30206.co.il` ולהרצה המקומית `http://localhost:8080`. **אותו Client ID משרת את שניהם.**
+המדריך כתוב לאתר הדמו `https://demo.30206.co.il` ולהרצה המקומית `http://localhost:18080`. **אותו Client ID משרת את שניהם.**
 כשתעברו לדומיין אחר, מוסיפים לו כתובת נוספת באותו Client ID (ראו "מעבר לדומיין חדש" בסוף).
 
 ## 1. פרויקט ומסך הסכמה
@@ -23,12 +23,12 @@
 - **Authorized JavaScript origins:**
   ```
   https://demo.30206.co.il
-  http://localhost:8080
+  http://localhost:18080
   ```
 - **Authorized redirect URIs** (בדיוק כך, בלי לוכסן בסוף):
   ```
   https://demo.30206.co.il/login
-  http://localhost:8080/login
+  http://localhost:18080/login
   ```
 
 לוחצים Create, ומעתיקים את **Client ID** ואת **Client secret**.
@@ -53,7 +53,7 @@ cd /opt/thechannel && sudo docker compose -f docker-compose.prod.yml up -d
 ```
 docker compose -f docker-compose.local.yml up -d
 ```
-כניסה עם Google תעבוד בכתובת http://localhost:8080/login. הכניסה המהירה `/auth/dev-login` נשארת זמינה מקומית.
+כניסה עם Google תעבוד בכתובת http://localhost:18080/login (רק אם הכתובת הזאת רשומה בקונסולת Google; רישום ישן של `localhost:8080` אינו נחוץ עוד). הכניסה המהירה `/auth/dev-login` נשארת זמינה מקומית.
 
 הסוד נשמר רק בקבצי `.env`, ולא ב-git.
 
@@ -65,7 +65,7 @@ docker compose -f docker-compose.local.yml up -d
 ## תקלות נפוצות
 | הודעה | הסיבה |
 |---|---|
-| `redirect_uri_mismatch` | הכתובת ב-Authorized redirect URIs לא זהה בדיוק לכתובת האתר ועוד `/login`. שימו לב ל-`http` מול `https` ולכתובת מקומית עם הפורט `:8080`. |
+| `redirect_uri_mismatch` | הכתובת ב-Authorized redirect URIs לא זהה בדיוק לכתובת האתר ועוד `/login`. שימו לב ל-`http` מול `https` ולכתובת מקומית עם הפורט `:18080`. |
 | `access_denied` / "האפליקציה לא אומתה" | האפליקציה במצב Testing והחשבון לא מופיע ב-Test users, או שפג תוקף ההתחברות של 7 הימים. |
 | "התחברות נכשלה, נסה שוב" | Client secret שגוי ב-`.env`, או שהשרת לא הופעל מחדש אחרי העדכון. |
 | "החשבון הזה לא מורשה" | החשבון לא ברשימת `ADMIN_USERS` / `ALLOWED_EMAILS`. אחרי שינוי ברשימה צריך להפעיל את ה-backend מחדש. |

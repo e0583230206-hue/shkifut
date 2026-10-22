@@ -1,4 +1,7 @@
-# View the REAL demo (the site on the server) from this computer at http://localhost:8080, through an SSH tunnel.
+# NOT IN USE: the demo site is open now, so this tunnel is no longer needed day to day. Kept for the case NetFree blocks the
+# demo again. It no longer uses port 8080 or 8081 (the tests refuse those ports so that they can never reach the demo).
+#
+# View the REAL demo (the site on the server) from this computer at http://localhost:18081, through an SSH tunnel.
 # Needed while NetFree blocks demo.30206.co.il. Nothing is published and no public port is opened: the tunnel listens only
 # on 127.0.0.1 of this computer and reaches the site's loopback-only port on the server.
 #
@@ -6,15 +9,14 @@
 #   .\deploy\tunnel.ps1 -Background   # start hidden
 #   .\deploy\tunnel.ps1 -Stop         # close a background tunnel
 #
-# Google login works only on a port registered in the Google console (http://localhost:8080/login). If 8080 is taken
-# (e.g. by the local copy: docker compose -f docker-compose.local.yml down), the script uses -FallbackPort 8081; the site
-# opens there, but "sign in with Google" needs http://localhost:8081/login added to the OAuth client's redirect URIs.
+# "Sign in with Google" through the tunnel needs the tunnel port (http://localhost:18081/login) in the OAuth client's redirect
+# URIs (Google console, outside this repository). If the port is taken the script uses -FallbackPort 18082.
 param(
     [string]$Server = '45.93.95.182',
     [string]$User = 'root',
     [int]$RemotePort = 8090,
-    [int]$Port = 8080,
-    [int]$FallbackPort = 8081,
+    [int]$Port = 18081,
+    [int]$FallbackPort = 18082,
     [string]$KeyFile = (Join-Path $env:USERPROFILE '.ssh\thechannel_deploy'),
     [switch]$Background,
     [switch]$Stop

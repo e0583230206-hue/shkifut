@@ -16,7 +16,8 @@ import { join } from 'node:path';
 const [fileId, outDir, chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'] = process.argv.slice(2);
 if (!fileId || !outDir) { console.error('usage: hold_screenshots.mjs <fileId> <outDir> [chrome]'); process.exit(2); }
 mkdirSync(outDir, { recursive: true });
-const BASE = process.env.BASE_URL || 'http://localhost:8080';
+import { localBase } from './guard.mjs';
+const BASE = localBase(process.env.BASE_URL);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, detail = '') => { results.push(ok); console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  ' + detail)); };

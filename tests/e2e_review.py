@@ -1,4 +1,4 @@
-"""End-to-end test of the moderator review grid and corrections (http://localhost:8080, DEV_LOGIN on).
+"""End-to-end test of the moderator review grid and corrections (http://localhost:18080 by default, BASE_URL to change; DEV_LOGIN on).
 
     python -I tests/e2e_review.py
 
@@ -15,7 +15,9 @@ import urllib.request
 import uuid
 
 sys.stdout.reconfigure(encoding="utf-8")
-B = "http://localhost:8080"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url()
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 TRAINING = os.path.join(ROOT, "training")
 failures = []

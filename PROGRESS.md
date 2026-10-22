@@ -36,7 +36,7 @@
 - החלטות מחייבות: `CLAUDE.md`. פירוט טכני: `moderation/README.md`.
 
 ## מצב נוכחי (מה כבר קיים)
-- הרצה מקומית: `docker compose -f docker-compose.local.yml up -d`, ואז http://localhost:8080. הכניסה למנהל בפיתוח: `/auth/dev-login` (`DEV_LOGIN=true` ב-.env).
+- הרצה מקומית: `docker compose -f docker-compose.local.yml up -d`, ואז http://localhost:18080. הכניסה למנהל בפיתוח: `/auth/dev-login` (`DEV_LOGIN=true` ב-.env).
 - מערכת טשטוש אזורית:
   - קבצים: `moderation/app/` (`analyzer.py`, `regional.py`, `server.py`), `backend/moderation.go`, `frontend/src/app/services/media-moderation.service.ts`.
   - רמות החמרה (מחמיר / רגיל / מקל), כפתור "בדוק מחדש", וכפתורי "פתח לכולם" / "טשטוש אזורי" / "טשטוש מלא".

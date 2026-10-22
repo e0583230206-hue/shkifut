@@ -1,4 +1,4 @@
-"""End-to-end test of orphan media cleanup (http://localhost:8080, DEV_LOGIN on, channel_data bind-mounted).
+"""End-to-end test of orphan media cleanup (http://localhost:18080 by default, BASE_URL to change; DEV_LOGIN on, channel_data bind-mounted).
 
     python -I tests/e2e_cleanup.py
 """
@@ -14,7 +14,9 @@ import uuid
 import zlib
 
 sys.stdout.reconfigure(encoding="utf-8")
-B = "http://localhost:8080"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url()
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "channel_data")
 failures = []
 

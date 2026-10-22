@@ -11,7 +11,9 @@ import urllib.request
 sys.stdout.reconfigure(encoding="utf-8")
 MODE = sys.argv[1] if len(sys.argv) > 1 else ""
 assert MODE in ("on", "off"), "usage: e2e_noindex.py on|off"
-B = os.environ.get("BASE_URL", "http://localhost:8080")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url()
 failures = []
 
 

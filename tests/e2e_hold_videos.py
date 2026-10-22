@@ -1,4 +1,4 @@
-"""End-to-end test of HOLD_VIDEOS_UNTIL_APPROVED (http://localhost:8080, DEV_LOGIN on).
+"""End-to-end test of HOLD_VIDEOS_UNTIL_APPROVED (http://localhost:18080 by default, BASE_URL to change; DEV_LOGIN on).
 
     python -I tests/e2e_hold_videos.py off    # backend started normally (flag off): nothing changes; leaves one video behind
     python -I tests/e2e_hold_videos.py on     # backend started with tests/docker-compose.hold-test.yml (flag on)
@@ -21,7 +21,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 sys.stdout.reconfigure(encoding="utf-8")
 MODE = sys.argv[1] if len(sys.argv) > 1 else ""
 assert MODE in ("on", "off"), "usage: e2e_hold_videos.py on|off"
-B = os.environ.get("BASE_URL", "http://localhost:8080")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url()
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 STATE = os.path.join(tempfile.gettempdir(), "hold_test_state.json")
 APPROVER, MOD2 = "approver@example.com", "mod2@example.com"

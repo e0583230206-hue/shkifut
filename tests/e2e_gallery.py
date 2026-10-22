@@ -1,4 +1,4 @@
-"""End-to-end test of galleries through the bridge API (http://localhost:8080, DEV_LOGIN on).
+"""End-to-end test of galleries through the bridge API (http://localhost:18080 by default, BASE_URL to change; DEV_LOGIN on).
 
     python -I tests/e2e_gallery.py
 
@@ -10,6 +10,7 @@ import http.cookiejar
 import json
 import re
 import struct
+import os
 import sys
 import time
 import urllib.error
@@ -19,7 +20,9 @@ import uuid
 import zlib
 
 sys.stdout.reconfigure(encoding="utf-8")
-B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _guard import base_url  # noqa: E402
+B = base_url(sys.argv[1] if len(sys.argv) > 1 else None)
 failures = []
 
 
