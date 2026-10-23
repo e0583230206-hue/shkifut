@@ -9,12 +9,13 @@ nb-layout-column.ad-column {
   padding: 0 !important;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 app-advertising {
   position: sticky;
-  bottom: 0;
+  // Pinned under the header, not to the bottom: with the input form (admin) a bottom pin made the ad jump between two heights while scrolling
+  top: nb-theme(header-height);
   display: flex;
   align-items: center;
   justify-content: center;
