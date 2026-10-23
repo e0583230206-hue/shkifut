@@ -4,21 +4,14 @@
     <img [src]="chatService.channelInfo?.logoUrl" class="rounded-circle img-circle" (click)="viewLargeImage($event)">
   </div>
   } @else {
-  <!-- the site logo (animated); people who asked their system for less motion get the still picture -->
-  <picture class="site-logo">
-    <source srcset="/assets/brand/logo-static.png" media="(prefers-reduced-motion: reduce)">
-    <img src="/assets/brand/logo-animated.gif" alt="שקיפות" width="162" height="56">
-  </picture>
+  <!-- the logo of the channel: the lens (a round picture, like the profile of a group) -->
+  <img class="site-lens" src="/assets/brand/lens-96.png" srcset="/assets/brand/lens-96.png 1x, /assets/brand/lens-192.png 2x" width="56" height="56" alt="" aria-hidden="true">
   }
   <div class="hdr-info d-flex flex-column flex-grow-1">
-    <span class="fs-4 my-2 fw-bold">{{ chatService.channelInfo?.name }}</span>
-    @if (chatService.channelInfo?.description) {
-      <small>
-        {{ chatService.channelInfo?.description }}
-      </small>
-    }
-    <small>
-      {{ chatService.channelInfo?.views }} משתתפים
+    <h1 class="site-title">{{ chatService.channelInfo?.name || 'שקיפות' }}</h1>
+    <small class="site-desc">{{ chatService.channelInfo?.description || 'שיתוף התוכן לפי חוק סעיף 27א לזכויות יוצרים' }}</small>
+    <small class="site-count">
+      {{ chatService.channelInfo?.views | number }} משתתפים
       <span class="legal-links"> · <a routerLink="/privacy">פרטיות</a> · <a routerLink="/terms">תנאי שימוש</a></span>
     </small>
   </div>

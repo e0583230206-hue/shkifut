@@ -12,6 +12,7 @@ import {
 import { filter } from "rxjs";
 import Viewer from 'viewerjs';
 import { Router, RouterLink } from '@angular/router';
+import { DecimalPipe } from '@angular/common';
 import { Title } from '@angular/platform-browser';
 import { AuthService } from '../../../services/auth.service';
 import { ChatService } from '../../../services/chat.service';
@@ -29,7 +30,8 @@ import { ThemeMode, ThemeService } from '../../../services/theme.service';
     NbIconModule,
     NbUserModule,
     NbContextMenuModule,
-    RouterLink
+    RouterLink,
+    DecimalPipe
 ],
   templateUrl: './channel-header.component.html',
   styleUrl: './channel-header.component.scss'

@@ -4,7 +4,9 @@ iframe {
 }
 
 iframe.side {
-  width: 100%;
+  /* the column is as wide as the setting "ad column width" (--ad-width, set by the component), 300 px when it is not set */
+  width: var(--ad-width, 300px);
+  max-width: 100vw;
   height: 100%;
 }
 

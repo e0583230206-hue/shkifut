@@ -15,23 +15,36 @@
     cursor: default;
 }
 
-/* The logo (480x166 picture shown 56 px high; 44 px on a phone so the buttons still fit). */
-.site-logo {
+/* Header like a channel profile: the round logo, the name, a line under it, and the number of participants under that. */
+.site-lens {
     display: block;
     flex: 0 0 auto;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
 }
 
-.site-logo img {
+.hdr-info {
+    min-width: 0;
+    line-height: 1.25;
+}
+
+.site-title {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.site-desc,
+.site-count {
     display: block;
-    height: 56px;
-    width: auto;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    color: var(--tc-muted, #5b6785);
 }
 
 @media (max-width: 576px) {
-    .site-logo img {
-        height: 40px;
-    }
-
     /* Phone: one row as before - the logo, the participants / privacy / terms text, and smaller round buttons so that everything fits in 360 px. */
     .hdr {
         gap: 0.25rem !important;
@@ -49,7 +62,17 @@
         margin: 0.1rem !important;
     }
 
-    .site-logo img {
-        height: 36px;
+    .site-lens {
+        width: 44px;
+        height: 44px;
+    }
+
+    .site-title {
+        font-size: 1.15rem;
+    }
+
+    .site-desc,
+    .site-count {
+        font-size: 0.7rem;
     }
 }
