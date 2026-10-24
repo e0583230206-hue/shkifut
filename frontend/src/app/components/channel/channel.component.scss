@@ -33,16 +33,27 @@ app-advertising {
 // "Found problematic content?" - a plain mailto link, no script: under the ad in the side column, at the end of the page on a phone
 .report-note {
   margin: 0;
-  padding: 0.45rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   text-align: center;
-  font-size: 0.8rem;
-  line-height: 1.2;
-  color: var(--tc-muted, #5b6785);
-  border-top: 1px solid var(--tc-border, rgba(128, 128, 128, 0.25));
 
+  // A visible pill, not small grey text: everyone should notice it
   a {
-    color: inherit;
-    text-decoration: underline;
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(220, 38, 38, 0.45);
+    background: rgba(220, 38, 38, 0.1);
+    color: #c81e1e;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      background: rgba(220, 38, 38, 0.18);
+      text-decoration: underline;
+    }
   }
 }
 

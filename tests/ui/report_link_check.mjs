@@ -1,4 +1,4 @@
-// The "report problematic content" link: what a click asks the browser to open (subject, body), and whether the note is hidden by the fixed
+// The "report problematic content" link: the Gmail compose address it builds and what a click opens (new tab), and whether the note is hidden by the fixed
 // input form on a phone in the admin view. LOCAL stack only.   node tests/ui/report_link_check.mjs <outDir> http://localhost:18083
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -25,16 +25,22 @@ await send('Page.navigate', { url: base + '/' }); await sleep(7000);
 await ev('window.scrollTo(0, 99999)'); await sleep(800);
 const pt = JSON.parse(await ev(`JSON.stringify((() => { const r = [...document.querySelectorAll('.report-note a')].find(a => a.getBoundingClientRect().width > 0).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })())`));
 events.length = 0;
+await send('Target.setDiscoverTargets', { discover: true });
+const attrs = JSON.parse(await ev(`JSON.stringify([...document.querySelectorAll('.report-note a')].map(a => ({ href: a.getAttribute('href'), target: a.target, rel: a.rel })))`));
 for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x: pt.x, y: pt.y, button: 'left', clickCount: 1 });
-await sleep(1200);
-const nav = events.filter(e => e.method === 'Page.frameRequestedNavigation').map(e => e.params.url);
-console.log('browser asked to open:', nav);
-const href = nav.find(u => u.startsWith('mailto:')) || '';
-const u = new URL(href || 'mailto:x');
-check('click asks the browser to open a mailto: link', href.startsWith('mailto:'), JSON.stringify(nav));
-check('address is the report address', decodeURIComponent(u.pathname).toLowerCase() === '0583230206p@gmail.com', u.pathname);
-check('subject is "דיווח על תוכן באתר שקיפות"', u.searchParams.get('subject') === 'דיווח על תוכן באתר שקיפות', u.searchParams.get('subject'));
+await sleep(2500);
+const opened = events.filter(e => (e.method === 'Target.targetCreated' || e.method === 'Target.targetInfoChanged') && e.params.targetInfo.type === 'page').map(e => e.params.targetInfo.url);
+console.log('new tab asked for:', opened);
+const href = attrs[0].href;
+const u = new URL(href);
+check('both links are the same Gmail compose address', attrs.length === 2 && attrs[0].href === attrs[1].href && u.origin + u.pathname === 'https://mail.google.com/mail/', JSON.stringify(attrs.map(a => a.href)));
+check('opens in a new tab with rel="noopener noreferrer"', attrs.every(a => a.target === '_blank' && /noopener/.test(a.rel) && /noreferrer/.test(a.rel)), JSON.stringify(attrs));
+check('a click opens a new tab to Gmail (a signed-out browser is sent to the Google sign-in, which keeps the compose address)', opened.some(x => x.startsWith('https://mail.google.com/') || (x.startsWith('https://accounts.google.com/') && x.includes('mail.google.com/mail/?view'))), JSON.stringify(opened));
+check('view=cm and fs=1', u.searchParams.get('view') === 'cm' && u.searchParams.get('fs') === '1');
+check('to is the report address', u.searchParams.get('to') === '0583230206p@gmail.com', u.searchParams.get('to'));
+check('subject is "דיווח על תוכן באתר שקיפות"', u.searchParams.get('su') === 'דיווח על תוכן באתר שקיפות', u.searchParams.get('su'));
 check('body is one empty line', u.searchParams.get('body') === '\n', JSON.stringify(u.searchParams.get('body')));
+check('parameters are percent-encoded (no raw Hebrew or spaces in the address)', /^[!-~]+$/.test(href) && !href.includes(' '), href);
 check('the address is not shown as text anywhere on the page', !(await ev(`document.body.innerText.toLowerCase().includes('0583230206')`)));
 
 // 2. phone, admin view with the fixed input form: is the note hidden?
