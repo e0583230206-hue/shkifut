@@ -44,6 +44,21 @@
     color: var(--tc-muted, #5b6785);
 }
 
+.dev-credit {
+    flex: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--tc-muted, #5b6785);
+    white-space: nowrap;
+
+    img {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%; // the picture has white corners: only the round part shows
+        object-fit: cover;
+    }
+}
+
 @media (max-width: 576px) {
     /* Phone: one row as before - the logo, the participants / privacy / terms text, and smaller round buttons so that everything fits in 360 px. */
     .hdr {
