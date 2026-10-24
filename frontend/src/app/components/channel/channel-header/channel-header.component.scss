@@ -44,17 +44,31 @@
     color: var(--tc-muted, #5b6785);
 }
 
+// "Developed and maintained by": a gold-edged capsule that matches the picture (black and gold), in the site font
 .dev-credit {
     flex: none;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--tc-muted, #5b6785);
+    gap: 0.6rem !important;
+    padding: 0.2rem 1rem 0.2rem 0.25rem;
+    border-radius: 999px;
+    border: 1px solid rgba(201, 154, 46, 0.55);
+    background: linear-gradient(135deg, #fffaf0, #fff4dc);
+    box-shadow: 0 1px 4px rgba(120, 90, 20, 0.12);
+    font-family: Assistant, sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #7a5712;
     white-space: nowrap;
     text-decoration: none;
+    transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
 
-    &:hover {
-        color: inherit;
-        text-decoration: underline;
+    &:hover,
+    &:focus-visible {
+        color: #5c400a;
+        border-color: rgba(201, 154, 46, 0.95);
+        box-shadow: 0 3px 12px rgba(201, 154, 46, 0.35);
+        transform: translateY(-1px);
+        text-decoration: none;
     }
 
     img {
@@ -62,6 +76,20 @@
         height: 44px;
         border-radius: 50%; // the picture has white corners: only the round part shows
         object-fit: cover;
+        box-shadow: 0 0 0 2px #c99a2e, 0 0 10px rgba(201, 154, 46, 0.45);
+    }
+}
+
+:host-context(.nb-theme-custom-dark) .dev-credit {
+    background: linear-gradient(135deg, rgba(201, 154, 46, 0.16), rgba(201, 154, 46, 0.06));
+    border-color: rgba(232, 196, 106, 0.5);
+    box-shadow: none;
+    color: #e8c46a;
+
+    &:hover,
+    &:focus-visible {
+        color: #f5d98a;
+        box-shadow: 0 3px 12px rgba(232, 196, 106, 0.25);
     }
 }
 
