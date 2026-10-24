@@ -50,6 +50,12 @@
     font-weight: 600;
     color: var(--tc-muted, #5b6785);
     white-space: nowrap;
+    text-decoration: none;
+
+    &:hover {
+        color: inherit;
+        text-decoration: underline;
+    }
 
     img {
         width: 44px;
