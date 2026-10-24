@@ -12,15 +12,38 @@ nb-layout-column.ad-column {
   justify-content: flex-start;
 }
 
-app-advertising {
+.ad-sticky {
   position: sticky;
   // Pinned under the header, not to the bottom: with the input form (admin) a bottom pin made the ad jump between two heights while scrolling
   top: nb-theme(header-height);
   display: flex;
+  flex-direction: column;
+  //noinspection CssInvalidPropertyValue
+  height: calc(100vh - nb-theme(header-height) - var(--input-height, 0px));
+}
+
+app-advertising {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
-  //noinspection CssInvalidPropertyValue
-  height: calc(100vh - nb-theme(header-height) - var(--input-height, 0px)) !important;
+}
+
+// "Found problematic content?" - a plain mailto link, no script: under the ad in the side column, at the end of the page on a phone
+.report-note {
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  color: var(--tc-muted, #5b6785);
+  border-top: 1px solid var(--tc-border, rgba(128, 128, 128, 0.25));
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+  }
 }
 
 ::ng-deep {

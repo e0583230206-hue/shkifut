@@ -5,11 +5,15 @@
 
   <nb-layout-column class="chat-column">
     <app-chat class=""></app-chat>
+    <p class="report-note d-lg-none"><a href="mailto:0583230206p@gmail.com?subject=%D7%93%D7%99%D7%95%D7%95%D7%97%20%D7%A2%D7%9C%20%D7%AA%D7%95%D7%9B%D7%9F%20%D7%91%D7%90%D7%AA%D7%A8%20%D7%A9%D7%A7%D7%99%D7%A4%D7%95%D7%AA&body=%0A">מצאת תוכן בעייתי? לחץ כאן לדיווח</a></p>
   </nb-layout-column>
 
   @if (ad.enabled) {
     <nb-layout-column class="ad-column d-none d-lg-flex">
-      <app-advertising [ad]="ad" mode="side"></app-advertising>
+      <div class="ad-sticky">
+        <app-advertising [ad]="ad" mode="side"></app-advertising>
+        <p class="report-note"><a href="mailto:0583230206p@gmail.com?subject=%D7%93%D7%99%D7%95%D7%95%D7%97%20%D7%A2%D7%9C%20%D7%AA%D7%95%D7%9B%D7%9F%20%D7%91%D7%90%D7%AA%D7%A8%20%D7%A9%D7%A7%D7%99%D7%A4%D7%95%D7%AA&body=%0A">מצאת תוכן בעייתי? לחץ כאן לדיווח</a></p>
+      </div>
     </nb-layout-column>
   }
 
