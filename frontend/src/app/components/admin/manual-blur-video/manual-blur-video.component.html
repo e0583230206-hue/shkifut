@@ -1,0 +1,146 @@
+<nb-card class="mbv-card">
+  <nb-card-header>
+    טשטוש ידני לסרטון
+    <small class="text-muted d-block">
+      הטשטוש מתווסף על {{ baseLabel }}, ולא חושף שום דבר. הטשטוש מתחיל 2 פריימים לפני הנקודה הראשונה ונגמר 2 פריימים אחרי הסיום. מה שהקוראים יקבלו נבנה בשרת אחרי "שמור".
+    </small>
+  </nb-card-header>
+  <nb-card-body>
+    @if (loading) {
+    <div>טוען...</div>
+    } @else if (!available) {
+    <div class="unavailable" role="status">{{ unavailableText }}</div>
+    } @else if (rendering) {
+    <div class="render-panel" role="status" aria-live="polite">
+      <strong>{{ job?.state === 'queued' ? 'ממתין בתור לרינדור...' : 'הסרטון מתרנדר בשרת...' }}</strong>
+      <div class="bar" role="progressbar" [attr.aria-valuenow]="percent" aria-valuemin="0" aria-valuemax="100">
+        <div class="fill" [style.width.%]="percent"></div>
+      </div>
+      <div class="pct">{{ percent }}%</div>
+      <small class="text-muted">אפשר לסגור את החלון: הרינדור ממשיך ברקע, והסרגל של הסרטון בערוץ יראה כשהוא מוכן. עד אז הקוראים מקבלים את הגרסה הקודמת.</small>
+    </div>
+    } @else {
+    <div class="toolbar" role="toolbar" aria-label="כלי טשטוש">
+      <button type="button" class="tool" [class.on]="tool === 'rect'" (click)="setTool('rect')" aria-pressed="{{ tool === 'rect' }}" title="צייר מלבן על הסרטון בשנייה הנוכחית">▭ מלבן</button>
+      <button type="button" class="tool" [class.on]="tool === 'ellipse'" (click)="setTool('ellipse')" aria-pressed="{{ tool === 'ellipse' }}" title="צייר עיגול או אליפסה בשנייה הנוכחית">◯ עיגול</button>
+      <button type="button" class="tool" [class.on]="tool === 'select'" (click)="setTool('select')" aria-pressed="{{ tool === 'select' }}" title="בחר טשטוש: הזזה או שינוי גודל בשנייה הנוכחית יוצרים נקודת מפתח">✥ בחירה והזזה</button>
+      <span class="sep"></span>
+      <button type="button" class="tool" (click)="undo()" [disabled]="!canUndo" title="ביטול (Ctrl+Z)">↶ ביטול</button>
+      <button type="button" class="tool" (click)="redo()" [disabled]="!canRedo" title="חזרה (Ctrl+Y)">↷ חזרה</button>
+      <button type="button" class="tool" [class.on]="previewOn" (click)="togglePreview()" aria-pressed="{{ previewOn }}" title="הדמיה של הטשטוש על הסרטון. התוצאה הסופית נבנית בשרת">👁 הדמיה</button>
+      <button type="button" class="tool" (click)="toggleMute()" [attr.aria-pressed]="!muted" title="קול">{{ muted ? '🔇 מושתק' : '🔊 עם קול' }}</button>
+      <span class="count" aria-live="polite">{{ tracks.length }} טשטושים · {{ keyCount }} נקודות מפתח</span>
+    </div>
+
+    @if (staleNotice) {
+    <div class="note" role="status">
+      יש כאן טשטוש ידני שנשמר קודם, אבל הוא כבר לא בתוקף: התוצאה האוטומטית של הסרטון השתנתה מאז, והקוראים מקבלים את הגרסה האוטומטית. הטשטושים נטענו כדי שתוכל לשמור אותם שוב.
+    </div>
+    }
+    @if (tooLong) {
+    <div class="note warn" role="alert">הסרטון ארוך מדי לטשטוש ידני (עד 15 דקות).</div>
+    }
+    @if (loadError) {
+    <div class="note warn" role="alert">הסרטון לא נטען. אם נטפרי חסם אותו, אי אפשר לערוך אותו כאן.</div>
+    }
+
+    <div class="stage-wrap">
+      <div #stage class="stage" [class.drawing]="tool !== 'select'" tabindex="0" aria-label="אזור העריכה של הסרטון"
+        (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)"
+        (pointercancel)="onPointerCancel()">
+        <video #video [src]="videoUrl" [muted]="muted" preload="auto" playsinline (loadedmetadata)="onLoadedMetadata()" (error)="onVideoError()"
+          (play)="onPlay()" (pause)="onPause()" (seeked)="syncTime()" (ended)="onPause()" aria-label="הסרטון לעריכה"></video>
+        <canvas #preview class="preview" [hidden]="!previewOn" aria-hidden="true"></canvas>
+        @for (b of boxes; track b.idx) {
+        <div class="shape" [class.ellipse]="b.box.type === 'ellipse'" [class.selected]="isSelected(b.idx)" tabindex="0" role="button"
+          [attr.aria-label]="trackLabel(b.idx)" (focus)="selectByFocus(b.idx)"
+          [style.left.%]="b.box.x * 100" [style.top.%]="b.box.y * 100" [style.width.%]="b.box.w * 100" [style.height.%]="b.box.h * 100">
+          @if (isSelected(b.idx)) {
+          @for (h of handles; track h) {
+          <span class="handle" [attr.data-handle]="h" [class]="'handle h-' + h" aria-hidden="true"></span>
+          }
+          }
+        </div>
+        }
+        @if (draft) {
+        <div class="shape draft" [class.ellipse]="draft.type === 'ellipse'"
+          [style.left.%]="draft.x * 100" [style.top.%]="draft.y * 100" [style.width.%]="draft.w * 100" [style.height.%]="draft.h * 100"></div>
+        }
+      </div>
+    </div>
+
+    <div class="transport" dir="ltr">
+      <button type="button" class="tool" (click)="step(-1)" title="פריים אחורה (←)">⏮</button>
+      <button type="button" class="tool play" (click)="togglePlay()" [attr.aria-label]="playing ? 'עצור' : 'נגן'" title="נגן / עצור (רווח)">{{ playing ? '⏸' : '▶' }}</button>
+      <button type="button" class="tool" (click)="step(1)" title="פריים קדימה (→)">⏭</button>
+      <span class="time" aria-live="off">{{ timeText }}</span>
+    </div>
+
+    <div class="tl" dir="ltr">
+      <div class="tl-labels">
+        <div class="tl-ruler-label"></div>
+        @for (tr of tracks; track $index; let ti = $index) {
+        <button type="button" class="tl-label" [class.sel]="isSelected(ti)" (click)="selectTrack(ti, true)" [title]="'בחר את הטשטוש ועבור לתחילתו'">{{ trackLabel(ti) }}</button>
+        }
+      </div>
+      <div #timeline class="timeline" (pointerdown)="onTimelineDown($event)" (pointermove)="onTimelineMove($event)" (pointerup)="onTimelineUp($event)"
+        (pointercancel)="onTimelineUp($event)" aria-label="ציר זמן">
+        <div class="ruler">
+          @for (k of ticks; track k.t) {
+          <span class="tick" [style.left.%]="pct(k.t)"><i></i>@if (k.label) {<b>{{ k.label }}</b>}</span>
+          }
+        </div>
+        @for (tr of tracks; track $index; let ti = $index) {
+        <div class="row" [class.sel]="isSelected(ti)">
+          <div class="seg" [class.ellipse]="tr.type === 'ellipse'" [style.left.%]="pct(tr.keys[0].t)" [style.width.%]="pct(trackEnd(tr)) - pct(tr.keys[0].t)"></div>
+          @for (k of tr.keys; track $index; let ki = $index) {
+          <span class="kf" role="button" [attr.aria-label]="'נקודת מפתח ב-' + k.t.toFixed(1)" [style.left.%]="pct(k.t)"
+            (pointerdown)="$event.stopPropagation()" (click)="gotoKey(ti, ki)"></span>
+          }
+          @if (tr.end != null) {
+          <span class="end-handle" title="סוף הטשטוש: גרור" [style.left.%]="pct(tr.end)" (pointerdown)="onTimelineDown($event, 'end', ti)"></span>
+          }
+        </div>
+        }
+        <div class="playhead" [style.left.%]="pct(time)"></div>
+      </div>
+    </div>
+
+    <div class="trackbar">
+      @if (sel) {
+      <strong>{{ trackLabel(selected) }}</strong>
+      <button type="button" class="tool" (click)="setInterpolation('pchip')" [class.on]="sel.interp === 'pchip'" title="תנועה חלקה בין נקודות המפתח">〰 חלקה</button>
+      <button type="button" class="tool" (click)="setInterpolation('linear')" [class.on]="sel.interp === 'linear'" title="תנועה ישרה בין נקודות המפתח">╱ ישרה</button>
+      <button type="button" class="tool" (click)="endHere()" [disabled]="!canEnd" title="הטשטוש נגמר בשנייה הנוכחית (אחרי נקודת המפתח האחרונה)">⤒ סיים כאן</button>
+      @if (sel.end != null) {
+      <button type="button" class="tool" (click)="endAtVideoEnd()" title="הטשטוש נמשך עד סוף הסרטון">∞ עד סוף הסרטון</button>
+      }
+      <button type="button" class="tool danger" (click)="deleteKeyframe()" [disabled]="selKeyIdx < 0" title="מחק את נקודת המפתח בשנייה הנוכחית (Delete)">✕ נקודת מפתח</button>
+      <button type="button" class="tool danger" (click)="deleteSelectedTrack()" title="מחק את כל הטשטוש הזה">✕ מחק טשטוש</button>
+      <small class="text-muted">{{ sel.end != null ? 'נגמר בשנייה ' + sel.end.toFixed(1) : 'נמשך עד סוף הסרטון' }}</small>
+      } @else {
+      <small class="text-muted">צייר מלבן או עיגול על הסרטון בשנייה שבה הטשטוש מתחיל. כדי שהוא יזוז: עבור לשנייה אחרת, בחר אותו, והזז או שנה את גודלו שם. כל שינוי כזה הוא נקודת מפתח, והתנועה ביניהן חלקה.</small>
+      }
+    </div>
+    }
+    @if (message) {
+    <div class="note warn mt-2" role="alert">{{ message }}</div>
+    }
+  </nb-card-body>
+  <nb-card-footer class="d-flex flex-wrap gap-2 align-items-center">
+    @if (available && !rendering) {
+    <button nbButton status="success" class="save" [disabled]="!dirty || saving || tooLong" (click)="save()">
+      {{ saving ? 'שולח...' : (tracks.length ? 'שמור ורנדר' : 'שמור (הסר את הטשטוש הידני)') }}
+    </button>
+    <button nbButton status="basic" class="clear" [disabled]="!tracks.length || saving" (click)="clearAll()" title="מוחק את כל הטשטושים (אפשר לבטל), והשמירה תסיר את הטשטוש הידני">מחק הכל</button>
+    }
+    <button nbButton status="basic" class="close-btn" [disabled]="saving" (click)="close()">{{ rendering ? 'סגור (הרינדור ממשיך)' : 'סגור' }}</button>
+    @if (confirmClose) {
+    <span class="confirm" role="alertdialog" aria-label="שינויים שלא נשמרו">
+      יש שינויים שלא נשמרו.
+      <button nbButton size="tiny" status="danger" class="confirm-close" (click)="close()">סגור בלי לשמור</button>
+      <button nbButton size="tiny" status="basic" class="keep-editing" (click)="keepEditing()">המשך לערוך</button>
+    </span>
+    }
+  </nb-card-footer>
+</nb-card>

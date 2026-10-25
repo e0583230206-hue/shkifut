@@ -5,6 +5,7 @@ import { ResponseResult } from '../models/response-result.model';
 import { NbDialogService } from '@nebular/theme';
 import { FigureReviewComponent } from '../components/admin/figure-review/figure-review.component';
 import { ManualBlurComponent } from '../components/admin/manual-blur/manual-blur.component';
+import { ManualBlurVideoComponent } from '../components/admin/manual-blur-video/manual-blur-video.component';
 import { boxRatio, dimsFromUrl } from '../media-dims';
 
 export type ModerationStatus = 'pending' | 'open' | 'regional' | 'blurred';
@@ -51,6 +52,8 @@ export interface ManualBlurInfo {
   /** A manual blur was saved, but the automatic result changed since, so readers do not get it. */
   stale?: boolean;
   shapes: number;
+  /** Videos: the render that is running or has just ended (it takes seconds to minutes). */
+  job?: { state: 'queued' | 'rendering' | 'done' | 'failed' | 'cancelled'; percent?: number; error?: string };
 }
 
 export interface HoldInfo {
@@ -300,6 +303,12 @@ export class MediaModerationService {
       manual.textContent = `טשטוש ידני פעיל (${info.manualBlur.shapes})`;
       manual.title = 'הקוראים מקבלים את הגרסה הזו: הטשטוש האוטומטי ועליו הצורות שסימנת.';
       bar.appendChild(manual);
+    } else if (info.manualBlur?.job && (info.manualBlur.job.state === 'rendering' || info.manualBlur.job.state === 'queued')) {
+      const rendering = document.createElement('span');
+      rendering.className = 'mod-badge mod-attention';
+      rendering.textContent = 'טשטוש ידני מתרנדר...';
+      rendering.title = 'הסרטון מתרנדר בשרת. הקוראים מקבלים את הגרסה הקודמת עד שהוא מוכן. הדף מתעדכן לבד.';
+      bar.appendChild(rendering);
     } else if (info.manualBlur?.stale) {
       const stale = document.createElement('span');
       stale.className = 'mod-badge mod-attention';
@@ -335,10 +344,13 @@ export class MediaModerationService {
       manualBtn.type = 'button';
       manualBtn.className = 'mod-btn mod-btn-manual' + (info.manualBlur.stale ? ' mod-btn-attention' : '');
       manualBtn.textContent = 'טשטוש ידני';
-      manualBtn.title = 'צייר מלבן או עיגול טשטוש על התמונה. הטשטוש מתווסף על הטשטוש האוטומטי ולא חושף שום דבר.';
+      manualBtn.title = isVideo
+        ? 'סמן מלבן או עיגול טשטוש על הסרטון, עם נקודות מפתח לתנועה. הטשטוש מתווסף על הטשטוש האוטומטי ולא חושף שום דבר.'
+        : 'צייר מלבן או עיגול טשטוש על התמונה. הטשטוש מתווסף על הטשטוש האוטומטי ולא חושף שום דבר.';
       manualBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        this.dialog.open(ManualBlurComponent, { context: { fileId: info.id }, closeOnBackdropClick: false, closeOnEsc: false })
+        const editor = isVideo ? ManualBlurVideoComponent : ManualBlurComponent;
+        this.dialog.open(editor as typeof ManualBlurComponent, { context: { fileId: info.id }, closeOnBackdropClick: false, closeOnEsc: false })
           .onClose.subscribe(async (saved) => {
             if (saved) this.render(wrap, await this.getStatus(info.id, true), true);
           });
