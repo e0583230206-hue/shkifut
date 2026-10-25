@@ -232,7 +232,7 @@ Tools: `moderation/tests/bench_video.py` (time per model + comparison of the blu
 
 ## MANUAL_BLUR_VIDEO (backend, off by default; separate from MANUAL_BLUR): manual blur on videos
 Same rules as the pictures (owners / approvers, only adds blur, valid only on the exact automatic result it was made on, never touches the original or the
-automatic versions), for videos. **Stage V1 (this build) is the backend only; the renderer in the service is stage V2, the page is V3+.**
+automatic versions), for videos. **Stages V1 (backend) and V2 (the renderer in the service) are built; the page is V3+.**
 - **Model:** a list of *tracks*; a track = a shape (rectangle / ellipse), *keyframes* (`t` seconds, box as shares of the picture), an optional `end` second
   (default: the end of the video, the safe side) and `interp` (`pchip`, default, or `linear`). Before the first keyframe: no blur; between: smooth movement
   (monotone cubic / PCHIP: no overshoot, no stops at keyframes); after the last: the box stays until the end. At most 30 tracks, 200 keyframes, times up to 900 s.
@@ -248,3 +248,10 @@ automatic versions), for videos. **Stage V1 (this build) is the backend only; th
   manual version (`holdToken` includes its revision).
 - Tests: `go test ./manualblur/`; `go test -run ManualVideo .` in `backend/` (a fake moderation service, needs any Redis); `tests/e2e_manual_blur_video.py`
   (`tests/docker-compose.manual-blur-video-test.yml`).
+- **Renderer** (`app/manual_video.py`, no models; ffmpeg + OpenCV): `POST /manual-video {job, base, base_root, out, tracks, pad_frames}` renders frame by frame (the box of a track at time `frame/fps`,
+  the same pixelation as the pictures, an ellipse with a smooth edge), re-encodes H.264 (crf 21, veryfast) at most 1280 px and 30 fps, keeps the audio (copied when it is AAC, else AAC 128k), writes
+  `<fileid>.<job>.mp4.part` and moves it to `.mp4` at the end. Own lock (never behind a check of media); `nice` for ffmpeg and for its own thread; `GET /manual-video-progress?job=`;
+  `POST /manual-video-cancel` (stops at the next frame, leaves no file; a cancel that arrives early is remembered for 10 minutes). **Self-check before it returns:** the length is right, the audio is there, and in
+  up to 12 sampled frames the boxes really are blurred and the rest of the picture is the video; a render that fails the check is never handed over (500 `self_check_failed`). A start-up sweep deletes
+  job files and `.part` files older than 6 h (what a killed render leaves). Real videos: about 0.12 s of rendering per second of video on the server; 12 videos of 30 s take about 1 minute in all.
+- Tests: `moderation/tests/test_manual_video.py` (27; needs ffmpeg and `tests/fixtures`), `tests/e2e_manual_blur_video_render.py` (the real service: job and progress, replace, clear while rendering, 'check again', a render cut off by killing the service).

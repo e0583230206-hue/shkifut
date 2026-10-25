@@ -198,3 +198,6 @@ Owners and approvers draw rectangles / ellipses on an image; the result is a sep
 - Stage 2 (service): `moderation/app/manual_image.py`, `POST /manual-image`; tests `moderation/tests/test_manual_image.py`, `tests/e2e_manual_blur_render.py`.
 - Stage 3 (page): `components/admin/manual-blur/` (editor dialog: rectangle, ellipse, move, resize, delete, undo / redo, keyboard, touch, approximate preview, unsaved-changes question), `manual-blur-geometry.ts`; tests `tests/unit/manual-blur-geometry.test.mjs`, `tests/ui/manual_blur_ui.mjs`.
 - Videos (keyframes, timeline) are a separate later stage.
+
+## Manual blur for videos (branches `manual-blur-video`, `manual-blur-video-render`; flag `MANUAL_BLUR_VIDEO`, off by default; not deployed)
+V1 (backend: tracks + keyframes, PCHIP checked against scipy, job / queue / commit with the signature check) and V2 (renderer in the moderation service with a self-check) are built and tested; V3 (the page: player, overlay, keyframes) and the timeline with thumbnails (V4) are next. See "MANUAL_BLUR_VIDEO" in `moderation/README.md`.

@@ -23,6 +23,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, ImageSequence
 
 import manual_image
+import manual_video
 import regional
 from analyzer import Analyzer, Thresholds, timed
 
@@ -42,7 +43,7 @@ log = logging.getLogger("moderation")
 
 analyzer = Analyzer(MODELS_DIR, THREADS, Thresholds())
 # At most one video and one image at a time keeps CPU/RAM bounded, and images never wait for a video.
-locks = {"video": threading.Lock(), "image": threading.Lock(), "blur": threading.Lock(), "manual": threading.Lock()}
+locks = {"video": threading.Lock(), "image": threading.Lock(), "blur": threading.Lock(), "manual": threading.Lock(), "manual_video": threading.Lock()}
 
 
 def resolve(rel, root=FILES_ROOT):
@@ -189,6 +190,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if self.path.startswith("/manual-video-progress"):
+            from urllib.parse import urlparse, parse_qs
+            return self._send(200, manual_video.progress((parse_qs(urlparse(self.path).query).get("job") or [""])[0]))
         if self.path == "/health":
             t = analyzer.t
             return self._send(200, {"ok": True, "thresholds": t.__dict__, "models": analyzer.models})
@@ -238,7 +242,53 @@ class Handler(BaseHTTPRequestHandler):
             log.exception("manual file operation failed")
             return self._send(500, {"error": str(e)[:200]})
 
+    def _manual_video(self):
+        """POST /manual-video {"job","base","base_root":"files"|"blurred","out","tracks":[...],"pad_frames"}: render a video with the moving blur an owner /
+        approver placed on it (the backend's MANUAL_BLUR_VIDEO). Takes seconds to minutes: the backend asks for the progress with GET /manual-video-progress
+        and can stop it with POST /manual-video-cancel. Writes only <BLURRED_ROOT>/manual/xx/yy/<fileid>.<job>.mp4; the backend renames it."""
+        t0 = time.time()
+        job = None
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            manual_video.check_paths(body.get("base"), body.get("base_root"), body.get("out"), body.get("job"))
+            root = FILES_ROOT if body["base_root"] == "files" else BLURRED_ROOT
+            src, out = resolve(body["base"], root), resolve(body["out"], BLURRED_ROOT)
+            if not os.path.isfile(src):
+                return self._send(404, {"error": "base video not found"})
+            job = manual_video.register(body["job"])
+            with locks["manual_video"]:   # one manual render at a time, and it never waits behind (or holds up) a check of media
+                if job.cancel.is_set():
+                    job.state = "cancelled"
+                    return self._send(499, {"error": "cancelled"})
+                try:
+                    os.nice(10)   # a low priority for this request's own thread (the ffmpeg processes use nice too)
+                except OSError:
+                    pass
+                res = manual_video.render(src, out, body.get("tracks"), job, int(body.get("pad_frames", 2)))
+        except manual_video.Cancelled:
+            return self._send(499, {"error": "cancelled"})
+        except manual_image.Rejected as e:
+            return self._send(422, {"error": str(e)})
+        except manual_video.SelfCheckFailed as e:
+            log.error("/manual-video self-check failed: %s", e)
+            return self._send(500, {"error": "self_check_failed: " + str(e)[:150]})
+        except (ValueError, KeyError, TypeError) as e:
+            return self._send(400, {"error": str(e)})
+        except Exception as e:
+            log.exception("manual-video failed")
+            return self._send(500, {"error": str(e)[:200]})
+        log.info("/manual-video %s -> %s (%d ms, %.1f s of video, %d frames checked)", body["base"], body["out"], (time.time() - t0) * 1000, res["duration"], res["samples_checked"])
+        self._send(200, {"ok": True, **res})
+
     def do_POST(self):
+        if self.path == "/manual-video":
+            return self._manual_video()
+        if self.path == "/manual-video-cancel":
+            try:
+                manual_video.cancel(json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0)))).get("job", ""))
+            except (ValueError, TypeError):
+                return self._send(400, {"error": "bad request"})
+            return self._send(200, {"ok": True})
         if self.path == "/manual-image":
             return self._manual_image()
         if self.path in ("/manual-remove", "/manual-commit"):
@@ -281,6 +331,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    try:
+        log.info("manual blur: %d leftover job files removed", manual_video.sweep_stale(BLURRED_ROOT))
+    except Exception:
+        log.exception("manual blur: sweep failed")
     port = int(os.environ.get("PORT", "8000"))
     log.info("moderation service on :%d thresholds=%s", port, analyzer.t.__dict__)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()

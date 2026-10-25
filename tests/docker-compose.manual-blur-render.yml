@@ -2,6 +2,7 @@
 # on http://localhost:18084 - for tests/e2e_manual_blur_render.py. Needs ./moderation_models (see docker-compose.local.yml).
 #   docker compose -p tc-mb -f docker-compose.local.yml -f tests/docker-compose.manual-blur-render.yml up -d --build
 #   python -I tests/e2e_manual_blur_render.py http://localhost:18084
+#   PIXEL_LIBS=<folder with Pillow and numpy> python -I tests/e2e_manual_blur_video_render.py http://localhost:18084   (needs ffmpeg on the host too)
 #   node tests/ui/manual_blur_ui.mjs <outDir> http://localhost:18084     # the editor in a real Chrome
 #   docker compose -p tc-mb -f docker-compose.local.yml -f tests/docker-compose.manual-blur-render.yml down -v
 services:
@@ -10,6 +11,7 @@ services:
       - "127.0.0.1:18084:3000"
     environment:
       MANUAL_BLUR: "1"
+      MANUAL_BLUR_VIDEO: "1"
       DEV_LOGIN: "true"
       NOINDEX_SITE: "0"
     volumes: !override

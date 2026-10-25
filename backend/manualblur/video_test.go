@@ -235,3 +235,80 @@ func TestVideoMime(t *testing.T) {
 		}
 	}
 }
+
+// ---- the golden file of whole tracks (window, hold, padding, clamping), shared with the renderer (Python) and the page (TypeScript) ----
+
+type trackVectorCase struct {
+	Name   string       `json:"name"`
+	Track  Track        `json:"track"`
+	Pad    float64      `json:"pad"`
+	At     []float64    `json:"at"`
+	Expect [][4]float64 `json:"expect"` // x1, y1, x2, y2 of the box, or [-1,-1,-1,-1] when the track is not active
+}
+
+func trackVectorInput() []trackVectorCase {
+	pad := PadFrames / 30.0
+	times := func(from, to float64, n int) []float64 {
+		out := make([]float64, 0, n+1)
+		for i := 0; i <= n; i++ {
+			out = append(out, round6(from+(to-from)*float64(i)/float64(n)))
+		}
+		return out
+	}
+	return []trackVectorCase{
+		{Name: "pchip, two keys, no end, no padding", Track: Track{Type: Rect, Interp: Pchip, Keys: []Key{key(1, 0.1, 0.1, 0.2, 0.2), key(3, 0.5, 0.4, 0.3, 0.1)}}, Pad: 0, At: times(0, 6, 60)},
+		{Name: "pchip, two keys, padding of 2 frames at 30 fps", Track: Track{Type: Rect, Interp: Pchip, Keys: []Key{key(1, 0.1, 0.1, 0.2, 0.2), key(3, 0.5, 0.4, 0.3, 0.1)}}, Pad: pad, At: append(times(0.9, 1.1, 20), times(2.9, 3.2, 15)...)},
+		{Name: "pchip, four keys, an end second", Track: Track{Type: Ellipse, Interp: Pchip, End: f64(7), Keys: []Key{
+			key(0.5, 0.1, 0.1, 0.2, 0.2), key(2, 0.6, 0.2, 0.25, 0.15), key(3.5, 0.3, 0.7, 0.2, 0.2), key(6, 0.7, 0.6, 0.1, 0.3)}}, Pad: pad, At: times(0, 8, 80)},
+		{Name: "linear, three keys", Track: Track{Type: Rect, Interp: Linear, Keys: []Key{key(0, 0.1, 0.1, 0.2, 0.2), key(1, 0.3, 0.5, 0.2, 0.2), key(4, 0.7, 0.2, 0.1, 0.1)}}, Pad: 0, At: times(0, 5, 50)},
+		{Name: "one keyframe: the box stays, to the end of the video", Track: Track{Type: Ellipse, Interp: Pchip, Keys: []Key{key(2, 0.25, 0.25, 0.5, 0.5)}}, Pad: pad, At: []float64{0, 1.9, 1.94, 1.9333, 2, 5, 899}},
+		{Name: "a box that would leave the picture is cut at its edge", Track: Track{Type: Rect, Interp: Pchip, Keys: []Key{key(0, 0.8, 0.8, 0.2, 0.2), key(1, 0, 0, 0.2, 0.2), key(2, 0.8, 0.8, 0.2, 0.2)}}, Pad: 0, At: times(0, 2, 40)},
+		{Name: "the end is exactly the last keyframe", Track: Track{Type: Rect, Interp: Pchip, End: f64(2), Keys: []Key{key(1, 0.1, 0.1, 0.2, 0.2), key(2, 0.3, 0.3, 0.2, 0.2)}}, Pad: pad, At: []float64{0.9, 1, 1.5, 2, 2.05, 2.0666, 2.07}},
+	}
+}
+
+func TestTrackVectorsGolden(t *testing.T) {
+	cases := trackVectorInput()
+	for i := range cases {
+		c := Compile(cases[i].Track)
+		for _, at := range cases[i].At {
+			b, ok := c.BoxAt(at, cases[i].Pad)
+			if ok {
+				cases[i].Expect = append(cases[i].Expect, [4]float64{b.X, b.Y, b.X + b.W, b.Y + b.H})
+			} else {
+				cases[i].Expect = append(cases[i].Expect, [4]float64{-1, -1, -1, -1})
+			}
+		}
+	}
+	path := filepath.Join("..", "..", "tests", "fixtures", "track_vectors.json")
+	if os.Getenv("UPDATE_VECTORS") == "1" {
+		data, _ := json.MarshalIndent(map[string]any{"source": "backend/manualblur (Go): go test -run TrackVectorsGolden with UPDATE_VECTORS=1", "cases": cases}, "", " ")
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Log("written", path)
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var golden struct {
+		Cases []trackVectorCase `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &golden); err != nil {
+		t.Fatal(err)
+	}
+	if len(golden.Cases) != len(cases) {
+		t.Fatalf("the golden file has %d cases, the test %d: run with UPDATE_VECTORS=1 if the change is meant", len(golden.Cases), len(cases))
+	}
+	for i, c := range cases {
+		for j := range c.Expect {
+			for k := 0; k < 4; k++ {
+				if math.Abs(c.Expect[j][k]-golden.Cases[i].Expect[j][k]) > 1e-9 {
+					t.Fatalf("%s at %v: %v, the golden file says %v (the renderer and the page share it: change both on purpose)", c.Name, c.At[j], c.Expect[j], golden.Cases[i].Expect[j])
+				}
+			}
+		}
+	}
+}
