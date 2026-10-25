@@ -1,0 +1,102 @@
+package manualblur
+
+import (
+	"errors"
+	"math"
+	"testing"
+)
+
+func TestValidateClipsToThePicture(t *testing.T) {
+	got, err := Validate([]Shape{{Type: Rect, X: -0.2, Y: 0.5, W: 0.5, H: 0.9}, {Type: Ellipse, X: 0.9, Y: 0.1, W: 0.5, H: 0.2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].X != 0 || got[0].W != 0.3 || got[0].Y != 0.5 || got[0].H != 0.5 {
+		t.Errorf("first shape not clipped: %+v", got[0])
+	}
+	if math.Abs(got[1].X+got[1].W-1) > 1e-9 {
+		t.Errorf("second shape leaves the picture: %+v", got[1])
+	}
+}
+
+func TestValidateRejects(t *testing.T) {
+	bad := map[string]Shape{
+		"unknown type": {Type: "star", X: 0.1, Y: 0.1, W: 0.2, H: 0.2},
+		"NaN":          {Type: Rect, X: math.NaN(), Y: 0.1, W: 0.2, H: 0.2},
+		"Inf":          {Type: Rect, X: 0.1, Y: 0.1, W: math.Inf(1), H: 0.2},
+		"too small":    {Type: Rect, X: 0.1, Y: 0.1, W: 0.001, H: 0.2},
+		"outside":      {Type: Rect, X: 1.2, Y: 0.1, W: 0.2, H: 0.2},
+		"negative":     {Type: Rect, X: 0.5, Y: 0.5, W: -0.2, H: 0.2},
+	}
+	for name, s := range bad {
+		if _, err := Validate([]Shape{s}); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestValidateLimit(t *testing.T) {
+	ok := make([]Shape, MaxShapes)
+	for i := range ok {
+		ok[i] = Shape{Type: Rect, X: 0.1, Y: 0.1, W: 0.2, H: 0.2}
+	}
+	if _, err := Validate(ok); err != nil {
+		t.Fatalf("%d shapes should pass: %v", MaxShapes, err)
+	}
+	if _, err := Validate(append(ok, ok[0])); !errors.Is(err, ErrTooMany) {
+		t.Errorf("one more should fail with ErrTooMany, got %v", err)
+	}
+	if got, err := Validate(nil); err != nil || len(got) != 0 {
+		t.Errorf("no shapes is allowed (it clears the manual blur): %v %v", got, err)
+	}
+}
+
+func TestMetaRoundTripAcceptsYamlNumbers(t *testing.T) {
+	in := []Shape{{Type: Ellipse, X: 0.25, Y: 0.5, W: 0.5, H: 0.25}}
+	back := FromMeta(ToMeta(in))
+	if len(back) != 1 || back[0] != in[0] {
+		t.Errorf("round trip: %+v", back)
+	}
+	// YAML decodes 1.0 as int 1 and 0.5 as float
+	yamlLike := []any{map[string]any{"type": "rect", "x": 0, "y": 0, "w": 1, "h": 0.5}}
+	got := FromMeta(yamlLike)
+	if len(got) != 1 || got[0].W != 1 || got[0].H != 0.5 {
+		t.Errorf("int numbers: %+v", got)
+	}
+	if len(FromMeta("garbage")) != 0 || len(FromMeta(nil)) != 0 {
+		t.Error("garbage must give no shapes")
+	}
+}
+
+func TestSignatureChangesWithEveryPartOfTheBase(t *testing.T) {
+	b := Base{Kind: "regional", Version: "abc"}
+	ref := Signature("regional", 2, "2026-10-25T10:00:00Z", b)
+	cases := map[string]string{
+		"status":    Signature("open", 2, "2026-10-25T10:00:00Z", b),
+		"check gen": Signature("regional", 3, "2026-10-25T10:00:00Z", b),
+		"checked":   Signature("regional", 2, "2026-10-25T11:00:00Z", b),
+		"base kind": Signature("regional", 2, "2026-10-25T10:00:00Z", Base{Kind: "original", Version: "abc"}),
+		"base file": Signature("regional", 2, "2026-10-25T10:00:00Z", Base{Kind: "regional", Version: "abd"}),
+	}
+	for name, s := range cases {
+		if s == ref {
+			t.Errorf("%s change does not change the signature", name)
+		}
+	}
+	if ref != Signature("regional", 2, "2026-10-25T10:00:00Z", b) {
+		t.Error("signature is not stable")
+	}
+}
+
+func TestStaticImageMime(t *testing.T) {
+	for _, m := range []string{"image/jpeg", "IMAGE/PNG", "image/webp"} {
+		if !StaticImageMime(m) {
+			t.Errorf("%s should be editable", m)
+		}
+	}
+	for _, m := range []string{"image/gif", "video/mp4", "", "application/pdf"} {
+		if StaticImageMime(m) {
+			t.Errorf("%s should not be editable", m)
+		}
+	}
+}

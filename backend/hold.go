@@ -77,7 +77,7 @@ func holdActive(meta map[string]any) bool {
 // holdToken identifies what readers would get right now (variant, file revision, check generation). It changes whenever the
 // video is regenerated (saved correction, "check again") or the decision changes.
 func holdToken(meta map[string]any) string {
-	variant := baseVariant(meta)
+	variant := baseVariantAuto(meta) // videos only: the manual blur is for images
 	rev := "0"
 	if hash, ok := metaHash(meta); ok {
 		switch variant {

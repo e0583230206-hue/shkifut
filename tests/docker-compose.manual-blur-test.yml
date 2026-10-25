@@ -1,0 +1,7 @@
+# Adds the manual blur tool (MANUAL_BLUR=1) to the local UI test stack:
+#   docker compose -p tc-ui -f docker-compose.local.yml -f tests/docker-compose.ui-test.yml -f tests/docker-compose.manual-blur-test.yml up -d --build --no-deps redis backend
+#   EXPECT_FLAG=on python -I tests/e2e_manual_blur.py http://localhost:18083
+services:
+  backend:
+    environment:
+      MANUAL_BLUR: "1"

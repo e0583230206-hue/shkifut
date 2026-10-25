@@ -32,6 +32,7 @@ const (
 	VariantOriginal = "original"
 	VariantRegional = "regional"
 	VariantBlurred  = "blurred"
+	VariantManual   = "manual" // MANUAL_BLUR only: the automatic picture with the shapes an owner / approver drew on it
 	VariantHidden   = "hidden" // STRICT_UNTIL_REVIEWED only: not shown to readers at all (a 404)
 )
 
@@ -174,15 +175,21 @@ func regionalExists(hash, kind string) bool {
 }
 
 // publicVariant decides what readers get. A video that waits for approval (HOLD_VIDEOS_UNTIL_APPROVED) is not served at all.
-func publicVariant(meta map[string]any) string {
+func publicVariant(meta map[string]any, id string) string {
 	if holdActive(meta) {
 		return VariantHidden
 	}
-	return baseVariant(meta)
+	return baseVariant(meta, id)
 }
 
 // baseVariant: what readers get once the video is allowed out. Anything uncertain falls back to the fully blurred version.
-func baseVariant(meta map[string]any) string {
+// With MANUAL_BLUR a valid manual version of an image replaces the original / regional picture (manualOr).
+func baseVariant(meta map[string]any, id string) string {
+	return manualOr(meta, id, baseVariantAuto(meta))
+}
+
+// baseVariantAuto is the result of the automatic check alone (the base the manual blur is drawn on).
+func baseVariantAuto(meta map[string]any) string {
 	kind := metaString(meta, "type")
 	if !isModeratedType(kind) {
 		return VariantOriginal
@@ -563,6 +570,7 @@ type FileModerationInfo struct {
 	Hold           map[string]any `json:"hold,omitempty"`
 	CanReview      bool           `json:"canReview,omitempty"`
 	PreviewVariant string         `json:"previewVariant,omitempty"` // moderators only: what readers get once a held video is approved
+	ManualBlur     *manualInfo    `json:"manualBlur,omitempty"`     // owners / approvers, MANUAL_BLUR on: the manual blur tool for this image
 }
 
 // getFileModeration returns the status of a file. Review details are for moderators only.
@@ -581,15 +589,17 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			go markLegacyPending(id)
 			info.Status = ModPending
 		}
-		info.PublicVariant = publicVariant(meta)
+		info.PublicVariant = publicVariant(meta, id)
 		revVariant := info.PublicVariant
 		if revVariant == VariantHidden && checkPrivilege(r, Moderator) {
-			revVariant = baseVariant(meta) // a held video: the address of what moderators see changes with every regeneration
+			revVariant = baseVariant(meta, id) // a held video: the address of what moderators see changes with every regeneration
 		}
 		if hash, ok := metaHash(meta); ok {
 			switch revVariant {
 			case VariantRegional:
 				info.Rev = versionTag(filepath.Join(rootBlurredPath, regionalRelPath(hash, kind)))
+			case VariantManual:
+				info.Rev = versionTag(manualAbsPath(id))
 			case VariantBlurred:
 				info.Rev = versionTag(filepath.Join(rootBlurredPath, blurredRelPath(hash)))
 			}
@@ -608,10 +618,13 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		info.Unreviewed = strictUnreviewed(meta)
+		if canManualBlur(r) && kind == "image" {
+			info.ManualBlur = manualInfoFor(meta, id)
+		}
 		info.Hold = holdInfoFor(r, meta)
 		info.CanReview = canReviewFigures(r)
 		if holdActive(meta) {
-			info.PreviewVariant = baseVariant(meta)
+			info.PreviewVariant = baseVariant(meta, id)
 		}
 		info.NeedsReview, _ = meta["autoNeedsReview"].(bool)
 		if reasons, ok := meta["autoReviewReasons"].([]any); ok {

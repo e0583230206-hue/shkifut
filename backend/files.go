@@ -110,10 +110,13 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 	filePath := filepath.Join(rootUploadPath, fileHash[:2], fileHash[2:4], fileHash)
 	originalFileName := metaString(metaData, "filename")
 	kind := metaString(metaData, "type")
-	readerView := !checkPrivilege(r, Moderator) || r.URL.Query().Get("view") == "public"
+	// ?view=base (MANUAL_BLUR, owners / approvers): the picture the automatic check gives readers, without the manual blur - what the
+	// manual blur tool draws on.
+	baseView := r.URL.Query().Get("view") == "base" && canManualBlur(r)
+	readerView := !checkPrivilege(r, Moderator) || r.URL.Query().Get("view") == "public" || baseView
 	// Watermark: only on still images that a reader gets (applied on top of any blur).
 	var wm *watermarkConfig
-	if readerView && watermarkedImageKind(kind) {
+	if readerView && !baseView && watermarkedImageKind(kind) {
 		wm = currentWatermark(r.Context())
 	}
 
@@ -125,11 +128,14 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 		}
 		// Server-side enforcement: only moderators get the original of a non-open file.
 		// ?view=public lets a moderator see exactly what readers see.
-		if (status != ModOpen || strictUntilReviewed || holdActive(metaData)) && readerView {
-			variant := publicVariant(metaData)
+		if (status != ModOpen || strictUntilReviewed || holdActive(metaData) || manualActive(metaData, fileId)) && readerView {
+			variant := publicVariant(metaData, fileId)
+			if baseView {
+				variant = baseVariantAuto(metaData)
+			}
 			if variant == VariantHidden && holdActive(metaData) && r.URL.Query().Get("view") == "public" && canReviewFigures(r) && emailIsApprover(sessionEmail(r)) {
 				// An approver previews what readers will get once the video is approved; this is the "looked at it" the approval needs.
-				variant = baseVariant(metaData)
+				variant = baseVariant(metaData, fileId)
 				recordHoldView(fileId, sessionEmail(r))
 			}
 			switch variant {
@@ -138,6 +144,9 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 				return
 			case VariantRegional:
 				serveRegional(w, r, fileHash, kind, wm)
+				return
+			case VariantManual:
+				serveManual(w, r, fileId, wm)
 				return
 			case VariantBlurred:
 				serveBlurred(w, r, fileHash, wm)

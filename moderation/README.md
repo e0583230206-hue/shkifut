@@ -208,3 +208,18 @@ Switches (all off by default, so nothing changes until they are set in `.env` / 
 | `DETECT_FPS=3/4` | fewer samples | -18%, misses boxes: do not use without a review |
 Tools: `moderation/tests/bench_video.py` (time per model + comparison of the blur boxes with a baseline run), `leak_check.py`
 (`CHECK_PERSON_BACKEND=ort` checks the output with the other backend), `test_person_ov.py`.
+
+## MANUAL_BLUR (backend, off by default): manual blur on images
+`MANUAL_BLUR=1` lets owners (`ADMIN_USERS`) and approvers (`APPROVER_EMAILS`, who must also be moderators) draw rectangles / ellipses on an
+**image**. The result is a separate file, `<blurred>/manual/xx/yy/<fileid>.jpg`; the original and the automatic versions are never touched.
+- **It only adds blur.** It is drawn on what readers get from the automatic check: the original of an "open" file, the regional picture of a
+  "regional" one. A fully blurred (or still unreviewed under `STRICT_UNTIL_REVIEWED`) picture, a GIF and a video are not editable.
+- **It is valid for exactly that base** (`manualblur.Signature`: status, check generation, time of the automatic check, the base file's version).
+  After "check again", saved figure corrections, a manual decision or a new regional picture, readers get the automatic version again;
+  the saved shapes stay, marked `stale` for the moderator. A manual version is never served on a base it was not made on.
+- **With the flag off** nothing is reachable (404) and no manual version is served.
+- API (owners / approvers only): `GET|POST|DELETE /api/admin/files/{id}/manual-blur`; POST `{"shapes":[{"type":"rect"|"ellipse","x","y","w","h"}]}`
+  (shares of the picture, at most 50; no shapes = clear). `?view=base` (same people) serves the picture before the manual blur, for the editor.
+  The file info (`/api/files/{id}/moderation`) has a `manualBlur` block for them. Log: `manual-blur` / `manual-blur-cleared` in `logs/moderation.yaml`.
+- Tests: `go test ./manualblur/`; `go test -run Manual .` in `backend/` (needs any Redis/kvrocks: `docker run --rm -d -p 127.0.0.1:16666:6666
+  apache/kvrocks:2.17.0`, then `REDIS_PROTOCOL=tcp REDIS_ADDR=127.0.0.1:16666`); `tests/e2e_manual_blur.py` (`EXPECT_FLAG=on|off`, see the file).
