@@ -83,11 +83,12 @@ try {
 
   const buttons = await ev(`[...document.querySelectorAll('.mod-wrap[data-file-id]')].map(w => w.dataset.fileId + ':' + !!w.querySelector('.mod-btn-manual')).join(' ')`);
   check('the open picture has a "טשטוש ידני" button', buttons.includes(`${open.id}:true`), buttons);
-  check('a picture fully blurred by hand has none', buttons.includes(`${blurred.id}:false`), buttons);
+  check('a picture fully blurred by hand has one too (the manual blur is drawn from scratch on the original)', buttons.includes(`${blurred.id}:true`), buttons);
 
   check('the editor opens and the picture loads', await openEditor());
   const head = await ev(`document.querySelector('app-manual-blur nb-card-header').textContent`);
-  check('it says the blur is added on the original', head.includes('התמונה המקורית'), head);
+  check('it says it is drawn from scratch on the original', head.includes('מהתחלה') && head.includes('התמונה המקורית'), head);
+  check('a warning says that what is not marked is shown', (await ev(`document.querySelector('app-manual-blur .note.scratch')?.textContent || ''`)).includes('יוצג לקוראים'));
   check('no shapes yet', (await count()) === 0);
   await shot('1-editor-empty.png');
 
@@ -142,6 +143,9 @@ try {
   check('"שמור" is enabled when there is something to save', saveDisabledBefore === false);
   const original = await ev(`fetch('/api/files/${open.id}').then(r => r.arrayBuffer()).then(b => b.byteLength)`);
   await ev(`document.querySelector('app-manual-blur .save').click()`);
+  check('saving first asks to confirm what readers will see (everything outside the shapes)', await ev(`(document.querySelector('app-manual-blur .confirm-save')?.textContent || '').includes('כל השאר יוצג')`));
+  await shot('3b-confirm-save.png');
+  await ev(`document.querySelector('app-manual-blur .confirm-yes').click()`);
   check('saving closes the editor', await waitFor(`!document.querySelector('app-manual-blur')`, 20000));
   await sleep(800);
   const badge = await ev(`document.querySelector('.mod-wrap[data-file-id="${open.id}"] .mod-bar').textContent`);
@@ -172,7 +176,7 @@ try {
   await clickText('app-manual-blur nb-card-footer button', 'מחק את כל הצורות');
   check('"מחק את כל הצורות" empties the editor', (await count()) === 0);
   check('the save button says that saving removes the manual blur', (await ev(`document.querySelector('app-manual-blur .save').textContent`)).includes('הסר'));
-  await ev(`document.querySelector('app-manual-blur .save').click()`);
+  await ev(`document.querySelector('app-manual-blur .save').click()`);   // removing needs no confirmation
   await waitFor(`!document.querySelector('app-manual-blur')`, 20000); await sleep(800);
   check('saving with no shapes removes the manual blur', !(await ev(`document.querySelector('.mod-wrap[data-file-id="${open.id}"] .mod-bar').textContent`)).includes('טשטוש ידני פעיל'));
 

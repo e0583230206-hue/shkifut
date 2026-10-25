@@ -17,9 +17,6 @@ interface ManualBlurState {
 type Tool = 'select' | ShapeType;
 
 const UNAVAILABLE: Record<string, string> = {
-  fully_blurred: 'התמונה מטושטשת לגמרי לקוראים. טשטוש נוסף לא משנה כלום: כדי לשחרר חלק ממנה, הפוך אותה קודם ל"טשטוש אזורי".',
-  unreviewed: 'התמונה ממתינה לבדיקת דמויות (מצב "מחמיר עד בדיקת מנהל"). עד שתפתח את "בדיקת דמויות" ותשמור, הקוראים רואים אותה מטושטשת לגמרי.',
-  no_regional_version: 'עדיין אין גרסת טשטוש אזורי לתמונה הזו. לחץ "בדוק מחדש" והמתן לסיום הבדיקה.',
   unsupported_format: 'הכלי עובד על תמונות רגילות (JPEG, PNG, WebP). לא על תמונות מונפשות (GIF).',
   not_image: 'הכלי עובד על תמונות בלבד.',
 };
@@ -54,6 +51,8 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
   previewOn = false;
   draft: Shape | null = null;
   confirmClose = false;
+  /** Saving shows the question first: the readers get the original with ONLY the shapes blurred. */
+  confirmSave = false;
   message = '';
 
   readonly handles = HANDLES;
@@ -80,8 +79,8 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
       this.shapes = list;
       this.saved = list;
       this.history = new History(list);
-      // view=base: the picture readers get from the automatic check, without the manual blur (what the shapes are drawn on)
-      this.imgUrl = `/api/files/${this.fileId}?view=base&t=${Date.now()}`;
+      // the original (a moderator gets it without any ?view): the shapes are drawn on it, from scratch
+      this.imgUrl = `/api/files/${this.fileId}?t=${Date.now()}`;
     } catch {
       this.message = 'טעינת הכלי נכשלה';
     } finally {
@@ -94,7 +93,7 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
   }
 
   get baseLabel() {
-    return this.base === 'regional' ? 'הטשטוש האזורי האוטומטי' : 'התמונה המקורית';
+    return 'התמונה המקורית';
   }
 
   get unavailableText() {
@@ -308,7 +307,16 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
 
   // ---- save / close ----
 
+  /** The first click on "save": the moderator confirms what readers will see (everything outside the shapes). Removing the manual blur needs no question. */
+  askSave() {
+    if (this.saving || !this.dirty) return;
+    if (this.shapes.length) { this.confirmSave = true; this.confirmClose = false; } else { void this.save(); }
+  }
+
+  cancelSave() { this.confirmSave = false; }
+
   async save() {
+    this.confirmSave = false;
     if (this.saving || !this.dirty) return;
     this.saving = true;
     this.message = '';

@@ -22,9 +22,6 @@ type Tool = 'select' | ShapeType;
 const FRAME = 1 / 30;   // one step of the frame buttons (the page does not know the exact frame rate)
 
 const UNAVAILABLE: Record<string, string> = {
-  fully_blurred: 'הסרטון מטושטש לגמרי לקוראים. טשטוש נוסף לא משנה כלום: כדי לשחרר חלק ממנו, הפוך אותו קודם ל"טשטוש אזורי".',
-  unreviewed: 'הסרטון ממתין לבדיקת מנהל (מצב "מחמיר עד בדיקת מנהל"). עד שתפתח את "בדיקת דמויות" ותשמור, הקוראים לא רואים אותו.',
-  no_regional_version: 'עדיין אין גרסת טשטוש אזורי לסרטון הזה. לחץ "בדוק מחדש" והמתן לסיום הבדיקה.',
   unsupported_format: 'הקובץ הזה לא נתמך בכלי.',
   not_image: 'הכלי עובד על תמונות וסרטונים בלבד.',
 };
@@ -64,6 +61,8 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
   duration = 0;
   draft: Shape | null = null;
   confirmClose = false;
+  /** Saving shows the question first: the readers get the original with ONLY the boxes blurred. */
+  confirmSave = false;
   message = '';
   /** The render that is running (or has just failed), shown instead of the editor. */
   job: { state: string; percent: number; error?: string } | null = null;
@@ -89,8 +88,8 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     try {
       const st = await this.load();
       if (st.job && (st.job.state === 'rendering' || st.job.state === 'queued')) this.startPolling();
-      // view=base: the video readers get from the automatic check, without the manual blur (what the boxes are drawn on)
-      this.videoUrl = `/api/files/${this.fileId}?view=base`;
+      // the original (a moderator gets it without any ?view): the boxes are drawn on it, from scratch
+      this.videoUrl = `/api/files/${this.fileId}`;
     } catch {
       this.message = 'טעינת הכלי נכשלה';
     } finally {
@@ -118,7 +117,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     return st;
   }
 
-  get baseLabel() { return this.base === 'regional' ? 'הטשטוש האזורי האוטומטי' : 'הסרטון המקורי'; }
+  get baseLabel() { return 'הסרטון המקורי'; }
   get unavailableText() { return UNAVAILABLE[this.reason] ?? 'הכלי לא זמין לסרטון הזה.'; }
   get dirty() { return !sameTracks(this.tracks, this.saved); }
   get canUndo() { return this.history.canUndo; }
@@ -470,7 +469,16 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
 
   // ---- save / render ----
 
+  /** The first click on "save": the moderator confirms what readers will see (everything outside the boxes). Removing the manual blur needs no question. */
+  askSave() {
+    if (this.saving || this.rendering || !this.dirty || this.tooLong) return;
+    if (this.tracks.length) { this.confirmSave = true; this.confirmClose = false; } else { void this.save(); }
+  }
+
+  cancelSave() { this.confirmSave = false; }
+
   async save() {
+    this.confirmSave = false;
     if (this.saving || this.rendering || !this.dirty || this.tooLong) return;
     this.saving = true;
     this.message = '';

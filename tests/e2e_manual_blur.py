@@ -129,8 +129,8 @@ else:
 
     moderate(admin, fid, "blurred")
     st, state = jget(admin, URL)
-    check("a fully blurred picture: not available (adding blur cannot release anything)", state["available"] is False and state["reason"] == "fully_blurred", state)
-    check("saving on a fully blurred picture: 409", call(admin, "POST", URL, {"shapes": [SHAPE]})[0] == 409)
+    check("a fully blurred picture is editable too: the manual blur is drawn from scratch, on the original", state["available"] is True and state["base"] == "original", state)
+    check("saving on it reaches the service (503 here, there is none)", call(admin, "POST", URL, {"shapes": [SHAPE]})[0] == 503)
 
     gif = upload(admin, GIF, "anim.gif", "image/gif")
     moderate(admin, gif, "open")

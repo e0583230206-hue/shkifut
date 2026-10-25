@@ -134,8 +134,8 @@ else:
 
     moderate(admin, vid, "blurred")
     st, state = jget(admin, URL)
-    check("a fully blurred video: not available", state["available"] is False and state["reason"] == "fully_blurred", state)
-    check("saving on a fully blurred video: 409", call(admin, "POST", URL, GOOD)[0] == 409)
+    check("a fully blurred video is editable too: the manual blur is drawn from scratch, on the original", state["available"] is True and state["base"] == "original", state)
+    check("saving on it reaches the service (503 here, there is none)", call(admin, "POST", URL, GOOD)[0] == 503)
 
 print("\nALL PASSED" if not failures else f"\n{len(failures)} FAILED: {failures}")
 sys.exit(1 if failures else 0)

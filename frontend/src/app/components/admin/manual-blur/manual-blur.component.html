@@ -2,7 +2,7 @@
   <nb-card-header>
     טשטוש ידני
     <small class="text-muted d-block">
-      הטשטוש מתווסף על {{ baseLabel }}, ולא חושף שום דבר. מה שהקוראים יקבלו נבנה בשרת אחרי "שמור".
+      טשטוש ידני מהתחלה, על {{ baseLabel }}: הקוראים יראו את כל מה שלא סימנת בצורה. הטשטוש האוטומטי לא משפיע.
     </small>
   </nb-card-header>
   <nb-card-body>
@@ -23,6 +23,7 @@
       <span class="count" aria-live="polite">{{ shapes.length }} צורות</span>
     </div>
 
+    <div class="note scratch" role="note">⚠ שים לב: מה שלא מסומן בצורה <strong>יוצג לקוראים</strong>, גם אם הטשטוש האוטומטי היה מטשטש אותו. סמן כל מה שצריך להיות מטושטש.</div>
     @if (staleNotice) {
     <div class="note" role="status">
       יש כאן טשטוש ידני שנשמר קודם, אבל הוא כבר לא בתוקף: התוצאה האוטומטית של התמונה השתנתה מאז, והקוראים מקבלים את הגרסה האוטומטית. הצורות נטענו כדי שתוכל לשמור אותן שוב.
@@ -67,12 +68,19 @@
   </nb-card-body>
   <nb-card-footer class="d-flex flex-wrap gap-2 align-items-center">
     @if (available) {
-    <button nbButton status="success" class="save" [disabled]="!dirty || saving" (click)="save()">
+    <button nbButton status="success" class="save" [disabled]="!dirty || saving" (click)="askSave()">
       {{ saving ? 'שומר...' : (shapes.length ? 'שמור' : 'שמור (הסר את הטשטוש הידני)') }}
     </button>
     <button nbButton status="basic" class="clear" [disabled]="!shapes.length || saving" (click)="clearAll()" title="מוחק את כל הצורות (אפשר לבטל), והשמירה תסיר את הטשטוש הידני">מחק את כל הצורות</button>
     }
     <button nbButton status="basic" class="close-btn" [disabled]="saving" (click)="close()">סגור</button>
+    @if (confirmSave) {
+    <span class="confirm confirm-save" role="alertdialog" aria-label="אישור לפני שמירה">
+      <strong>הקוראים יראו את התמונה המקורית, ורק {{ shapes.length }} הצורות שסימנת יטושטשו. כל השאר יוצג.</strong>
+      <button nbButton size="tiny" status="success" class="confirm-yes" (click)="save()">כן, שמור</button>
+      <button nbButton size="tiny" status="basic" class="confirm-no" (click)="cancelSave()">חזור לעריכה</button>
+    </span>
+    }
     @if (confirmClose) {
     <span class="confirm" role="alertdialog" aria-label="שינויים שלא נשמרו">
       יש שינויים שלא נשמרו.

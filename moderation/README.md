@@ -255,3 +255,14 @@ automatic versions), for videos. **Stages V1 (backend) and V2 (the renderer in t
   up to 12 sampled frames the boxes really are blurred and the rest of the picture is the video; a render that fails the check is never handed over (500 `self_check_failed`). A start-up sweep deletes
   job files and `.part` files older than 6 h (what a killed render leaves). Real videos: about 0.12 s of rendering per second of video on the server; 12 videos of 30 s take about 1 minute in all.
 - Tests: `moderation/tests/test_manual_video.py` (27; needs ffmpeg and `tests/fixtures`), `tests/e2e_manual_blur_video_render.py` (the real service: job and progress, replace, clear while rendering, 'check again', a render cut off by killing the service).
+
+## Manual blur is drawn FROM SCRATCH (changed 25.10.2026, branch `manual-blur-from-scratch`)
+At the owner's request the manual blur (pictures and videos) no longer adds to the automatic blur: it is drawn on the **original**, whatever the automatic check decided (open, regional,
+fully blurred, still pending). **Readers get the original with ONLY the shapes / boxes blurred; everything else is shown.** The editors say so in a warning, and saving asks to confirm it
+(removing the manual blur needs no question). The service is unchanged (the backend now always names the original as the base).
+- **Valid while** the original is the same and no decision by hand (open / regional / blurred, "check again", saved figures) was made after the manual blur: the latest human decision wins.
+  The automatic result is irrelevant (`manualblur.Signature("scratch", 0, "", reviewedAt, original)`). A manual version made under the old "adds to the automatic blur" rule has another
+  signature, so it stops being served (readers get the automatic version again) until it is saved again.
+- Editable even when the file is fully blurred or was never checked. A video that waits for approval (`HOLD_VIDEOS_UNTIL_APPROVED`) is still hidden until approved.
+- Tests: the Go tests `TestManualBaseIsAlwaysTheOriginal`, `TestManualSurvivesAutomaticChangesAndYieldsToALaterDecision`, `TestManualDoesNotBypassTheHoldOfAVideo`; the e2e tests with the real service check that
+  outside the shape readers get the original (not the automatic blur).

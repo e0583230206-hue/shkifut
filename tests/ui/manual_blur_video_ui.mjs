@@ -93,7 +93,8 @@ try {
 
   check('the editor opens and the video loads', await openEditor());
   const head = await ev(`document.querySelector('app-manual-blur-video nb-card-header').textContent`);
-  check('it says the blur is added on the original, and mentions the 2-frame padding', head.includes('הסרטון המקורי') && head.includes('2 פריימים'), head);
+  check('it says it is drawn from scratch on the original, and mentions the 2-frame padding', head.includes('מהתחלה') && head.includes('הסרטון המקורי') && head.includes('2 פריימים'), head);
+  check('a warning says that what is not marked is shown', (await ev(`document.querySelector('app-manual-blur-video .note.scratch')?.textContent || ''`)).includes('יוצג לקוראים'));
   const dur = await ev(`document.querySelector('app-manual-blur-video video').duration`);
   check('the video is 40 s', Math.abs(dur - 40) < 0.5, dur);
   check('the timeline has a mark every second (40 s)', (await ev(`document.querySelectorAll('app-manual-blur-video .timeline .tick').length`)) >= 40);
@@ -172,6 +173,8 @@ try {
   // save: the render runs on the server
   const savedAt = Date.now();
   await ev(`document.querySelector('app-manual-blur-video .save').click()`);
+  check('saving first asks to confirm what readers will see (everything outside the boxes)', await ev(`(document.querySelector('app-manual-blur-video .confirm-save')?.textContent || '').includes('כל השאר יוצג')`));
+  await ev(`document.querySelector('app-manual-blur-video .confirm-yes').click()`);
   const sawProgress = await waitFor(`!!document.querySelector('app-manual-blur-video .render-panel')`, 15000);
   check('saving shows the render progress panel', sawProgress);
   if (sawProgress) await shot('v4-rendering.png');

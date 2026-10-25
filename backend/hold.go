@@ -79,7 +79,7 @@ func holdActive(meta map[string]any) bool {
 func holdToken(meta map[string]any) string {
 	variant := baseVariantAuto(meta)
 	rev := "0"
-	if mrev, ok := manualRevIfValid(meta); ok && (variant == VariantOriginal || variant == VariantRegional) {
+	if mrev, ok := manualRevIfValid(meta); ok {
 		variant, rev = VariantManual, mrev // the approver has to look at the manual version, not the automatic one
 	} else if hash, ok := metaHash(meta); ok {
 		switch variant {

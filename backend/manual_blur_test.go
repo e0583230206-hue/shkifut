@@ -53,31 +53,15 @@ func saveManual(t *testing.T, meta map[string]any) {
 		"by": "owner@example.com", "sig": manualSignature(meta, b)}
 }
 
-func TestManualBaseOfFollowsTheAutomaticResult(t *testing.T) {
+// From scratch: the base is always the original, whatever the automatic check decided.
+func TestManualBaseIsAlwaysTheOriginal(t *testing.T) {
 	up, bl := manualTestSetup(t, true)
 	writeTestFile(t, filepath.Join(up, testHash[:2], testHash[2:4], testHash))
-
-	if b := manualBaseOf(imageMeta(ModOpen)); !b.OK || b.Base.Kind != "original" || b.Root != "files" {
-		t.Errorf("open: %+v", b)
-	}
-	reg := imageMeta(ModRegional)
-	if b := manualBaseOf(reg); b.OK || b.Reason != "no_regional_version" {
-		t.Errorf("regional without the regional picture and with something to hide must not be available: %+v", b)
-	}
 	writeTestFile(t, filepath.Join(bl, regionalRelPath(testHash, "image")))
-	if b := manualBaseOf(reg); !b.OK || b.Base.Kind != "regional" || b.Root != "blurred" {
-		t.Errorf("regional: %+v", b)
-	}
-	// "regional" because nothing was found to hide, and no regional picture: the original is the base
-	nothing := imageMeta(ModRegional)
-	nothing["autoDecision"] = ModOpen
-	os.Remove(filepath.Join(bl, regionalRelPath(testHash, "image")))
-	if b := manualBaseOf(nothing); !b.OK || b.Base.Kind != "original" {
-		t.Errorf("regional with nothing hidden: %+v", b)
-	}
-	for _, st := range []string{ModBlurred, ModPending, ""} {
-		if b := manualBaseOf(imageMeta(st)); b.OK || b.Reason != "fully_blurred" {
-			t.Errorf("status %q: a fully blurred file must not be editable: %+v", st, b)
+	for _, st := range []string{ModOpen, ModRegional, ModBlurred, ModPending, ""} {
+		b := manualBaseOf(imageMeta(st))
+		if !b.OK || b.Base.Kind != "original" || b.Root != "files" {
+			t.Errorf("status %q: %+v", st, b)
 		}
 	}
 }
@@ -100,15 +84,19 @@ func TestManualBaseOfRefusesWhatItCannotEdit(t *testing.T) {
 	if b := manualBaseOf(videoWithPictureMime); b.OK || b.Reason != "unsupported_format" {
 		t.Errorf("video with a picture mime: %+v", b)
 	}
+	// the strict modes and the automatic result do not stop a moderator who decides for himself
 	strictUntilReviewed = true
-	if b := manualBaseOf(imageMeta(ModRegional)); b.OK || b.Reason != "unreviewed" {
-		t.Errorf("STRICT_UNTIL_REVIEWED with people found and nobody reviewed: %+v", b)
+	people := imageMeta(ModBlurred)
+	people["autoNeedsReview"] = true
+	if b := manualBaseOf(people); !b.OK {
+		t.Errorf("STRICT_UNTIL_REVIEWED must not stop a manual blur from scratch: %+v", b)
 	}
 }
 
-func TestManualReplacesOnlyOriginalOrRegionalAndOnlyWhileValid(t *testing.T) {
+func TestManualReplacesTheAutomaticResultWhileValid(t *testing.T) {
 	up, bl := manualTestSetup(t, true)
 	writeTestFile(t, filepath.Join(up, testHash[:2], testHash[2:4], testHash))
+	writeTestFile(t, filepath.Join(bl, regionalRelPath(testHash, "image")))
 	meta := imageMeta(ModOpen)
 	if v := baseVariant(meta, testID); v != VariantOriginal {
 		t.Fatalf("no manual blur yet: %s", v)
@@ -118,84 +106,106 @@ func TestManualReplacesOnlyOriginalOrRegionalAndOnlyWhileValid(t *testing.T) {
 		t.Errorf("valid manual version on an open file: %s", v)
 	}
 	if v := baseVariantAuto(meta); v != VariantOriginal {
-		t.Errorf("the base for the editor must ignore the manual version: %s", v)
+		t.Errorf("the automatic result is not changed by it: %s", v)
 	}
-
+	// it replaces whatever the automatic check decided: regional, fully blurred, still being checked
+	for _, st := range []string{ModRegional, ModBlurred, ModPending} {
+		m := imageMeta(st)
+		saveManual(t, m)
+		if v := baseVariant(m, testID); v != VariantManual {
+			t.Errorf("status %s: %s", st, v)
+		}
+		if v := baseVariantAuto(m); v == VariantManual {
+			t.Errorf("status %s: the automatic variant must stay automatic", st)
+		}
+	}
 	// flag off: nothing is served, even with a saved version
 	manualBlurEnabled = false
 	if v := baseVariant(meta, testID); v != VariantOriginal {
 		t.Errorf("flag off must serve the automatic version: %s", v)
 	}
 	manualBlurEnabled = true
-
 	// the file of the manual version is gone
 	os.Remove(manualAbsPath(testID))
 	if v := baseVariant(meta, testID); v != VariantOriginal {
 		t.Errorf("missing manual file: %s", v)
 	}
-	saveManual(t, meta)
-
-	// a regional file: the manual version sits on the regional picture
-	reg := imageMeta(ModRegional)
-	writeTestFile(t, filepath.Join(bl, regionalRelPath(testHash, "image")))
-	saveManual(t, reg)
-	if v := baseVariant(reg, testID); v != VariantManual {
-		t.Errorf("regional + manual: %s", v)
-	}
 }
 
-// The safety rule: a manual version made on one automatic result must not be shown once that result has changed.
-func TestManualBecomesStaleWhenTheAutomaticResultChanges(t *testing.T) {
-	up, bl := manualTestSetup(t, true)
-	writeTestFile(t, filepath.Join(up, testHash[:2], testHash[2:4], testHash))
-	regional := filepath.Join(bl, regionalRelPath(testHash, "image"))
-	writeTestFile(t, regional)
-	meta := imageMeta(ModRegional)
-	saveManual(t, meta)
-	if v := baseVariant(meta, testID); v != VariantManual {
-		t.Fatalf("setup: %s", v)
+// The automatic result does not matter to a manual version drawn from scratch; a later decision by hand, or a changed original, does.
+func TestManualSurvivesAutomaticChangesAndYieldsToALaterDecision(t *testing.T) {
+	up, _ := manualTestSetup(t, true)
+	original := filepath.Join(up, testHash[:2], testHash[2:4], testHash)
+	writeTestFile(t, original)
+	keeps := map[string]func(m map[string]any){
+		"check again (modGen)":      func(m map[string]any) { m["modGen"] = 2 },
+		"a new automatic check":     func(m map[string]any) { m["autoCheckedAt"] = "2026-10-25T12:00:00Z"; m["autoDecision"] = ModBlurred },
+		"the automatic status":      func(m map[string]any) { m["moderation"] = ModBlurred },
+		"the automatic status, 2nd": func(m map[string]any) { m["moderation"] = ModRegional },
 	}
-
-	changes := map[string]func(m map[string]any){
-		"check again / saved correction":     func(m map[string]any) { m["modGen"] = 2 },
-		"new automatic check":                func(m map[string]any) { m["autoCheckedAt"] = "2026-10-25T12:00:00Z" },
-		"manual decision: open":              func(m map[string]any) { m["moderation"] = ModOpen },
-		"manual decision again, same status": func(m map[string]any) { m["reviewedAt"] = "2026-10-25T12:30:00Z" },
-		"manual decision: blurred":           func(m map[string]any) { m["moderation"] = ModBlurred },
-		"regional picture regenerated": func(m map[string]any) {
-			later := time.Now().Add(time.Hour)
-			os.Chtimes(regional, later, later)
+	for name, change := range keeps {
+		m := imageMeta(ModOpen)
+		saveManual(t, m)
+		change(m)
+		if baseVariant(m, testID) != VariantManual || !manualValid(m, testID) {
+			t.Errorf("%s: the manual version must stay (the automatic result is irrelevant)", name)
+		}
+	}
+	yields := map[string]func(m map[string]any){
+		"open by hand":     func(m map[string]any) { m["moderation"] = ModOpen; m["reviewedAt"] = "2026-10-25T12:30:00Z" },
+		"blurred by hand":  func(m map[string]any) { m["moderation"] = ModBlurred; m["reviewedAt"] = "2026-10-25T12:30:00Z" },
+		"regional by hand": func(m map[string]any) { m["moderation"] = ModRegional; m["reviewedAt"] = "2026-10-25T12:30:00Z" },
+		"the same decision again": func(m map[string]any) {
+			m["reviewedAt"] = "2026-10-25T13:00:00Z"
 		},
 	}
-	for name, change := range changes {
-		m := imageMeta(ModRegional)
+	for name, change := range yields {
+		m := imageMeta(ModOpen)
 		saveManual(t, m)
-		if baseVariant(m, testID) != VariantManual {
-			t.Fatalf("%s: setup", name)
-		}
 		change(m)
-		if v := baseVariant(m, testID); v == VariantManual {
-			t.Errorf("%s: a stale manual version is still served", name)
-		}
-		if manualValid(m, testID) {
-			t.Errorf("%s: still valid", name)
+		if v := baseVariant(m, testID); v == VariantManual || manualValid(m, testID) {
+			t.Errorf("%s: a decision made after the manual blur must win (served %s)", name, v)
 		}
 		info := manualInfoFor(m, testID)
 		if info.Active || !info.Stale {
 			t.Errorf("%s: info should say stale: %+v", name, info)
 		}
-		os.Chtimes(regional, time.Now().Add(-time.Hour), time.Now().Add(-time.Hour)) // back to the same version for the next case
+	}
+	// a decision by hand that was made BEFORE the manual blur does not stop it
+	before := imageMeta(ModBlurred)
+	before["reviewedAt"] = "2026-10-25T09:00:00Z"
+	saveManual(t, before)
+	if baseVariant(before, testID) != VariantManual {
+		t.Error("a decision made before the manual blur must not cancel it")
+	}
+	// the original changed (a new upload with the same id is not possible, but the file version is part of the signature)
+	m := imageMeta(ModOpen)
+	saveManual(t, m)
+	later := time.Now().Add(time.Hour)
+	os.Chtimes(original, later, later)
+	if manualValid(m, testID) {
+		t.Error("the original changed: the manual version must not be served")
 	}
 }
 
-func TestManualNeverOverridesBlurredOrHidden(t *testing.T) {
+// A video that waits for approval is hidden from readers before the manual version is asked about.
+func TestManualDoesNotBypassTheHoldOfAVideo(t *testing.T) {
 	up, _ := manualTestSetup(t, true)
 	writeTestFile(t, filepath.Join(up, testHash[:2], testHash[2:4], testHash))
+	manualBlurVideoEnabled = true
+	oldHold := holdVideos
+	holdVideos = true
+	defer func() { holdVideos, manualBlurVideoEnabled = oldHold, false }()
 	meta := imageMeta(ModOpen)
-	saveManual(t, meta)
-	for _, v := range []string{VariantBlurred, VariantHidden} {
-		if got := manualOr(meta, testID, v); got != v {
-			t.Errorf("%s was replaced by %s", v, got)
-		}
+	meta["type"], meta["mime"], meta["holdRequired"] = "video", "video/mp4", true
+	b := manualBaseOf(meta)
+	writeTestFile(t, filepath.Join(rootBlurredPath, manualVideoRelPath(testID)))
+	meta[manualBlurMetaKey] = map[string]any{"sig": manualSignature(meta, b), "rev": "r"}
+	if v := publicVariant(meta, testID); v != VariantHidden {
+		t.Errorf("a held video must stay hidden, even with a manual version: %s", v)
+	}
+	meta["approvedAt"] = "2026-10-25T10:00:00Z"
+	if v := publicVariant(meta, testID); v != VariantManual {
+		t.Errorf("once approved, readers get the manual version: %s", v)
 	}
 }

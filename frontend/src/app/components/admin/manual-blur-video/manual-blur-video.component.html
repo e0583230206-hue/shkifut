@@ -2,7 +2,7 @@
   <nb-card-header>
     טשטוש ידני לסרטון
     <small class="text-muted d-block">
-      הטשטוש מתווסף על {{ baseLabel }}, ולא חושף שום דבר. הטשטוש מתחיל 2 פריימים לפני הנקודה הראשונה ונגמר 2 פריימים אחרי הסיום. מה שהקוראים יקבלו נבנה בשרת אחרי "שמור".
+      טשטוש ידני מהתחלה, על {{ baseLabel }}: הקוראים יראו את כל מה שלא סימנת בצורה. הטשטוש האוטומטי לא משפיע. הטשטוש מתחיל 2 פריימים לפני הנקודה הראשונה ונגמר 2 פריימים אחרי הסיום. מה שהקוראים יקבלו נבנה בשרת אחרי "שמור".
     </small>
   </nb-card-header>
   <nb-card-body>
@@ -32,6 +32,7 @@
       <span class="count" aria-live="polite">{{ tracks.length }} טשטושים · {{ keyCount }} נקודות מפתח</span>
     </div>
 
+    <div class="note scratch" role="note">⚠ שים לב: מה שלא מסומן בצורה <strong>יוצג לקוראים</strong>, גם אם הטשטוש האוטומטי היה מטשטש אותו, וגם בשניות שבהן אין טשטוש. סמן כל מה שצריך להיות מטושטש, לכל אורך הסרטון.</div>
     @if (staleNotice) {
     <div class="note" role="status">
       יש כאן טשטוש ידני שנשמר קודם, אבל הוא כבר לא בתוקף: התוצאה האוטומטית של הסרטון השתנתה מאז, והקוראים מקבלים את הגרסה האוטומטית. הטשטושים נטענו כדי שתוכל לשמור אותם שוב.
@@ -129,12 +130,19 @@
   </nb-card-body>
   <nb-card-footer class="d-flex flex-wrap gap-2 align-items-center">
     @if (available && !rendering) {
-    <button nbButton status="success" class="save" [disabled]="!dirty || saving || tooLong" (click)="save()">
+    <button nbButton status="success" class="save" [disabled]="!dirty || saving || tooLong" (click)="askSave()">
       {{ saving ? 'שולח...' : (tracks.length ? 'שמור ורנדר' : 'שמור (הסר את הטשטוש הידני)') }}
     </button>
     <button nbButton status="basic" class="clear" [disabled]="!tracks.length || saving" (click)="clearAll()" title="מוחק את כל הטשטושים (אפשר לבטל), והשמירה תסיר את הטשטוש הידני">מחק הכל</button>
     }
     <button nbButton status="basic" class="close-btn" [disabled]="saving" (click)="close()">{{ rendering ? 'סגור (הרינדור ממשיך)' : 'סגור' }}</button>
+    @if (confirmSave) {
+    <span class="confirm confirm-save" role="alertdialog" aria-label="אישור לפני שמירה">
+      <strong>הקוראים יראו את הסרטון המקורי, ורק {{ tracks.length }} הטשטושים שסימנת יטושטשו (בשניות שבהן סימנת). כל השאר יוצג.</strong>
+      <button nbButton size="tiny" status="success" class="confirm-yes" (click)="save()">כן, שמור ורנדר</button>
+      <button nbButton size="tiny" status="basic" class="confirm-no" (click)="cancelSave()">חזור לעריכה</button>
+    </span>
+    }
     @if (confirmClose) {
     <span class="confirm" role="alertdialog" aria-label="שינויים שלא נשמרו">
       יש שינויים שלא נשמרו.

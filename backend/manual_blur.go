@@ -21,9 +21,10 @@ import (
 // MANUAL_BLUR=1 (off by default) turns on the manual blur tool for images: an owner or approver draws rectangles / ellipses on a picture
 // and the result is a separate file (<blurred>/manual/xx/yy/<fileid>.jpg). The original and the automatic versions are never changed.
 //
-// The manual blur only ever adds blur: it is drawn on the picture readers get from the automatic check (the original of an "open"
-// file, the regional picture of a "regional" one). It is valid only for exactly that base (see package manualblur): when the automatic
-// result changes, readers get the automatic version again, and the moderator sees that the manual version is no longer valid.
+// FROM SCRATCH: the manual blur is drawn on the ORIGINAL, independent of what the automatic check decided. Readers get the original with
+// ONLY the shapes the moderator drew blurred (everything else is shown); the moderator decides, the automatic result is not consulted.
+// It is valid while the original is the same and no decision by hand was made after it (see manualSignature); then readers get the automatic
+// version again. A video that waits for approval (HOLD_VIDEOS_UNTIL_APPROVED) is still hidden until approved.
 // With the flag off nothing here is reachable and no manual version is served.
 var manualBlurEnabled = os.Getenv("MANUAL_BLUR") == "1"
 
@@ -108,33 +109,16 @@ func manualBaseOf(meta map[string]any) manualBase {
 	if kind == "image" && !manualblur.StaticImageMime(mime) || kind == "video" && !manualblur.VideoMime(mime) {
 		return manualBase{Reason: "unsupported_format"}
 	}
-	if strictUnreviewed(meta) { // readers get the fully blurred version until the figures are reviewed: nothing to add to
-		return manualBase{Reason: "unreviewed"}
-	}
-	if strictHidden(meta) { // a video that readers do not get at all until a moderator has reviewed it
-		return manualBase{Reason: "unreviewed"}
-	}
-	originalBase := manualBase{OK: true, Root: "files", Rel: filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash)),
+	// From scratch: the manual blur is drawn on the ORIGINAL, whatever the automatic check decided.
+	return manualBase{OK: true, Root: "files", Rel: filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash)),
 		Base: manualblur.Base{Kind: "original", Version: versionTag(original)}, absPath: original}
-	switch metaString(meta, "moderation") {
-	case ModOpen:
-		return originalBase
-	case ModRegional:
-		if regionalExists(hash, kind) {
-			p := filepath.Join(rootBlurredPath, regionalRelPath(hash, kind))
-			return manualBase{OK: true, Root: "blurred", Rel: filepath.ToSlash(regionalRelPath(hash, kind)),
-				Base: manualblur.Base{Kind: "regional", Version: versionTag(p)}, absPath: p}
-		}
-		if metaString(meta, "autoDecision") == ModOpen { // nothing was found to hide: the regional version is the original itself
-			return originalBase
-		}
-		return manualBase{Reason: "no_regional_version"}
-	}
-	return manualBase{Reason: "fully_blurred"}
 }
 
+// manualSignature: what a manual version stays valid for: the original file, and the last decision by hand (open / regional / blurred, "check
+// again", saved figures: the person who made the manual version did not know about a decision made later, and the latest decision wins).
+// The automatic result is NOT part of it: a manual version is drawn from scratch, on the original.
 func manualSignature(meta map[string]any, b manualBase) string {
-	return manualblur.Signature(metaString(meta, "moderation"), metaGeneration(meta), metaString(meta, "autoCheckedAt"), metaString(meta, "reviewedAt"), b.Base)
+	return manualblur.Signature("scratch", 0, "", metaString(meta, "reviewedAt"), b.Base)
 }
 
 func manualEntry(meta map[string]any) map[string]any {
@@ -175,10 +159,9 @@ func manualRevIfValid(meta map[string]any) (string, bool) {
 	return metaString(e, "rev"), true
 }
 
-// manualOr: the automatic variant, or the manual one when it applies. Only an original / regional result can be replaced: a fully
-// blurred or hidden file stays so.
+// manualOr: the automatic variant, or the manual one when it applies.
 func manualOr(meta map[string]any, id, variant string) string {
-	if (variant == VariantOriginal || variant == VariantRegional) && manualActive(meta, id) {
+	if manualActive(meta, id) { // from scratch: it replaces even a fully blurred or an unreviewed result (a held video is hidden before this is asked)
 		return VariantManual
 	}
 	return variant

@@ -51,6 +51,8 @@
   &.warn { background: var(--tc-bad-bg, #fadbd8); color: var(--tc-bad-fg, #a1271b); border-color: #e8a29a; }
 }
 
+.note.scratch { background: var(--tc-bad-bg, #fadbd8); color: var(--tc-bad-fg, #a1271b); border-color: #e8a29a; }
+
 .unavailable {
   padding: 16px;
   border-radius: 8px;

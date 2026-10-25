@@ -301,7 +301,7 @@ export class MediaModerationService {
       const manual = document.createElement('span');
       manual.className = 'mod-badge mod-approved';
       manual.textContent = `טשטוש ידני פעיל (${info.manualBlur.shapes})`;
-      manual.title = 'הקוראים מקבלים את הגרסה הזו: הטשטוש האוטומטי ועליו הצורות שסימנת.';
+      manual.title = 'הקוראים מקבלים את המקור עם הצורות שסימנת בלבד מטושטשות (מהתחלה, בלי הטשטוש האוטומטי).';
       bar.appendChild(manual);
     } else if (info.manualBlur?.job && (info.manualBlur.job.state === 'rendering' || info.manualBlur.job.state === 'queued')) {
       const rendering = document.createElement('span');
@@ -313,7 +313,7 @@ export class MediaModerationService {
       const stale = document.createElement('span');
       stale.className = 'mod-badge mod-attention';
       stale.textContent = 'טשטוש ידני לא בתוקף';
-      stale.title = 'התוצאה האוטומטית של התמונה השתנתה מאז שסימנת. הקוראים מקבלים את הגרסה האוטומטית. פתח את "טשטוש ידני" ושמור שוב כדי להחיל את הצורות.';
+      stale.title = 'מאז שסימנת התקבלה החלטה ידנית אחרת (פתח לכולם, טשטוש אזורי או מלא, בדיקה מחדש) או שהקובץ השתנה, והקוראים מקבלים את ההחלטה הזו. פתח את "טשטוש ידני" ושמור שוב כדי להחיל את הצורות.';
       bar.appendChild(stale);
     }
 
@@ -339,14 +339,14 @@ export class MediaModerationService {
       bar.appendChild(review);
     }
 
-    if (info.status !== 'pending' && info.manualBlur && (info.manualBlur.available || info.manualBlur.shapes > 0)) {
+    if (info.manualBlur && (info.manualBlur.available || info.manualBlur.shapes > 0)) {
       const manualBtn = document.createElement('button');
       manualBtn.type = 'button';
       manualBtn.className = 'mod-btn mod-btn-manual' + (info.manualBlur.stale ? ' mod-btn-attention' : '');
       manualBtn.textContent = 'טשטוש ידני';
       manualBtn.title = isVideo
-        ? 'סמן מלבן או עיגול טשטוש על הסרטון, עם נקודות מפתח לתנועה. הטשטוש מתווסף על הטשטוש האוטומטי ולא חושף שום דבר.'
-        : 'צייר מלבן או עיגול טשטוש על התמונה. הטשטוש מתווסף על הטשטוש האוטומטי ולא חושף שום דבר.';
+        ? 'טשטוש ידני מהתחלה: סמן מלבן או עיגול על הסרטון, עם נקודות מפתח לתנועה. הקוראים יראו את המקור, ורק מה שסימנת מטושטש.'
+        : 'טשטוש ידני מהתחלה: צייר מלבן או עיגול על התמונה. הקוראים יראו את המקור, ורק מה שסימנת מטושטש.';
       manualBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const editor = isVideo ? ManualBlurVideoComponent : ManualBlurComponent;

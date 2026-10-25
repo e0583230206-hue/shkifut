@@ -170,21 +170,10 @@ func TestManualVideoFlagsAreSeparate(t *testing.T) {
 }
 
 func TestManualVideoBase(t *testing.T) {
-	e := videoSetup(t)
-	if b := manualBaseOf(videoMeta(ModOpen)); !b.OK || b.Base.Kind != "original" || b.Root != "files" {
-		t.Errorf("open: %+v", b)
-	}
-	reg := videoMeta(ModRegional)
-	if b := manualBaseOf(reg); b.OK || b.Reason != "no_regional_version" {
-		t.Errorf("regional without its file: %+v", b)
-	}
-	writeTestFile(t, filepath.Join(e.bl, regionalRelPath(vidHash, "video")))
-	if b := manualBaseOf(reg); !b.OK || b.Base.Kind != "regional" || b.Rel != filepath.ToSlash(regionalRelPath(vidHash, "video")) {
-		t.Errorf("regional: %+v", b)
-	}
-	for _, st := range []string{ModBlurred, ModPending, ""} {
-		if b := manualBaseOf(videoMeta(st)); b.OK || b.Reason != "fully_blurred" {
-			t.Errorf("status %q must not be editable: %+v", st, b)
+	videoSetup(t)
+	for _, st := range []string{ModOpen, ModRegional, ModBlurred, ModPending, ""} {
+		if b := manualBaseOf(videoMeta(st)); !b.OK || b.Base.Kind != "original" || b.Root != "files" {
+			t.Errorf("status %q: from scratch the base is always the original: %+v", st, b)
 		}
 	}
 	notVideo := videoMeta(ModOpen)
@@ -192,40 +181,44 @@ func TestManualVideoBase(t *testing.T) {
 	if b := manualBaseOf(notVideo); b.OK || b.Reason != "unsupported_format" {
 		t.Errorf("not a video: %+v", b)
 	}
-	// a crowd video that STRICT_UNTIL_REVIEWED hides from readers: nothing to add to
-	strictUntilReviewed = true
+	strictUntilReviewed = true // a crowd video that STRICT_UNTIL_REVIEWED hides: a moderator may still decide for himself
 	crowd := videoMeta(ModRegional)
 	crowd["autoNeedsReview"] = true
-	if b := manualBaseOf(crowd); b.OK || b.Reason != "unreviewed" {
+	if b := manualBaseOf(crowd); !b.OK {
 		t.Errorf("hidden crowd video: %+v", b)
 	}
 }
 
 func TestManualVideoServedOnlyWhileValid(t *testing.T) {
 	e := videoSetup(t)
-	meta := videoMeta(ModOpen)
+	meta := videoMeta(ModBlurred)
 	b := manualBaseOf(meta)
 	writeTestFile(t, filepath.Join(e.bl, manualVideoRelPath(vid)))
 	meta[manualBlurMetaKey] = map[string]any{"tracks": manualblur.TracksToMeta(tracksFor(t)), "sig": manualSignature(meta, b), "rev": "abc"}
 	if v := baseVariant(meta, vid); v != VariantManual {
-		t.Fatalf("valid manual video: %s", v)
+		t.Fatalf("valid manual video on a fully blurred file: %s", v)
 	}
 	if got := manualPathFor(meta, vid); filepath.Ext(got) != ".mp4" {
 		t.Errorf("the file of a video is an .mp4: %s", got)
 	}
-	changes := map[string]func(m map[string]any){
-		"check again":                  func(m map[string]any) { m["modGen"] = 2 },
-		"new automatic check":          func(m map[string]any) { m["autoCheckedAt"] = "2026-10-25T12:00:00Z" },
-		"manual decision, same status": func(m map[string]any) { m["reviewedAt"] = "2026-10-25T12:30:00Z" },
-		"manual decision: blurred":     func(m map[string]any) { m["moderation"] = ModBlurred },
+	stays := map[string]func(m map[string]any){
+		"check again":         func(m map[string]any) { m["modGen"] = 2 },
+		"new automatic check": func(m map[string]any) { m["autoCheckedAt"] = "2026-10-25T12:00:00Z" },
+		"automatic status":    func(m map[string]any) { m["moderation"] = ModRegional },
 	}
-	for name, change := range changes {
-		m := videoMeta(ModOpen)
+	for name, change := range stays {
+		m := videoMeta(ModBlurred)
 		m[manualBlurMetaKey] = meta[manualBlurMetaKey]
 		change(m)
-		if v := baseVariant(m, vid); v == VariantManual {
-			t.Errorf("%s: a stale manual video is still served", name)
+		if v := baseVariant(m, vid); v != VariantManual {
+			t.Errorf("%s: the automatic result is irrelevant, the manual version must stay (%s)", name, v)
 		}
+	}
+	m := videoMeta(ModBlurred)
+	m[manualBlurMetaKey] = meta[manualBlurMetaKey]
+	m["reviewedAt"] = "2026-10-25T12:30:00Z" // a decision by hand made later wins
+	if v := baseVariant(m, vid); v == VariantManual {
+		t.Error("a decision by hand after the manual video must win")
 	}
 	os.Remove(filepath.Join(e.bl, manualVideoRelPath(vid)))
 	if v := baseVariant(meta, vid); v == VariantManual {
@@ -339,13 +332,13 @@ func TestManualVideoStaleWhileRenderingIsDiscarded(t *testing.T) {
 	meta := videoMeta(ModOpen)
 	storeMeta(t, vid, meta)
 	task := newTask(t, vid, meta)
-	// while the video is being rendered, someone presses "check again"
+	// while the video is being rendered, a moderator decides the file by hand (that decision must win over the manual video)
 	e.svc.renderFn = func(r *http.Request, body map[string]any) (int, string) {
 		out := filepath.Join(e.bl, filepath.FromSlash(body["out"].(string)))
 		os.MkdirAll(filepath.Dir(out), 0o755)
 		os.WriteFile(out, []byte("rendered video"), 0o644)
 		m, _ := readMetadata(vid)
-		m["modGen"] = 2
+		m["moderation"], m["reviewedAt"] = ModBlurred, "2026-10-25T12:30:00Z"
 		writeMetadata(vid, m)
 		return 200, `{"ok":true}`
 	}
@@ -355,7 +348,7 @@ func TestManualVideoStaleWhileRenderingIsDiscarded(t *testing.T) {
 	}
 	got, _ := readMetadata(vid)
 	if manualEntry(got) != nil {
-		t.Error("a manual version built on a result that no longer exists was saved")
+		t.Error("a manual version made before a later decision by hand was saved")
 	}
 	if _, err := os.Stat(filepath.Join(e.bl, manualVideoRelPath(vid))); err == nil {
 		t.Error("a stale video became the final file")
@@ -426,11 +419,13 @@ func TestManualVideoAPIRules(t *testing.T) {
 		t.Errorf("no service: %d", c)
 	}
 	moderationURL = e.svc.URL
-	storeMeta(t, vid, videoMeta(ModBlurred))
+	notVideo := videoMeta(ModOpen)
+	notVideo["mime"] = "application/pdf"
+	storeMeta(t, vid, notVideo)
 	if c := call(setManualVideo, good); c != 409 {
-		t.Errorf("fully blurred video: %d", c)
+		t.Errorf("not a video: %d", c)
 	}
-	storeMeta(t, vid, videoMeta(ModOpen))
+	storeMeta(t, vid, videoMeta(ModBlurred)) // a fully blurred video can be edited: the manual blur is drawn from scratch
 
 	// accepted: 202, a job is queued, an earlier one still running is cancelled
 	w := httptest.NewRecorder()

@@ -183,7 +183,7 @@ func publicVariant(meta map[string]any, id string) string {
 }
 
 // baseVariant: what readers get once the video is allowed out. Anything uncertain falls back to the fully blurred version.
-// With MANUAL_BLUR a valid manual version of an image replaces the original / regional picture (manualOr).
+// A valid manual version (MANUAL_BLUR / MANUAL_BLUR_VIDEO, drawn from scratch on the original) is what readers get instead (manualOr).
 func baseVariant(meta map[string]any, id string) string {
 	return manualOr(meta, id, baseVariantAuto(meta))
 }

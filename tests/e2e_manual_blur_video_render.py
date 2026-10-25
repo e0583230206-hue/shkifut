@@ -146,12 +146,12 @@ if info["status"] not in ("open", "regional"):
 URL = f"/api/admin/files/{fid}/manual-blur"
 st, state = jcall(admin, "GET", URL)
 check("the tool is available for the video", st == 200 and state["available"], state)
-base_kind = state["base"]
-print(f"     base: {base_kind}")
+check("the base is the ORIGINAL, whatever the automatic result is (the manual blur is drawn from scratch)", state["base"] == "original", state["base"])
+print(f"     automatic result was {info['status']}; base: {state['base']}")
 
-st, base_bytes = call(admin, "GET", f"/api/files/{fid}?view=base")
+st, base_bytes = call(admin, "GET", f"/api/files/{fid}?view=base")   # the automatic version (what readers get without a manual blur)
 base_path = tempfile.mktemp(suffix=".mp4")
-open(base_path, "wb").write(base_bytes)
+open(base_path, "wb").write(original_bytes)                          # frames are compared with the ORIGINAL
 bp = ffprobe(base_path)
 base_dur = float(bp["video"]["duration"])
 w, h = int(bp["video"]["width"]), int(bp["video"]["height"])
@@ -220,7 +220,7 @@ jcall(admin, "POST", URL, {"tracks": [RECT]})
 st, cleared = jcall(admin, "DELETE", URL)
 time.sleep(4)
 st, state = jcall(admin, "GET", URL)
-check("DELETE during a render: nothing is active afterwards and readers get the automatic version", not state.get("active") and call(reader, "GET", f"/api/files/{fid}")[1] == base_bytes, state.get("job"))
+check("DELETE during a render: nothing is active afterwards and readers get the automatic version", not state.get("active") and call(reader, "GET", f"/api/files/{fid}")[1] == (base_bytes if info["publicVariant"] != "original" else original_bytes), state.get("job"))
 check("... and nothing is left in the volume", tmp_files() == [], tmp_files())
 
 # 4. 'check again' while the manual version exists, and while it renders
@@ -232,12 +232,17 @@ jcall(admin, "POST", "/api/admin/files/reprocess", {"id": fid})
 wait_job(admin, URL)
 info = wait_checked(admin, fid)
 st, state = jcall(admin, "GET", URL)
-check("after 'check again' the manual version is not active (stale) and readers do not get it", not state.get("active") and info["publicVariant"] != "manual", (state.get("active"), info["publicVariant"]))
-check("the saved tracks are kept so they can be saved again", len(state["tracks"]) >= 1)
+check("after 'check again' the manual version is still active (a manual blur drawn from scratch does not depend on the automatic result)", state.get("active") is True and info["publicVariant"] == "manual", (state.get("active"), info["publicVariant"]))
+time.sleep(1.1)
+call(admin, "POST", "/api/admin/files/moderation", {"id": fid, "status": "blurred"})   # a decision by hand AFTER the manual blur wins
+st, state = jcall(admin, "GET", URL)
+check("a decision by hand made after the manual video stops it (stale), the tracks are kept", state.get("active") is False and len(state["tracks"]) >= 1, state.get("active"))
+check("readers get the fully blurred version then", jcall(admin, "GET", f"/api/files/{fid}/moderation")[1]["publicVariant"] == "blurred")
 st, resp = jcall(admin, "POST", URL, {"tracks": state["tracks"]})
 job, state, _ = wait_job(admin, URL)
-check("saving again makes it valid on the new result", job["state"] == "done" and state["active"] is True)
+check("saving again on a fully blurred video works: it is what readers get", job["state"] == "done" and state["active"] is True and jcall(admin, "GET", f"/api/files/{fid}/moderation")[1]["publicVariant"] == "manual")
 jcall(admin, "DELETE", URL)
+call(admin, "POST", "/api/admin/files/moderation", {"id": fid, "status": "open"})
 
 # 5. the service is killed in the middle of a render
 jcall(admin, "POST", URL, {"tracks": [RECT]})

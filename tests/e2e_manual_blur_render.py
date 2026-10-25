@@ -157,59 +157,64 @@ check("readers get the original again", call(reader, "GET", f"/api/files/{fid}")
 jcall(admin, "POST", URL, {"shapes": [RECT]})
 check("DELETE clears it too", jcall(admin, "DELETE", URL)[1].get("active") is False and call(reader, "GET", f"/api/files/{fid}")[1] == raw_orig)
 
-# 3. the rule that matters: a manual version does not outlive the automatic result it was made on
+# 3. the automatic result is irrelevant to a manual blur drawn from scratch ("check again" does not touch it)
 jcall(admin, "POST", URL, {"shapes": [RECT]})
 before = call(reader, "GET", f"/api/files/{fid}")[1]
 check("setup: manual version is served", before != raw_orig)
 st, _ = jcall(admin, "POST", "/api/admin/files/reprocess", {"id": fid})
 check("'check again' accepted", st == 200, st)
-mid = call(reader, "GET", f"/api/files/{fid}")[1]
-check("right after 'check again' readers do NOT get the old manual version", mid != before, "same bytes as the manual version")
 info = wait_checked(admin, fid)
 st, state = jcall(admin, "GET", URL)
-check("after the new check the saved shapes are kept but not active (stale)", len(state["shapes"]) == 1 and state["active"] is False, state)
-check("... and the info says stale", info["manualBlur"]["stale"] is True and info["publicVariant"] != "manual", info.get("manualBlur"))
-check("readers do not get the manual version", call(reader, "GET", f"/api/files/{fid}")[1] != before)
-st, body = jcall(admin, "POST", URL, {"shapes": state["shapes"]})
-check("saving again makes it valid on the new result", st == 200 and body["active"] is True, (st, body))
+check("after 'check again' the manual version is still active (the automatic result does not matter)", state["active"] is True and info["publicVariant"] == "manual", (state.get("active"), info["publicVariant"]))
+check("readers still get exactly the same picture", call(reader, "GET", f"/api/files/{fid}")[1] == before)
 jcall(admin, "DELETE", URL)
 
-# 4. a decision by hand: blurred -> not editable, a saved version is not served; open again -> it is not revived
+# 4. a decision by hand made AFTER the manual blur wins; a fully blurred picture can be edited from scratch
 jcall(admin, "POST", URL, {"shapes": [RECT]})
+time.sleep(1.1)   # the decision gets a later time (seconds)
 call(admin, "POST", "/api/admin/files/moderation", {"id": fid, "status": "blurred"})
 st, state = jcall(admin, "GET", URL)
-check("blurred by hand: the tool is not available and nothing is active", state["available"] is False and not state.get("active"), state)
+check("blurred by hand AFTER the manual blur: the manual version stops (the latest decision wins), the shapes are kept", state["active"] is False and len(state["shapes"]) == 1, state)
 check("readers get the fully blurred picture", jcall(admin, "GET", f"/api/files/{fid}/moderation")[1]["publicVariant"] == "blurred")
+check("the tool is still available (from scratch, on the original)", state["available"] is True and state["base"] == "original", state)
+st, body = jcall(admin, "POST", URL, {"shapes": [RECT]})
+check("saving again on the fully blurred picture works and is what readers get", st == 200 and body["active"] is True and jcall(admin, "GET", f"/api/files/{fid}/moderation")[1]["publicVariant"] == "manual", (st, body))
+served_over_blurred = call(reader, "GET", f"/api/files/{fid}")[1]
+check("... the original with only the shape blurred (not the fully blurred picture)", served_over_blurred != raw_orig and len(served_over_blurred) > 0 and Image is not None and pixels(served_over_blurred).std() > 20)
+time.sleep(1.1)
 call(admin, "POST", "/api/admin/files/moderation", {"id": fid, "status": "open"})
-check("opened by hand again: the old manual version is not revived (it was made on another decision)",
-      jcall(admin, "GET", f"/api/files/{fid}/moderation")[1]["publicVariant"] == "original")
+check("opened by hand AFTER it: readers get the original, the manual version does not come back", jcall(admin, "GET", f"/api/files/{fid}/moderation")[1]["publicVariant"] == "original")
 jcall(admin, "DELETE", URL)
 
-# 5. a regional picture: the manual blur is drawn on the picture with the automatic blur already in it
+# 5. a picture with a regional result: from scratch the original is shown, with ONLY the manual shape blurred (the automatic blur is not there)
 regional = None
 for name in ("men_zidane.jpg", "man_messi.jpg", "man_twain.jpg"):
     f2 = upload(admin, name)
     i2 = wait_checked(admin, f2)
     print(f"     automatic result for {name}: {i2['status']} ({i2.get('autoDecision')}), regions={i2.get('autoRegions')}")
-    if i2["status"] == "regional":
-        regional = (f2, name)
+    if i2["status"] in ("regional", "blurred"):
+        regional = (f2, name, i2["status"])
         break
 if not regional:
-    skip("manual blur on a regional picture", "none of the test pictures got a regional result; covered by the Go unit tests on temporary files")
+    skip("manual blur from scratch on a picture the automatic check blurred", "none of the test pictures was blurred by the automatic check")
 elif Image is not None:
-    f2, name = regional
+    f2, name, status = regional
     U2 = f"/api/admin/files/{f2}/manual-blur"
     st, state = jcall(admin, "GET", U2)
-    check(f"{name}: base = regional", state["available"] and state["base"] == "regional", state)
-    reg_bytes = call(reader, "GET", f"/api/files/{f2}")[1]
+    check(f"{name} ({status}): base = original, whatever the automatic result", state["available"] and state["base"] == "original", state)
+    auto_bytes = call(reader, "GET", f"/api/files/{f2}")[1]
+    orig_bytes = call(admin, "GET", f"/api/files/{f2}")[1]
     st, body = jcall(admin, "POST", U2, {"shapes": [{"type": "rect", "x": 0.0, "y": 0.0, "w": 0.2, "h": 0.2}]})
-    check(f"{name}: save on the regional picture", st == 200, (st, body))
-    r, m = pixels(reg_bytes), pixels(call(reader, "GET", f"/api/files/{f2}")[1])
+    check(f"{name}: save from scratch", st == 200, (st, body))
+    served2 = call(reader, "GET", f"/api/files/{f2}")[1]
+    m, o, a = pixels(served2), pixels(orig_bytes), pixels(auto_bytes)
     H, W = m.shape[:2]
-    r = np.asarray(Image.fromarray(r.astype("uint8")).resize((W, H), Image.LANCZOS)).astype(int)
+    o = np.asarray(Image.fromarray(o.astype("uint8")).resize((W, H), Image.LANCZOS)).astype(int)
+    a = np.asarray(Image.fromarray(a.astype("uint8")).resize((W, H), Image.LANCZOS)).astype(int)
     outside = np.ones((H, W), bool)
     outside[:int(.25 * H), :int(.25 * W)] = False
-    check(f"{name}: the automatic blur is still there (outside the new shape the picture equals the regional one)", np.abs(m - r).mean(axis=2)[outside].mean() < 4.0)
+    d_orig, d_auto = np.abs(m - o).mean(axis=2)[outside].mean(), np.abs(m - a).mean(axis=2)[outside].mean()
+    check(f"{name}: outside the shape readers get the ORIGINAL (the automatic blur is gone: that is what 'from scratch' means)", d_orig < 6 and d_orig < d_auto, f"vs original {d_orig:.1f}, vs automatic {d_auto:.1f}")
     jcall(admin, "DELETE", U2)
 
 print(f"\n{'ALL PASSED' if not failures else str(len(failures)) + ' FAILED: ' + str(failures)}" + (f"  ({len(skipped)} skipped)" if skipped else ""))
