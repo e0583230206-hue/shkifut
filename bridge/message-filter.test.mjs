@@ -43,3 +43,57 @@ test('missing event, payload and body do not throw', () => {
   assert.equal(skipReason(undefined, undefined, undefined), '');
   assert.equal(skipReason(null, null, null), '');
 });
+
+// ---- the real texts the editing bot posted (25.10.2026, plain text, ordinary spaces, no hidden characters)
+const REAL_PROGRESS = '⏳ מעדכן הודעה ב-3 קבוצות ו-1 ערוצי טלגרם...';
+const REAL_REPORT = '✅ הודעה עודכנה!\n\n✅ הצלחות: 3\n❌ שגיאות: 0\n📣 ערוצי טלגרם: 1/1';
+// the shape of the webhook payload of those two (WAHA, GOWS): not fromMe, a participant of the group, source "app"
+const REAL_PAYLOAD = { fromMe: false, from: '120363429217173923@g.us', participant: '106953342742588@lid', source: 'app', hasMedia: false };
+
+test('the two real bot messages of 25.10.2026 are dropped', () => {
+  assert.equal(text(REAL_PROGRESS, 'message.any', REAL_PAYLOAD), 'bot status');
+  assert.equal(text(REAL_REPORT, 'message.any', REAL_PAYLOAD), 'bot status');
+});
+
+test('the same texts are dropped when fromMe, and for the plain "message" event', () => {
+  assert.equal(text(REAL_PROGRESS, 'message.any', { ...REAL_PAYLOAD, fromMe: true }), 'bot status');
+  assert.equal(text(REAL_REPORT, 'message.any', { ...REAL_PAYLOAD, fromMe: true }), 'bot status');
+  assert.equal(text(REAL_REPORT, 'message', REAL_PAYLOAD), 'bot status');
+});
+
+test('other counts and forms of the progress line and of the channels line', () => {
+  for (const t of ['⏳ מעדכן הודעה ב-1 קבוצה', '⏳ מעדכן הודעה ב-12 קבוצות ו-2 ערוצי טלגרם…',
+    '⏳ מעדכן הודעה ב-3 קבוצות ו-1 ערוץ טלגרם...', '⏳ מעדכן הודעה...',
+    '📣 ערוצי טלגרם: 0/2', '📣 ערוצי טלגרם: 2 / 2'])
+    assert.equal(text(t), 'bot status', t);
+});
+
+test('hidden characters and look-alikes do not hide the status text', () => {
+  const variants = [
+    REAL_PROGRESS.replace('⏳', '⏳️'),                  // emoji variation selector
+    '‏' + REAL_PROGRESS,                                          // right-to-left mark in front
+    REAL_PROGRESS.replace(/ /g, ' '),                             // no-break spaces
+    REAL_PROGRESS.replace('ב-3', 'ב־3'),                // maqaf instead of the hyphen
+    REAL_PROGRESS.replace('מעדכן', '​מעדכן'), // zero-width space inside
+    REAL_REPORT.replace(/\n/g, '\r\n'),                                // Windows line ends
+    REAL_REPORT.split('\n').map(l => (l ? '‎' + l + '‏' : l)).join('\n'),   // marks around every line
+    REAL_REPORT.replace('✅', '✅️'),
+  ];
+  for (const v of variants) assert.equal(text(v), 'bot status', JSON.stringify(v));
+});
+
+test('real news is still published, also from the editing bot\'s own account, and also when it only starts like a status line', () => {
+  const news = ['✅ הצלחות: 3 החיילים חזרו בשלום',          // starts like a status line, goes on as a sentence
+    'מעדכן הודעה ב-3 קבוצות את האזור הבא',
+    '📣 ערוצי טלגרם: 1/1 הוקמו היום',
+    'חדשות מהארץ: רוב הכבישים פתוחים'];
+  for (const t of news) {
+    assert.equal(text(t, 'message.any', REAL_PAYLOAD), '', t);
+    assert.equal(text(t, 'message.any', { ...REAL_PAYLOAD, fromMe: true }), '', t);
+  }
+});
+
+test('a command with hidden characters is still a command', () => {
+  for (const t of ['‎!מחק 5', '‫!ערוך 5 טקסט‬', '﻿!מחק'])
+    assert.equal(text(t), 'command', JSON.stringify(t));
+});

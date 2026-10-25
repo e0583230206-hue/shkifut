@@ -112,6 +112,8 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
   if (SCENARIO === 'command-noise') {
     const noise = ['✅ הודעה עודכנה!', '✅ הצלחות: 3', '❌ שגיאות: 1', '📣 ערוצי טלגרם', '⏳ מעדכן הודעה', 'מעדכן הודעה', 'לא נמצאה במערכת',
       '✅ הצלחות: 3\n❌ שגיאות: 0','!ערוך 123 טקסט חדש', '!מחק 123', '‏!מחק 123'];
+    // the editing bot's real messages (posted to the site on 25.10.2026)
+    noise.push('⏳ מעדכן הודעה ב-3 קבוצות ו-1 ערוצי טלגרם...', '✅ הודעה עודכנה!\n\n✅ הצלחות: 3\n❌ שגיאות: 0\n📣 ערוצי טלגרם: 1/1');
     let i = 0;
     for (const body of noise) { await send({ ...base, id: 'n' + (i++), hasMedia: false, body }); }
     await sleep(400);
