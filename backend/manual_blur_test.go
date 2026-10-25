@@ -18,7 +18,9 @@ const (
 func manualTestSetup(t *testing.T, enabled bool) (upload, blurred string) {
 	t.Helper()
 	oldUp, oldBl, oldEn, oldStrict := rootUploadPath, rootBlurredPath, manualBlurEnabled, strictUntilReviewed
-	t.Cleanup(func() { rootUploadPath, rootBlurredPath, manualBlurEnabled, strictUntilReviewed = oldUp, oldBl, oldEn, oldStrict })
+	t.Cleanup(func() {
+		rootUploadPath, rootBlurredPath, manualBlurEnabled, strictUntilReviewed = oldUp, oldBl, oldEn, oldStrict
+	})
 	rootUploadPath, rootBlurredPath = t.TempDir(), t.TempDir()
 	manualBlurEnabled, strictUntilReviewed = enabled, false
 	return rootUploadPath, rootBlurredPath
