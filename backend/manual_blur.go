@@ -38,18 +38,31 @@ var (
 
 const manualBlurMetaKey = "manualBlur"
 
-// canManualBlur: owners (ADMIN_USERS) and approvers (APPROVER_EMAILS), who must also be moderators, and only with the flag on.
-func canManualBlur(r *http.Request) bool {
-	return manualBlurEnabled && checkPrivilege(r, Moderator) && emailIsApprover(sessionEmail(r))
+// manualEnabledFor: the tool of this kind of file is on (MANUAL_BLUR for pictures, MANUAL_BLUR_VIDEO for videos: separate flags).
+func manualEnabledFor(kind string) bool {
+	switch kind {
+	case "image":
+		return manualBlurEnabled
+	case "video":
+		return manualBlurVideoEnabled
+	}
+	return false
 }
 
+// canManualBlurKind: owners (ADMIN_USERS) and approvers (APPROVER_EMAILS), who must also be moderators, and only with the flag of that kind on.
+func canManualBlurKind(r *http.Request, kind string) bool {
+	return manualEnabledFor(kind) && checkPrivilege(r, Moderator) && emailIsApprover(sessionEmail(r))
+}
+
+// protectedWithManualBlur: the routes exist when either flag is on and are for owners / approvers; each handler then checks the flag of the
+// kind of the file (404 when that tool is off).
 func protectedWithManualBlur(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !manualBlurEnabled {
+		if !manualBlurEnabled && !manualBlurVideoEnabled {
 			http.NotFound(w, r)
 			return
 		}
-		if !canManualBlur(r) {
+		if !checkPrivilege(r, Moderator) || !emailIsApprover(sessionEmail(r)) {
 			http.Error(w, "User not authorized or not privilege", http.StatusUnauthorized)
 			return
 		}
@@ -63,6 +76,14 @@ func manualRelPath(id string) string {
 
 func manualAbsPath(id string) string { return filepath.Join(rootBlurredPath, manualRelPath(id)) }
 
+// manualPathFor: the file of the manual version of a picture (.jpg) or a video (.mp4).
+func manualPathFor(meta map[string]any, id string) string {
+	if metaString(meta, "type") == "video" {
+		return filepath.Join(rootBlurredPath, manualVideoRelPath(id))
+	}
+	return manualAbsPath(id)
+}
+
 // manualBase is what a manual version would be drawn on, or why the tool is not available for this file.
 type manualBase struct {
 	OK      bool
@@ -74,7 +95,8 @@ type manualBase struct {
 }
 
 func manualBaseOf(meta map[string]any) manualBase {
-	if metaString(meta, "type") != "image" {
+	kind := metaString(meta, "type")
+	if kind != "image" && kind != "video" {
 		return manualBase{Reason: "not_image"}
 	}
 	hash, ok := metaHash(meta)
@@ -82,10 +104,14 @@ func manualBaseOf(meta map[string]any) manualBase {
 		return manualBase{Reason: "no_hash"}
 	}
 	original := filepath.Join(rootUploadPath, hash[:2], hash[2:4], hash)
-	if !manualblur.StaticImageMime(detectMime(meta, original)) {
+	mime := detectMime(meta, original)
+	if kind == "image" && !manualblur.StaticImageMime(mime) || kind == "video" && !manualblur.VideoMime(mime) {
 		return manualBase{Reason: "unsupported_format"}
 	}
 	if strictUnreviewed(meta) { // readers get the fully blurred version until the figures are reviewed: nothing to add to
+		return manualBase{Reason: "unreviewed"}
+	}
+	if strictHidden(meta) { // a video that readers do not get at all until a moderator has reviewed it
 		return manualBase{Reason: "unreviewed"}
 	}
 	originalBase := manualBase{OK: true, Root: "files", Rel: filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash)),
@@ -94,9 +120,9 @@ func manualBaseOf(meta map[string]any) manualBase {
 	case ModOpen:
 		return originalBase
 	case ModRegional:
-		if regionalExists(hash, "image") {
-			p := filepath.Join(rootBlurredPath, regionalRelPath(hash, "image"))
-			return manualBase{OK: true, Root: "blurred", Rel: filepath.ToSlash(regionalRelPath(hash, "image")),
+		if regionalExists(hash, kind) {
+			p := filepath.Join(rootBlurredPath, regionalRelPath(hash, kind))
+			return manualBase{OK: true, Root: "blurred", Rel: filepath.ToSlash(regionalRelPath(hash, kind)),
 				Base: manualblur.Base{Kind: "regional", Version: versionTag(p)}, absPath: p}
 		}
 		if metaString(meta, "autoDecision") == ModOpen { // nothing was found to hide: the regional version is the original itself
@@ -126,13 +152,27 @@ func manualValid(meta map[string]any, id string) bool {
 	if !b.OK || metaString(e, "sig") != manualSignature(meta, b) {
 		return false
 	}
-	_, err := os.Stat(manualAbsPath(id))
+	_, err := os.Stat(manualPathFor(meta, id))
 	return err == nil
 }
 
 // manualActive: readers get the manual version of this file.
 func manualActive(meta map[string]any, id string) bool {
-	return manualBlurEnabled && validFileId(id) && manualValid(meta, id)
+	return manualEnabledFor(metaString(meta, "type")) && validFileId(id) && manualValid(meta, id)
+}
+
+// manualRevIfValid: the revision of the manual version when it was made on the automatic result readers get now (the signature is the
+// same), without looking at the file. For the approval of held videos, which has no file id at hand.
+func manualRevIfValid(meta map[string]any) (string, bool) {
+	e := manualEntry(meta)
+	if e == nil || !manualEnabledFor(metaString(meta, "type")) {
+		return "", false
+	}
+	b := manualBaseOf(meta)
+	if !b.OK || metaString(e, "sig") != manualSignature(meta, b) {
+		return "", false
+	}
+	return metaString(e, "rev"), true
 }
 
 // manualOr: the automatic variant, or the manual one when it applies. Only an original / regional result can be replaced: a fully
@@ -144,9 +184,12 @@ func manualOr(meta map[string]any, id, variant string) string {
 	return variant
 }
 
-func serveManual(w http.ResponseWriter, r *http.Request, id string, wm *watermarkConfig) {
+func serveManual(w http.ResponseWriter, r *http.Request, id, kind string, wm *watermarkConfig) {
 	p := manualAbsPath(id)
-	if wm != nil && serveWatermarked(w, r, wm, p, "m", id) {
+	if kind == "video" {
+		p = filepath.Join(rootBlurredPath, manualVideoRelPath(id))
+	}
+	if kind != "video" && wm != nil && serveWatermarked(w, r, wm, p, "m", id) {
 		return
 	}
 	f, err := os.Open(p)
@@ -156,27 +199,39 @@ func serveManual(w http.ResponseWriter, r *http.Request, id string, wm *watermar
 	}
 	defer f.Close()
 	setPrivateCacheHeaders(w, "m-"+id+"-"+versionTag(p))
-	w.Header().Set("Content-Type", "image/jpeg")
+	if kind == "video" {
+		w.Header().Set("Content-Type", "video/mp4")
+	} else {
+		w.Header().Set("Content-Type", "image/jpeg")
+	}
 	w.Header().Set("Content-Disposition", "inline")
-	http.ServeContent(w, r, "", time.Time{}, f)
+	http.ServeContent(w, r, "", time.Time{}, f) // Range / If-None-Match
 }
 
 // manualInfo is what the moderation info of a file tells an owner / approver about the tool.
 type manualInfo struct {
-	Available bool   `json:"available"`
-	Reason    string `json:"reason,omitempty"`
-	Active    bool   `json:"active"`
-	Stale     bool   `json:"stale,omitempty"` // there is a saved manual blur, made on a base that has changed since
-	Shapes    int    `json:"shapes"`
+	Available bool           `json:"available"`
+	Reason    string         `json:"reason,omitempty"`
+	Active    bool           `json:"active"`
+	Stale     bool           `json:"stale,omitempty"` // there is a saved manual blur, made on a base that has changed since
+	Shapes    int            `json:"shapes"`          // pictures: the shapes; videos: the tracks
+	Job       *manualJobInfo `json:"job,omitempty"`   // videos: the render that is running or has just ended
 }
 
 func manualInfoFor(meta map[string]any, id string) *manualInfo {
 	b := manualBaseOf(meta)
 	info := &manualInfo{Available: b.OK, Reason: b.Reason}
 	if e := manualEntry(meta); e != nil {
-		info.Shapes = len(manualblur.FromMeta(e["shapes"]))
+		if metaString(meta, "type") == "video" {
+			info.Shapes = len(manualblur.TracksFromMeta(e["tracks"]))
+		} else {
+			info.Shapes = len(manualblur.FromMeta(e["shapes"]))
+		}
 		info.Active = manualValid(meta, id)
 		info.Stale = !info.Active
+	}
+	if metaString(meta, "type") == "video" {
+		info.Job = manualJobInfoFor(id)
 	}
 	return info
 }
@@ -199,6 +254,15 @@ func getManualBlur(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	kind := metaString(meta, "type")
+	if !manualEnabledFor(kind) {
+		http.NotFound(w, r)
+		return
+	}
+	if kind == "video" {
+		getManualVideo(w, id, meta)
+		return
+	}
 	b := manualBaseOf(meta)
 	out := map[string]any{"available": b.OK, "reason": b.Reason, "shapes": []manualblur.Shape{}}
 	if b.OK {
@@ -215,8 +279,16 @@ func getManualBlur(w http.ResponseWriter, r *http.Request) {
 
 // setManualBlur: POST /api/admin/files/{fileid}/manual-blur {"shapes":[{"type":"rect|ellipse","x","y","w","h"}]}. No shapes clears it.
 func setManualBlur(w http.ResponseWriter, r *http.Request) {
-	id, _, ok := manualFileID(w, r)
+	id, kindMeta, ok := manualFileID(w, r)
 	if !ok {
+		return
+	}
+	if !manualEnabledFor(metaString(kindMeta, "type")) {
+		http.NotFound(w, r)
+		return
+	}
+	if metaString(kindMeta, "type") == "video" {
+		setManualVideo(w, r, id)
 		return
 	}
 	var req struct {
@@ -269,7 +341,7 @@ func setManualBlur(w http.ResponseWriter, r *http.Request) {
 		// The automatic result may have changed while the picture was being drawn: the new manual version would sit on a base that is gone.
 		if nb := manualBaseOf(meta); !nb.OK || manualSignature(meta, nb) != sig {
 			metaMu.Unlock()
-			os.Remove(manualAbsPath(id))
+			manualServiceRemove(manualRelPath(id))
 			http.Error(w, "the automatic result changed meanwhile, open the tool again", http.StatusConflict)
 			return
 		}
@@ -295,8 +367,16 @@ func setManualBlur(w http.ResponseWriter, r *http.Request) {
 
 // deleteManualBlur: DELETE /api/admin/files/{fileid}/manual-blur
 func deleteManualBlur(w http.ResponseWriter, r *http.Request) {
-	id, _, ok := manualFileID(w, r)
+	id, kindMeta, ok := manualFileID(w, r)
 	if !ok {
+		return
+	}
+	if !manualEnabledFor(metaString(kindMeta, "type")) {
+		http.NotFound(w, r)
+		return
+	}
+	if metaString(kindMeta, "type") == "video" {
+		deleteManualVideo(w, r, id)
 		return
 	}
 	manualSaveMu.Lock()
@@ -327,7 +407,7 @@ func clearManualBlur(w http.ResponseWriter, r *http.Request, id string, _ map[st
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
 	}
-	os.Remove(manualAbsPath(id))
+	manualServiceRemove(manualRelPath(id))
 	if had {
 		appendYamlLog(moderationLogFile, map[string]any{"action": "manual-blur-cleared", "fileId": id, "by": user})
 		publishFileModeration(r.Context(), id, status)
@@ -371,4 +451,22 @@ func renderManual(id string, base manualBase, shapes []manualblur.Shape) error {
 		return manualRejected{msg: e.Error}
 	}
 	return fmt.Errorf("moderation service status %d", resp.StatusCode)
+}
+
+// manualServiceRemove deletes a file of the manual blur through the moderation service: the backend sees the blurred folder read-only, only
+// the service can write there. Best effort (a file left behind is never served: no valid manual entry points to it).
+func manualServiceRemove(rel string) {
+	if moderationURL == "" {
+		return
+	}
+	body, _ := json.Marshal(map[string]string{"path": filepath.ToSlash(rel)})
+	resp, err := manualClient.Post(moderationURL+"/manual-remove", "application/json", bytes.NewReader(body))
+	if err != nil {
+		log.Printf("manual blur: could not remove %s: %v", rel, err)
+		return
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("manual blur: removing %s: moderation service status %d", rel, resp.StatusCode)
+	}
 }

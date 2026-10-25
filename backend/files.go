@@ -112,7 +112,7 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 	kind := metaString(metaData, "type")
 	// ?view=base (MANUAL_BLUR, owners / approvers): the picture the automatic check gives readers, without the manual blur - what the
 	// manual blur tool draws on.
-	baseView := r.URL.Query().Get("view") == "base" && canManualBlur(r)
+	baseView := r.URL.Query().Get("view") == "base" && canManualBlurKind(r, kind)
 	readerView := !checkPrivilege(r, Moderator) || r.URL.Query().Get("view") == "public" || baseView
 	// Watermark: only on still images that a reader gets (applied on top of any blur).
 	var wm *watermarkConfig
@@ -146,7 +146,7 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 				serveRegional(w, r, fileHash, kind, wm)
 				return
 			case VariantManual:
-				serveManual(w, r, fileId, wm)
+				serveManual(w, r, fileId, kind, wm)
 				return
 			case VariantBlurred:
 				serveBlurred(w, r, fileHash, wm)

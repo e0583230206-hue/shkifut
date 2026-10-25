@@ -90,10 +90,15 @@ func TestManualBaseOfRefusesWhatItCannotEdit(t *testing.T) {
 	if b := manualBaseOf(gif); b.OK || b.Reason != "unsupported_format" {
 		t.Errorf("gif: %+v", b)
 	}
-	video := imageMeta(ModOpen)
-	video["type"] = "video"
-	if b := manualBaseOf(video); b.OK || b.Reason != "not_image" {
-		t.Errorf("video: %+v", b)
+	audio := imageMeta(ModOpen)
+	audio["type"] = "audio"
+	if b := manualBaseOf(audio); b.OK || b.Reason != "not_image" {
+		t.Errorf("audio: %+v", b)
+	}
+	videoWithPictureMime := imageMeta(ModOpen) // the video tool needs a video
+	videoWithPictureMime["type"] = "video"
+	if b := manualBaseOf(videoWithPictureMime); b.OK || b.Reason != "unsupported_format" {
+		t.Errorf("video with a picture mime: %+v", b)
 	}
 	strictUntilReviewed = true
 	if b := manualBaseOf(imageMeta(ModRegional)); b.OK || b.Reason != "unreviewed" {

@@ -599,7 +599,7 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			case VariantRegional:
 				info.Rev = versionTag(filepath.Join(rootBlurredPath, regionalRelPath(hash, kind)))
 			case VariantManual:
-				info.Rev = versionTag(manualAbsPath(id))
+				info.Rev = versionTag(manualPathFor(meta, id))
 			case VariantBlurred:
 				info.Rev = versionTag(filepath.Join(rootBlurredPath, blurredRelPath(hash)))
 			}
@@ -618,7 +618,7 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		info.Unreviewed = strictUnreviewed(meta)
-		if canManualBlur(r) && kind == "image" {
+		if canManualBlurKind(r, kind) {
 			info.ManualBlur = manualInfoFor(meta, id)
 		}
 		info.Hold = holdInfoFor(r, meta)

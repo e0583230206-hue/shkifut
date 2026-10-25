@@ -136,6 +136,45 @@ class Validation(Base):
                 M.check_paths(base, root, out)
 
 
+class ManualFiles(Base):
+    ID, JOB = "b" * 40, "0123456789abcdef"
+
+    def test_what_can_be_removed(self):
+        for ok in (f"manual/bb/bb/{self.ID}.jpg", f"manual/bb/bb/{self.ID}.mp4", f"manual/bb/bb/{self.ID}.{self.JOB}.mp4"):
+            M.check_removable(ok)
+        for bad in (f"aa/aa/{'a' * 64}", f"aa/aa/{'a' * 64}.regional.jpg", f"aa/aa/{'a' * 64}.regional.mp4", f"aa/aa/{'a' * 64}.jpg",
+                    f"manual/bb/bb/{self.ID}.mp4/../x", f"manual/../{self.ID}.mp4", f"manual/bb/bb/{self.ID}.xyz.mp4", "manual/", "", None,
+                    f"manual/bb/bb/{self.ID}.{self.JOB}.jpg", f"review/{'a' * 64}/figures.json"):
+            with self.assertRaises(M.Rejected, msg=str(bad)):
+                M.check_removable(bad)
+
+    def test_commit_only_a_video_in_progress_to_its_own_final_name(self):
+        tmp, final = f"manual/bb/bb/{self.ID}.{self.JOB}.mp4", f"manual/bb/bb/{self.ID}.mp4"
+        M.check_commit(tmp, final)
+        for src, dst in ((final, final), (tmp, tmp), (tmp, f"manual/bb/bb/{'c' * 40}.mp4"), (tmp, f"manual/bb/cc/{self.ID}.mp4"),
+                         (f"aa/aa/{'a' * 64}.regional.mp4", final), (tmp, f"aa/aa/{'a' * 64}.regional.mp4"), (None, final), (tmp, None)):
+            with self.assertRaises(M.Rejected, msg=f"{src} -> {dst}"):
+                M.check_commit(src, dst)
+
+    def test_remove_and_commit_work_on_files(self):
+        tmp = os.path.join(self.dir, "t.mp4")
+        final = os.path.join(self.dir, "f.mp4")
+        with open(tmp, "wb") as fh:
+            fh.write(b"video")
+        with open(final, "wb") as fh:
+            fh.write(b"old")
+        M.commit(tmp, final)
+        self.assertFalse(os.path.exists(tmp))
+        with open(final, "rb") as fh:
+            self.assertEqual(fh.read(), b"video")
+        with self.assertRaises(M.Rejected):
+            M.commit(tmp, final)             # the rendered video is not there: the old version must stay untouched
+        with open(final, "rb") as fh:
+            self.assertEqual(fh.read(), b"video")
+        self.assertTrue(M.remove(final))
+        self.assertFalse(M.remove(final))
+
+
 class Pictures(Base):
     def shape(self):
         return [{"type": "rect", "x": 0.1, "y": 0.1, "w": 0.3, "h": 0.3}]

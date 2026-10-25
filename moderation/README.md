@@ -229,3 +229,22 @@ Tools: `moderation/tests/bench_video.py` (time per model + comparison of the blu
   ICC profile kept; JPEG 88; longest side at most `MANUAL_IMAGE_MAX_SIDE` (backend, default 2560). Own lock: it never waits behind a video check. 12 MP: about 0.3 s.
 - Tests: `moderation/tests/test_manual_image.py` (15 tests, no models, see the file for the `docker run` line); `tests/e2e_manual_blur_render.py` with the real service
   (`tests/docker-compose.manual-blur-render.yml`, project `tc-mb`, port 18084).
+
+## MANUAL_BLUR_VIDEO (backend, off by default; separate from MANUAL_BLUR): manual blur on videos
+Same rules as the pictures (owners / approvers, only adds blur, valid only on the exact automatic result it was made on, never touches the original or the
+automatic versions), for videos. **Stage V1 (this build) is the backend only; the renderer in the service is stage V2, the page is V3+.**
+- **Model:** a list of *tracks*; a track = a shape (rectangle / ellipse), *keyframes* (`t` seconds, box as shares of the picture), an optional `end` second
+  (default: the end of the video, the safe side) and `interp` (`pchip`, default, or `linear`). Before the first keyframe: no blur; between: smooth movement
+  (monotone cubic / PCHIP: no overshoot, no stops at keyframes); after the last: the box stays until the end. At most 30 tracks, 200 keyframes, times up to 900 s.
+  The blur starts and ends `PadFrames` (2) frames early / late so that a frame of difference between the player and the encoder never shows. The numbers must be the same
+  in Go (`backend/manualblur/video.go`, the reference), Python (service) and TypeScript (page): `tests/fixtures/pchip_vectors.json` (made by scipy,
+  `tests/fixtures/gen_pchip_vectors.py`) is the shared test.
+- **Job:** `POST /api/admin/files/{id}/manual-blur {"tracks":[...]}` answers **202** and starts a render (one at a time, own queue, separate from the automatic check);
+  `GET` shows `job` {state queued|rendering|done|failed|cancelled, percent, error}; a newer save cancels the older render; no tracks / `DELETE` clears.
+  A render that fails, is cancelled, or finishes after the automatic result changed changes nothing: readers keep what they had.
+- **Files:** the service renders `manual/xx/yy/<fileid>.<job>.mp4`; the backend asks the service to rename it to `<fileid>.mp4` (`/manual-commit`; the backend sees the
+  blurred folder read-only) only after re-checking the signature, then writes the metadata. `/manual-remove` deletes (also used for pictures now).
+- **Approval (HOLD_VIDEOS_UNTIL_APPROVED):** saving does NOT end an earlier approval (the blur only adds blur); a video that is still held is approved looking at the
+  manual version (`holdToken` includes its revision).
+- Tests: `go test ./manualblur/`; `go test -run ManualVideo .` in `backend/` (a fake moderation service, needs any Redis); `tests/e2e_manual_blur_video.py`
+  (`tests/docker-compose.manual-blur-video-test.yml`).

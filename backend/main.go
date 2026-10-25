@@ -41,6 +41,7 @@ func main() {
 	initializePrivilegeUsers()
 	go statLogger()
 	startModeration()
+	startManualVideoWorker() // MANUAL_BLUR_VIDEO: the one worker that renders manual videos (does nothing while the flag is off)
 	startMediaCleanup()
 	startPresenceCleanup()
 

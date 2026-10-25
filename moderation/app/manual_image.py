@@ -30,6 +30,13 @@ BASE_RES = {
 }
 
 
+# Manual blur of a video (MANUAL_BLUR_VIDEO): the renderer writes <fileid>.<job>.mp4; the backend renames it to <fileid>.mp4 (/manual-commit) only after it has
+# checked that the picture readers get has not changed meanwhile. Only these names can be removed or renamed through the service: it is the one
+# that can write to the blurred folder (the backend sees it read-only).
+VIDEO_FINAL_RE = re.compile(r"^manual/([0-9a-f]{2})/([0-9a-f]{2})/([0-9a-f]{40}).mp4$")
+VIDEO_TMP_RE = re.compile(r"^manual/([0-9a-f]{2})/([0-9a-f]{2})/([0-9a-f]{40}).([0-9a-f]{16}).mp4$")
+
+
 class Rejected(ValueError):
     """The request cannot be done (bad shapes, an animated picture, a path that is not allowed): the caller gets a 422."""
 
@@ -133,3 +140,31 @@ def render(base_path, out_path, shapes, max_side=2560):
         if os.path.exists(tmp):
             os.remove(tmp)
     return {"width": img.shape[1], "height": img.shape[0], "shapes": len(boxes)}
+
+
+def check_removable(path):
+    """The files of the manual blur (a picture, a finished video, a video being made) - nothing else."""
+    if not (OUT_RE.match(path or "") or VIDEO_FINAL_RE.match(path or "") or VIDEO_TMP_RE.match(path or "")):
+        raise Rejected("path not allowed")
+
+
+def check_commit(src, dst):
+    m, f = VIDEO_TMP_RE.match(src or ""), VIDEO_FINAL_RE.match(dst or "")
+    if not m or not f or m.group(1, 2, 3) != f.group(1, 2, 3):
+        raise Rejected("rename not allowed")
+
+
+def remove(path_abs):
+    """Delete a manual file; a file that is not there is fine."""
+    try:
+        os.remove(path_abs)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def commit(src_abs, dst_abs):
+    """Make a finished video the version of the file (atomic)."""
+    if not os.path.isfile(src_abs):
+        raise Rejected("the rendered video is not there")
+    os.replace(src_abs, dst_abs)

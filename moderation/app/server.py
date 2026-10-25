@@ -217,9 +217,32 @@ class Handler(BaseHTTPRequestHandler):
         log.info("/manual-image %s -> %s shapes=%d (%d ms)", body["base"], body["out"], res["shapes"], (time.time() - t0) * 1000)
         self._send(200, {"ok": True, **res})
 
+    def _manual_files(self):
+        """POST /manual-remove {"path"} and /manual-commit {"from","to"}: delete / promote a file of the manual blur. The backend sees the blurred
+        folder read-only, so these are the only way it can clean up or publish a manual video."""
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            if self.path == "/manual-remove":
+                manual_image.check_removable(body.get("path"))
+                gone = manual_image.remove(resolve(body["path"], BLURRED_ROOT))
+                return self._send(200, {"ok": True, "removed": gone})
+            manual_image.check_commit(body.get("from"), body.get("to"))
+            manual_image.commit(resolve(body["from"], BLURRED_ROOT), resolve(body["to"], BLURRED_ROOT))
+            log.info("/manual-commit %s", body["to"])
+            return self._send(200, {"ok": True})
+        except manual_image.Rejected as e:
+            return self._send(422, {"error": str(e)})
+        except (ValueError, KeyError, TypeError) as e:
+            return self._send(400, {"error": str(e)})
+        except Exception as e:
+            log.exception("manual file operation failed")
+            return self._send(500, {"error": str(e)[:200]})
+
     def do_POST(self):
         if self.path == "/manual-image":
             return self._manual_image()
+        if self.path in ("/manual-remove", "/manual-commit"):
+            return self._manual_files()
         if self.path not in ("/process", "/blur", "/cancel"):
             return self._send(404, {"error": "not found"})
         arrived = time.time()
