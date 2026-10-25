@@ -24,12 +24,15 @@ import (
 // ("show as readers see") in the current check. A manual decision, "check again" or a saved correction ends the approval.
 var holdVideos = os.Getenv("HOLD_VIDEOS_UNTIL_APPROVED") == "1"
 
-// APPROVER_EMAILS (comma separated) are the people who may review figures and approve videos while the flag is on, in addition
-// to the owners (ADMIN_USERS). An approver also has to be a moderator in the users list.
+// Who may review figures and approve videos: every "מנהל 1" (moderator) and "מנהל 2" (reviewer) of the users list (the owner sets them in the
+// permissions screen), and still the accounts of ADMIN_USERS and APPROVER_EMAILS (comma separated; they also have to be one of the two).
 func emailIsApprover(email string) bool {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" {
 		return false
+	}
+	if canModerateMedia(privilegesOfEmail(email)) {
+		return true
 	}
 	for _, list := range []string{os.Getenv("APPROVER_EMAILS"), strings.Join(adminUsers, ",")} {
 		for _, e := range strings.Split(list, ",") {
@@ -49,7 +52,7 @@ func sessionEmail(r *http.Request) string {
 
 // canReviewFigures: who may open the review grid. Without the flag, every moderator (unchanged).
 func canReviewFigures(r *http.Request) bool {
-	if !checkPrivilege(r, Moderator) {
+	if !isMediaModerator(r) {
 		return false
 	}
 	return !holdVideos || emailIsApprover(sessionEmail(r))

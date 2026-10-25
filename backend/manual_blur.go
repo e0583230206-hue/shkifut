@@ -52,7 +52,7 @@ func manualEnabledFor(kind string) bool {
 
 // canManualBlurKind: owners (ADMIN_USERS) and approvers (APPROVER_EMAILS), who must also be moderators, and only with the flag of that kind on.
 func canManualBlurKind(r *http.Request, kind string) bool {
-	return manualEnabledFor(kind) && checkPrivilege(r, Moderator) && emailIsApprover(sessionEmail(r))
+	return manualEnabledFor(kind) && isMediaModerator(r) && emailIsApprover(sessionEmail(r))
 }
 
 // protectedWithManualBlur: the routes exist when either flag is on and are for owners / approvers; each handler then checks the flag of the
@@ -63,7 +63,7 @@ func protectedWithManualBlur(handler http.HandlerFunc) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		if !checkPrivilege(r, Moderator) || !emailIsApprover(sessionEmail(r)) {
+		if !isMediaModerator(r) || !emailIsApprover(sessionEmail(r)) {
 			http.Error(w, "User not authorized or not privilege", http.StatusUnauthorized)
 			return
 		}

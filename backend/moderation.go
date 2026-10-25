@@ -591,7 +591,7 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 		}
 		info.PublicVariant = publicVariant(meta, id)
 		revVariant := info.PublicVariant
-		if revVariant == VariantHidden && checkPrivilege(r, Moderator) {
+		if revVariant == VariantHidden && isMediaModerator(r) {
 			revVariant = baseVariant(meta, id) // a held video: the address of what moderators see changes with every regeneration
 		}
 		if hash, ok := metaHash(meta); ok {
@@ -605,7 +605,7 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if checkPrivilege(r, Moderator) {
+	if isMediaModerator(r) {
 		info.ReviewedBy = metaString(meta, "reviewedBy")
 		info.ReviewedAt = metaString(meta, "reviewedAt")
 		info.AutoDecision = metaString(meta, "autoDecision")

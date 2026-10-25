@@ -82,7 +82,7 @@ export class MessageComponent implements OnInit, OnDestroy {
   }
 
   get isModerator(): boolean {
-    return !!this._authService.userInfo?.privileges?.['moderator'];
+    return !!(this._authService.userInfo?.privileges?.['moderator'] || this._authService.userInfo?.privileges?.['reviewer']);
   }
 
   /** Called after the markdown is rendered (and again for live status updates of one file). */

@@ -114,8 +114,8 @@ export class AdminPanelComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
-    // "Who is online" is for admins only (the server enforces it too)
-    if (!this.authService.userInfo?.privileges?.['admin']) {
+    // "Who is online" is for the owner and "מנהל 1" (the server enforces it too)
+    if (!this.authService.userInfo?.privileges?.['admin'] && !this.authService.userInfo?.privileges?.['moderator']) {
       this.navigationMenu = this.navigationMenu.filter(i => i.icon !== 'activity-outline');
     }
     this.handleMenuItemClick()

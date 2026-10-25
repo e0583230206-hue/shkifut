@@ -1,0 +1,12 @@
+# The settings of the live site that matter for who may do what: HOLD_VIDEOS_UNTIL_APPROVED, STRICT_UNTIL_REVIEWED, the manual blur, and NO approver list
+# (APPROVER_EMAILS empty): the managers come from the permissions screen. On the local UI test stack:
+#   docker compose -p tc-ui -f docker-compose.local.yml -f tests/docker-compose.ui-test.yml -f tests/docker-compose.roles-test.yml up -d --build --no-deps redis backend
+#   python -I tests/e2e_admin_roles.py http://localhost:18083
+services:
+  backend:
+    environment:
+      HOLD_VIDEOS_UNTIL_APPROVED: "1"
+      STRICT_UNTIL_REVIEWED: "1"
+      MANUAL_BLUR: "1"
+      MANUAL_BLUR_VIDEO: "1"
+      APPROVER_EMAILS: ""

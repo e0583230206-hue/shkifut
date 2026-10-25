@@ -87,7 +87,7 @@ _, _, users0 = call(admin, "/api/admin/privilegs-users/get-list")
 users0 = users0 or []
 two_moderators = users0 + [
     {"email": APPROVER, "username": "", "publicName": "", "privileges": {"moderator": True}},
-    {"email": MOD2, "username": "", "publicName": "", "privileges": {"moderator": True}},
+    {"email": MOD2, "username": "", "publicName": "", "privileges": {"reviewer": True}},   # a "manager 2": the media tools only
 ]
 
 if MODE == "off":
@@ -152,13 +152,13 @@ try:
     _, _, rinfo = call(reader, f"/api/files/{fid}/moderation")
     check("reader: the page is told 'hidden' and gets no hold details", rinfo["publicVariant"] == "hidden" and "hold" not in rinfo, rinfo)
     check("admin sees the video as always", call(admin, url)[0] == 200)
-    check("non-approver moderator sees the video as always", call(mod2, url)[0] == 200)
+    check("manager 2 (reviewer) sees the video as always", call(mod2, url)[0] == 200)
     _, _, ainfo = call(admin, f"/api/files/{fid}/moderation")
     check("moderator info: held, preview variant given", ainfo.get("hold", {}).get("held") is True and ainfo.get("previewVariant") in ("regional", "blurred", "original"), ainfo.get("hold"))
-    check("a non-approver moderator cannot open the grid", call(mod2, f"/api/admin/files/{fid}/figures")[0] == 401)
+    check("manager 2 (reviewer) opens the grid too: every manager 1 / 2 of the permissions screen is an approver", call(mod2, f"/api/admin/files/{fid}/figures")[0] == 200)
     _, _, minfo = call(mod2, f"/api/files/{fid}/moderation")
-    check("... and the page is told not to show the grid button", not minfo.get("canReview"), minfo.get("canReview"))
-    check("a non-approver moderator cannot approve", call(mod2, f"/api/admin/files/{fid}/approve", {})[0] == 401)
+    check("... and the page is told to show the grid button", minfo.get("canReview") is True, minfo.get("canReview"))
+    check("manager 2 may approve, but not before looking at the video as readers see it (409)", call(mod2, f"/api/admin/files/{fid}/approve", {})[0] == 409)
     check("a reader cannot approve", call(reader, f"/api/admin/files/{fid}/approve", {})[0] == 401)
     check("the owner and the listed approver open the grid", call(admin, f"/api/admin/files/{fid}/figures")[0] == 200 and call(approver, f"/api/admin/files/{fid}/figures")[0] == 200)
 
@@ -173,12 +173,12 @@ try:
 
     # approval needs the "as readers see" view, per person and per check
     check("approve before viewing: refused", call(approver, f"/api/admin/files/{fid}/approve", {})[0] == 409)
-    check("mod2 requesting ?view=public gets what readers get now (404)", call(mod2, url + "?view=public")[0] == 404)
-    check("the owner previews the video with ?view=public", call(admin, url + "?view=public")[0] == 200)
+    check("manager 2 (an approver now) previews the video with ?view=public", call(mod2, url.split("?")[0] + "?view=public")[0] == 200)
+    check("the owner previews the video with ?view=public", call(admin, url.split("?")[0] + "?view=public")[0] == 200)
     check("the preview of one approver does not count for another", call(approver, f"/api/admin/files/{fid}/approve", {})[0] == 409)
     _, _, g = call(approver, f"/api/admin/files/{fid}/figures")
     check("grid: not viewed yet for this approver", g["hold"]["held"] is True and g["hold"]["viewed"] is False, g["hold"])
-    check("the listed approver previews the video", call(approver, url + "?view=public")[0] == 200)
+    check("the listed approver previews the video", call(approver, url.split("?")[0] + "?view=public")[0] == 200)
     _, _, g = call(approver, f"/api/admin/files/{fid}/figures")
     check("grid: viewed, can approve", g["hold"]["viewed"] is True and g["hold"]["canApprove"] is True, g["hold"])
     check("readers still get nothing before the approval", call(reader, url)[0] == 404)
@@ -205,7 +205,7 @@ try:
         _, _, g = call(approver, f"/api/admin/files/{fid}/figures")
         check("correction: held again and not viewed", g["hold"]["held"] is True and g["hold"]["viewed"] is False, g["hold"])
         check("correction: approve refused until the new version is viewed", call(approver, f"/api/admin/files/{fid}/approve", {})[0] == 409)
-        call(approver, url + "?view=public")
+        call(approver, url.split("?")[0] + "?view=public")
         check("viewed again: approve works", call(approver, f"/api/admin/files/{fid}/approve", {})[0] == 200 and call(reader, url)[0] == 200)
 
     # check again resets
@@ -213,7 +213,7 @@ try:
     check("check again: readers get nothing, approval reset", call(reader, url)[0] == 404)
     wait_status(admin, fid)
     check("check again: approve refused without a new view", call(approver, f"/api/admin/files/{fid}/approve", {})[0] == 409)
-    call(approver, url + "?view=public")
+    call(approver, url.split("?")[0] + "?view=public")
     check("check again then viewed: approve works", call(approver, f"/api/admin/files/{fid}/approve", {})[0] == 200)
 
     # a manual decision resets; "open to everyone" does not publish a held video
@@ -223,7 +223,7 @@ try:
     check("'open to everyone' does not publish a held video", st == 200 and call(reader, url)[0] == 404)
     _, _, ainfo = call(admin, f"/api/files/{fid}/moderation")
     check("... it stays held and shows as open for moderators", ainfo["hold"]["held"] is True and ainfo["status"] == "open", (ainfo["status"], ainfo["hold"]))
-    call(approver, url + "?view=public")
+    call(approver, url.split("?")[0] + "?view=public")
     check("approve after 'open': readers get the video", call(approver, f"/api/admin/files/{fid}/approve", {})[0] == 200 and call(reader, url)[0] == 200)
 
     time.sleep(1)

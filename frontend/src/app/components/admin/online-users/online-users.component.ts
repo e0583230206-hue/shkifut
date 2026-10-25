@@ -20,7 +20,7 @@ interface PresenceResponse {
   now: string;
 }
 
-const ROLES: Record<string, string> = { admin: 'מנהל', moderator: 'מנחה', writer: 'כותב' };
+const ROLES: Record<string, string> = { admin: 'מנהל ראשי', moderator: 'מנהל 1', reviewer: 'מנהל 2', writer: 'כותב' };
 
 /** Admin tab "מחוברים": who is online now and when each reader was last seen (kept 30 days). Refreshes every 30 seconds. */
 @Component({

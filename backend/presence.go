@@ -132,7 +132,7 @@ func getPresence(w http.ResponseWriter, r *http.Request) {
 		u := PresenceUser{Email: email, Name: names[email], Connections: conns[email], LastSeen: at.UTC().Format(time.RFC3339)}
 		u.Online = u.Connections > 0 || now.Sub(at) <= presenceOnlineWindow
 		if v, ok := privilegesUsers.Load(email); ok {
-			for _, role := range []Privilege{Admin, Moderator, Writer} {
+			for _, role := range []Privilege{Admin, Moderator, Reviewer, Writer} {
 				if v.(User).Privileges[role] {
 					u.Roles = append(u.Roles, string(role))
 				}

@@ -35,6 +35,7 @@ export class PrivilegDashboardComponent implements OnInit {
     privileges: {
       admin: false,
       moderator: false,
+      reviewer: false,
       writer: false
     }
   };
@@ -74,6 +75,7 @@ export class PrivilegDashboardComponent implements OnInit {
     privileges: {
       admin: false,
       moderator: false,
+      reviewer: false,
       writer: false
     }
   };

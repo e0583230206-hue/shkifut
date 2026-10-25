@@ -22,7 +22,41 @@ const (
 	Admin     Privilege = "admin"     // root privilege
 	Moderator Privilege = "moderator" // admin privilege
 	Writer    Privilege = "writer"    // can write posts
+	// Reviewer is "מנהל 2": the media moderation tools only (open / blur / review figures / approve videos / manual blur), nothing else:
+	// no contact messages, no list of who is online, no statistics, topics or settings. Moderator ("מנהל 1") can do all of this and
+	// also reads the contact messages, sees who is online and manages the channel.
+	Reviewer Privilege = "reviewer"
 )
+
+// privilegesOfEmail: the privileges of an account in the users list (nothing for an unknown one).
+func privilegesOfEmail(email string) Privileges {
+	if v, ok := privilegesUsers.Load(email); ok {
+		return v.(User).Privileges
+	}
+	if v, ok := privilegesUsers.Load(strings.ToLower(strings.TrimSpace(email))); ok {
+		return v.(User).Privileges
+	}
+	return Privileges{}
+}
+
+// canModerateMedia: may see the original of a file and use the media moderation tools: a "מנהל 1" (Moderator) or a "מנהל 2" (Reviewer).
+func canModerateMedia(p Privileges) bool { return p[Moderator] || p[Reviewer] }
+
+func isMediaModerator(r *http.Request) bool {
+	session, _ := store.Get(r, cookieName)
+	s, ok := session.Values["user"].(Session)
+	return ok && canModerateMedia(currentPrivileges(s))
+}
+
+func protectedWithMediaModerator(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !isMediaModerator(r) {
+			http.Error(w, "User not authorized or not privilege", http.StatusUnauthorized)
+			return
+		}
+		handler(w, r)
+	}
+}
 
 func initializePrivilegeUsers() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

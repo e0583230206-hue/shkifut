@@ -36,9 +36,15 @@
               <span>הרשאות:</span>
               <div class="d-flex flex-column">
                 <nb-checkbox [(ngModel)]="newUser.privileges['admin']">מנהל ראשי</nb-checkbox>
-                <nb-checkbox [(ngModel)]="newUser.privileges['moderator']">מנהל</nb-checkbox>
+                <nb-checkbox [(ngModel)]="newUser.privileges['moderator']">מנהל 1</nb-checkbox>
+                <nb-checkbox [(ngModel)]="newUser.privileges['reviewer']">מנהל 2</nb-checkbox>
                 <nb-checkbox [(ngModel)]="newUser.privileges['writer']">כותב</nb-checkbox>
               </div>
+              <small class="text-muted d-block mt-1 roles-help">
+                <strong>מנהל 1:</strong> פותח, מטשטש ומאשר תמונות וסרטונים (כולל טשטוש ידני), קורא את הודעות "צור קשר" ורואה כמה מחוברים.<br>
+                <strong>מנהל 2:</strong> רק פותח, מטשטש ומאשר תמונות וסרטונים (כולל טשטוש ידני). בלי "צור קשר", בלי מחוברים ובלי הגדרות.<br>
+                <strong>מנהל ראשי:</strong> הכל, כולל הגדרות והרשאות.
+              </small>
             </div>
             <div class="d-flex gap-2">
               <button nbButton status="primary" size="small" (click)="saveNewUser()">
@@ -88,7 +94,10 @@
                   מנהל ראשי
                 </nb-checkbox>
                 <nb-checkbox [(ngModel)]="item.privileges['moderator']">
-                  מנהל
+                  מנהל 1
+                </nb-checkbox>
+                <nb-checkbox [(ngModel)]="item.privileges['reviewer']">
+                  מנהל 2
                 </nb-checkbox>
                 <nb-checkbox [(ngModel)]="item.privileges['writer']">
                   כותב

@@ -33,7 +33,7 @@ export class ReviewLinkComponent implements AfterViewInit {
       return;
     }
     const user = await this.auth.loadUserInfo().catch(() => undefined);
-    if (!user?.privileges?.['moderator']) {
+    if (!user?.privileges?.['moderator'] && !user?.privileges?.['reviewer']) {
       this.message = 'הדף הזה למנחים ולמאשרים בלבד';
       return;
     }
