@@ -190,3 +190,11 @@
   a picture / video / recording / poll without text gets a label ("📷 תמונה חדשה", "🎬 סרטון חדש", "🎧 הקלטה חדשה", "📊 סקר חדש"), a text with media gets the icon in front. The title is the channel name, or "שקיפות" when none is set.
 - Tab title: the app no longer replaces the title that the server rendered (it showed "TheChannel" when the channel had no name, also to Google, which runs the page). On the home page the server title stays
   (custom title, else channel name, else "שקיפות - חדשות ועדכונים"); message, privacy and terms pages keep their own titles. Test: `tests/ui/title_check.mjs`; Go tests: `go test ./pushtext/`.
+
+## Manual blur for images (branches `manual-blur`, `manual-blur-render`, `manual-blur-ui`; flag `MANUAL_BLUR`, off by default; not deployed)
+Owners and approvers draw rectangles / ellipses on an image; the result is a separate file and is **added** to what the automatic check already blurs. See "MANUAL_BLUR" in
+`moderation/README.md` and the deployment plan in `docs/MANUAL_BLUR_DEPLOY.md`.
+- Stage 1 (backend): `backend/manual_blur.go`, `backend/manualblur/`, `GET|POST|DELETE /api/admin/files/{id}/manual-blur`, variant `manual`; a manual version is served only on the exact automatic result it was drawn on (status, check generation, check time, last decision by hand, base file).
+- Stage 2 (service): `moderation/app/manual_image.py`, `POST /manual-image`; tests `moderation/tests/test_manual_image.py`, `tests/e2e_manual_blur_render.py`.
+- Stage 3 (page): `components/admin/manual-blur/` (editor dialog: rectangle, ellipse, move, resize, delete, undo / redo, keyboard, touch, approximate preview, unsaved-changes question), `manual-blur-geometry.ts`; tests `tests/unit/manual-blur-geometry.test.mjs`, `tests/ui/manual_blur_ui.mjs`.
+- Videos (keyframes, timeline) are a separate later stage.

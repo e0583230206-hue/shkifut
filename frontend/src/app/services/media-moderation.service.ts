@@ -4,6 +4,7 @@ import { firstValueFrom, Subject } from 'rxjs';
 import { ResponseResult } from '../models/response-result.model';
 import { NbDialogService } from '@nebular/theme';
 import { FigureReviewComponent } from '../components/admin/figure-review/figure-review.component';
+import { ManualBlurComponent } from '../components/admin/manual-blur/manual-blur.component';
 import { boxRatio, dimsFromUrl } from '../media-dims';
 
 export type ModerationStatus = 'pending' | 'open' | 'regional' | 'blurred';
@@ -13,8 +14,8 @@ export interface FileModeration {
   id: string;
   status: ModerationStatus;
   kind: string;
-  /** What readers receive: the original, the regionally blurred version, or the fully blurred one. */
-  publicVariant?: 'original' | 'regional' | 'blurred' | 'hidden';
+  /** What readers receive: the original, the regionally blurred version, the fully blurred one, or (MANUAL_BLUR) the version with a manual blur on top. */
+  publicVariant?: 'original' | 'regional' | 'blurred' | 'hidden' | 'manual';
   autoRegions?: number;
   autoLevel?: string;
   autoFullFrames?: number;
@@ -38,6 +39,18 @@ export interface FileModeration {
   previewVariant?: 'original' | 'regional' | 'blurred';
   /** Moderators only: may this person open the review grid (every moderator, or only approvers while the hold flag is on). */
   canReview?: boolean;
+  /** Owners / approvers with MANUAL_BLUR on, images only: the manual blur tool for this picture. */
+  manualBlur?: ManualBlurInfo;
+}
+
+export interface ManualBlurInfo {
+  available: boolean;
+  reason?: string;
+  /** Readers get the manual version. */
+  active: boolean;
+  /** A manual blur was saved, but the automatic result changed since, so readers do not get it. */
+  stale?: boolean;
+  shapes: number;
 }
 
 export interface HoldInfo {
@@ -281,6 +294,20 @@ export class MediaModerationService {
       bar.appendChild(likely);
     }
 
+    if (info.manualBlur?.active) {
+      const manual = document.createElement('span');
+      manual.className = 'mod-badge mod-approved';
+      manual.textContent = `טשטוש ידני פעיל (${info.manualBlur.shapes})`;
+      manual.title = 'הקוראים מקבלים את הגרסה הזו: הטשטוש האוטומטי ועליו הצורות שסימנת.';
+      bar.appendChild(manual);
+    } else if (info.manualBlur?.stale) {
+      const stale = document.createElement('span');
+      stale.className = 'mod-badge mod-attention';
+      stale.textContent = 'טשטוש ידני לא בתוקף';
+      stale.title = 'התוצאה האוטומטית של התמונה השתנתה מאז שסימנת. הקוראים מקבלים את הגרסה האוטומטית. פתח את "טשטוש ידני" ושמור שוב כדי להחיל את הצורות.';
+      bar.appendChild(stale);
+    }
+
     for (const choice of CHOICES) {
       if (choice.status !== info.status) {
         bar.appendChild(this.button(choice.label, `mod-btn-${choice.status}`, wrap, info.id, choice.status));
@@ -301,6 +328,22 @@ export class MediaModerationService {
           });
       });
       bar.appendChild(review);
+    }
+
+    if (info.status !== 'pending' && info.manualBlur && (info.manualBlur.available || info.manualBlur.shapes > 0)) {
+      const manualBtn = document.createElement('button');
+      manualBtn.type = 'button';
+      manualBtn.className = 'mod-btn mod-btn-manual' + (info.manualBlur.stale ? ' mod-btn-attention' : '');
+      manualBtn.textContent = 'טשטוש ידני';
+      manualBtn.title = 'צייר מלבן או עיגול טשטוש על התמונה. הטשטוש מתווסף על הטשטוש האוטומטי ולא חושף שום דבר.';
+      manualBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this.dialog.open(ManualBlurComponent, { context: { fileId: info.id }, closeOnBackdropClick: false, closeOnEsc: false })
+          .onClose.subscribe(async (saved) => {
+            if (saved) this.render(wrap, await this.getStatus(info.id, true), true);
+          });
+      });
+      bar.appendChild(manualBtn);
     }
 
     const again = document.createElement('button');
@@ -384,7 +427,7 @@ export class MediaModerationService {
     if (info.reviewedBy) {
       lines.push(`החלטה ידנית: ${info.reviewedBy} ${info.reviewedAt ? new Date(info.reviewedAt).toLocaleString('he-IL') : ''}`);
     }
-    const readers = { original: 'המקור', regional: 'גרסה עם טשטוש אזורי', blurred: 'גרסה מטושטשת לגמרי', hidden: 'כלום (ממתין לאישור)' };
+    const readers = { original: 'המקור', regional: 'גרסה עם טשטוש אזורי', blurred: 'גרסה מטושטשת לגמרי', hidden: 'כלום (ממתין לאישור)', manual: 'גרסה עם טשטוש ידני' };
     lines.push(`קוראים רואים: ${readers[info.publicVariant ?? 'blurred']}`);
     return lines.join('\n');
   }

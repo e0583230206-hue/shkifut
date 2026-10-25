@@ -1,0 +1,149 @@
+.mb-card {
+  width: min(1100px, 96vw);
+  max-height: 94vh;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--tc-border, #d0d5dd);
+  margin: 0 4px;
+}
+
+.tool {
+  border: 1px solid var(--tc-border, #c7c7c7);
+  background: var(--tc-surface, #fff);
+  color: inherit;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: var(--tc-surface-2, #f1f3f5); }
+  &:disabled { opacity: 0.45; cursor: default; }
+  &.on { border-color: #3366ff; background: rgba(51, 102, 255, 0.12); font-weight: 600; }
+  &.danger:not(:disabled) { color: #c81e1e; }
+}
+
+.count {
+  margin-inline-start: auto;
+  font-size: 0.85rem;
+  color: var(--tc-muted, #6c757d);
+}
+
+.note {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  background: var(--tc-warn-bg, #fff7d6);
+  color: var(--tc-warn-fg, #7a5200);
+  border: 1px solid #e0b100;
+
+  &.warn { background: var(--tc-bad-bg, #fadbd8); color: var(--tc-bad-fg, #a1271b); border-color: #e8a29a; }
+}
+
+.unavailable {
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--tc-surface-2, #f1f3f5);
+  line-height: 1.6;
+}
+
+// The picture and the shapes: always left-to-right, so left / top are what they say whatever the page direction is.
+.stage-wrap {
+  display: flex;
+  justify-content: center;
+  direction: ltr;
+  background: var(--tc-surface-2, #f1f3f5);
+  border-radius: 8px;
+  padding: 8px;
+  overflow: auto;
+}
+
+.stage {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  touch-action: none;       // dragging on the picture draws; it must not scroll the page
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+  cursor: default;
+
+  &.drawing { cursor: crosshair; }
+  &:focus-visible { box-shadow: 0 0 0 3px rgba(51, 102, 255, 0.4); }
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 60vh;
+    width: auto;
+    height: auto;
+    pointer-events: none;
+    -webkit-user-drag: none;
+  }
+
+  .preview {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+}
+
+.shape {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #ff3d71;
+  background: rgba(255, 61, 113, 0.18);
+  outline: none;
+
+  &.ellipse { border-radius: 50%; }
+  &.selected { border-color: #3366ff; background: rgba(51, 102, 255, 0.16); z-index: 2; }
+  &:focus-visible { box-shadow: 0 0 0 3px rgba(51, 102, 255, 0.5); }
+  &.draft { border-style: dashed; pointer-events: none; }
+}
+
+// Handles: small squares on the box of the selected shape; bigger where the pointer is a finger.
+.handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #3366ff;
+  border-radius: 3px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+
+  &.h-nw { left: 0; top: 0; cursor: nwse-resize; }
+  &.h-n { left: 50%; top: 0; cursor: ns-resize; }
+  &.h-ne { left: 100%; top: 0; cursor: nesw-resize; }
+  &.h-e { left: 100%; top: 50%; cursor: ew-resize; }
+  &.h-se { left: 100%; top: 100%; cursor: nwse-resize; }
+  &.h-s { left: 50%; top: 100%; cursor: ns-resize; }
+  &.h-sw { left: 0; top: 100%; cursor: nesw-resize; }
+  &.h-w { left: 0; top: 50%; cursor: ew-resize; }
+}
+
+@media (pointer: coarse) {
+  .handle { width: 26px; height: 26px; }
+}
+
+.confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--tc-bad-fg, #a1271b);
+}

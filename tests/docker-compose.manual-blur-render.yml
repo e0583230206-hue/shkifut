@@ -2,6 +2,7 @@
 # on http://localhost:18084 - for tests/e2e_manual_blur_render.py. Needs ./moderation_models (see docker-compose.local.yml).
 #   docker compose -p tc-mb -f docker-compose.local.yml -f tests/docker-compose.manual-blur-render.yml up -d --build
 #   python -I tests/e2e_manual_blur_render.py http://localhost:18084
+#   node tests/ui/manual_blur_ui.mjs <outDir> http://localhost:18084     # the editor in a real Chrome
 #   docker compose -p tc-mb -f docker-compose.local.yml -f tests/docker-compose.manual-blur-render.yml down -v
 services:
   backend:
@@ -17,6 +18,7 @@ services:
       - kvrocks_sock:/app/data
       - ./.ui-test/mb/logs:/app/logs
       - ./.ui-test/mb/training:/app/training
+      - ./frontend/dist/channel/browser:/usr/share/ng:ro   # the page (ng build --configuration development), so the editor can be tried in a browser
   moderation:
     volumes: !override
       - ./.ui-test/mb/channel_data:/files:ro
