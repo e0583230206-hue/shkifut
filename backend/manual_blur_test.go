@@ -152,10 +152,11 @@ func TestManualBecomesStaleWhenTheAutomaticResultChanges(t *testing.T) {
 	}
 
 	changes := map[string]func(m map[string]any){
-		"check again / saved correction": func(m map[string]any) { m["modGen"] = 2 },
-		"new automatic check":            func(m map[string]any) { m["autoCheckedAt"] = "2026-10-25T12:00:00Z" },
-		"manual decision: open":          func(m map[string]any) { m["moderation"] = ModOpen },
-		"manual decision: blurred":       func(m map[string]any) { m["moderation"] = ModBlurred },
+		"check again / saved correction":     func(m map[string]any) { m["modGen"] = 2 },
+		"new automatic check":                func(m map[string]any) { m["autoCheckedAt"] = "2026-10-25T12:00:00Z" },
+		"manual decision: open":              func(m map[string]any) { m["moderation"] = ModOpen },
+		"manual decision again, same status": func(m map[string]any) { m["reviewedAt"] = "2026-10-25T12:30:00Z" },
+		"manual decision: blurred":           func(m map[string]any) { m["moderation"] = ModBlurred },
 		"regional picture regenerated": func(m map[string]any) {
 			later := time.Now().Add(time.Hour)
 			os.Chtimes(regional, later, later)

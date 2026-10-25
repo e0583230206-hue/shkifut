@@ -108,10 +108,11 @@ type Base struct {
 }
 
 // Signature identifies the exact base a manual version was built on: the moderation status, the "check again" generation, the time of
-// the automatic check and the base file itself. If any of them differs from the one stored with the manual version, the version is
+// the automatic check, the time of the last decision by hand (so that blurring and re-opening a picture does not bring an old manual version
+// back) and the base file itself. If any of them differs from the one stored with the manual version, the version is
 // stale and must not be served: it was made on a picture that readers no longer get, and could show a figure the new check hides.
-func Signature(status string, gen int, autoCheckedAt string, b Base) string {
-	return strings.Join([]string{status, strconv.Itoa(gen), autoCheckedAt, b.Kind, b.Version}, "|")
+func Signature(status string, gen int, autoCheckedAt, decidedAt string, b Base) string {
+	return strings.Join([]string{status, strconv.Itoa(gen), autoCheckedAt, decidedAt, b.Kind, b.Version}, "|")
 }
 
 // StaticImageMime: the formats the tool edits. Animated pictures (GIF) are not supported: a still frame cannot stand for them.

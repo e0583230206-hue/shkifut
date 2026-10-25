@@ -70,20 +70,21 @@ func TestMetaRoundTripAcceptsYamlNumbers(t *testing.T) {
 
 func TestSignatureChangesWithEveryPartOfTheBase(t *testing.T) {
 	b := Base{Kind: "regional", Version: "abc"}
-	ref := Signature("regional", 2, "2026-10-25T10:00:00Z", b)
+	ref := Signature("regional", 2, "2026-10-25T10:00:00Z", "2026-10-25T09:00:00Z", b)
 	cases := map[string]string{
-		"status":    Signature("open", 2, "2026-10-25T10:00:00Z", b),
-		"check gen": Signature("regional", 3, "2026-10-25T10:00:00Z", b),
-		"checked":   Signature("regional", 2, "2026-10-25T11:00:00Z", b),
-		"base kind": Signature("regional", 2, "2026-10-25T10:00:00Z", Base{Kind: "original", Version: "abc"}),
-		"base file": Signature("regional", 2, "2026-10-25T10:00:00Z", Base{Kind: "regional", Version: "abd"}),
+		"status":                Signature("open", 2, "2026-10-25T10:00:00Z", "2026-10-25T09:00:00Z", b),
+		"check gen":             Signature("regional", 3, "2026-10-25T10:00:00Z", "2026-10-25T09:00:00Z", b),
+		"checked":               Signature("regional", 2, "2026-10-25T11:00:00Z", "2026-10-25T09:00:00Z", b),
+		"decided by hand again": Signature("regional", 2, "2026-10-25T10:00:00Z", "2026-10-25T09:30:00Z", b),
+		"base kind":             Signature("regional", 2, "2026-10-25T10:00:00Z", "2026-10-25T09:00:00Z", Base{Kind: "original", Version: "abc"}),
+		"base file":             Signature("regional", 2, "2026-10-25T10:00:00Z", "2026-10-25T09:00:00Z", Base{Kind: "regional", Version: "abd"}),
 	}
 	for name, s := range cases {
 		if s == ref {
 			t.Errorf("%s change does not change the signature", name)
 		}
 	}
-	if ref != Signature("regional", 2, "2026-10-25T10:00:00Z", b) {
+	if ref != Signature("regional", 2, "2026-10-25T10:00:00Z", "2026-10-25T09:00:00Z", b) {
 		t.Error("signature is not stable")
 	}
 }

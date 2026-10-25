@@ -214,8 +214,8 @@ Tools: `moderation/tests/bench_video.py` (time per model + comparison of the blu
 **image**. The result is a separate file, `<blurred>/manual/xx/yy/<fileid>.jpg`; the original and the automatic versions are never touched.
 - **It only adds blur.** It is drawn on what readers get from the automatic check: the original of an "open" file, the regional picture of a
   "regional" one. A fully blurred (or still unreviewed under `STRICT_UNTIL_REVIEWED`) picture, a GIF and a video are not editable.
-- **It is valid for exactly that base** (`manualblur.Signature`: status, check generation, time of the automatic check, the base file's version).
-  After "check again", saved figure corrections, a manual decision or a new regional picture, readers get the automatic version again;
+- **It is valid for exactly that base** (`manualblur.Signature`: status, check generation, time of the automatic check, time of the last decision by hand, the base file's version).
+  After "check again", saved figure corrections, a manual decision (even blur and open again) or a new regional picture, readers get the automatic version again;
   the saved shapes stay, marked `stale` for the moderator. A manual version is never served on a base it was not made on.
 - **With the flag off** nothing is reachable (404) and no manual version is served.
 - API (owners / approvers only): `GET|POST|DELETE /api/admin/files/{id}/manual-blur`; POST `{"shapes":[{"type":"rect"|"ellipse","x","y","w","h"}]}`
@@ -223,3 +223,9 @@ Tools: `moderation/tests/bench_video.py` (time per model + comparison of the blu
   The file info (`/api/files/{id}/moderation`) has a `manualBlur` block for them. Log: `manual-blur` / `manual-blur-cleared` in `logs/moderation.yaml`.
 - Tests: `go test ./manualblur/`; `go test -run Manual .` in `backend/` (needs any Redis/kvrocks: `docker run --rm -d -p 127.0.0.1:16666:6666
   apache/kvrocks:2.17.0`, then `REDIS_PROTOCOL=tcp REDIS_ADDR=127.0.0.1:16666`); `tests/e2e_manual_blur.py` (`EXPECT_FLAG=on|off`, see the file).
+- **Rendering** (moderation service, `app/manual_image.py`, no models): `POST /manual-image {base, base_root: files|blurred, out, shapes, max_side}`. Reads only an original or a
+  `.regional.jpg`, writes only `manual/xx/yy/<fileid>.jpg` (paths are matched against fixed patterns). Same pixelation as the regional blur (6 blocks across the
+  shorter side of a shape); an ellipse has a smooth, anti-aliased edge and its inside is covered completely; EXIF orientation applied; transparency flattened on white;
+  ICC profile kept; JPEG 88; longest side at most `MANUAL_IMAGE_MAX_SIDE` (backend, default 2560). Own lock: it never waits behind a video check. 12 MP: about 0.3 s.
+- Tests: `moderation/tests/test_manual_image.py` (15 tests, no models, see the file for the `docker run` line); `tests/e2e_manual_blur_render.py` with the real service
+  (`tests/docker-compose.manual-blur-render.yml`, project `tc-mb`, port 18084).

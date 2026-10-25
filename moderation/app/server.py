@@ -22,6 +22,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, ImageSequence
 
+import manual_image
 import regional
 from analyzer import Analyzer, Thresholds, timed
 
@@ -41,7 +42,7 @@ log = logging.getLogger("moderation")
 
 analyzer = Analyzer(MODELS_DIR, THREADS, Thresholds())
 # At most one video and one image at a time keeps CPU/RAM bounded, and images never wait for a video.
-locks = {"video": threading.Lock(), "image": threading.Lock(), "blur": threading.Lock()}
+locks = {"video": threading.Lock(), "image": threading.Lock(), "blur": threading.Lock(), "manual": threading.Lock()}
 
 
 def resolve(rel, root=FILES_ROOT):
@@ -193,7 +194,32 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "thresholds": t.__dict__, "models": analyzer.models})
         self._send(404, {"error": "not found"})
 
+    def _manual_image(self):
+        """POST /manual-image {"base","base_root":"files"|"blurred","out","shapes":[...],"max_side"}: draw the shapes an owner / approver placed
+        on a picture (the backend's MANUAL_BLUR). Writes only <BLURRED_ROOT>/manual/xx/yy/<fileid>.jpg; no analysis, no models."""
+        t0 = time.time()
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            manual_image.check_paths(body.get("base"), body.get("base_root"), body.get("out"))
+            root = FILES_ROOT if body["base_root"] == "files" else BLURRED_ROOT
+            src, out = resolve(body["base"], root), resolve(body["out"], BLURRED_ROOT)
+            if not os.path.isfile(src):
+                return self._send(404, {"error": "base picture not found"})
+            with locks["manual"]:   # its own lock: a manual picture never waits behind a check of a video
+                res = manual_image.render(src, out, body.get("shapes"), body.get("max_side", 2560))
+        except manual_image.Rejected as e:
+            return self._send(422, {"error": str(e)})
+        except (ValueError, KeyError, TypeError) as e:
+            return self._send(400, {"error": str(e)})
+        except Exception as e:  # undecodable picture, disk error ...
+            log.exception("manual-image failed")
+            return self._send(500, {"error": str(e)[:200]})
+        log.info("/manual-image %s -> %s shapes=%d (%d ms)", body["base"], body["out"], res["shapes"], (time.time() - t0) * 1000)
+        self._send(200, {"ok": True, **res})
+
     def do_POST(self):
+        if self.path == "/manual-image":
+            return self._manual_image()
         if self.path not in ("/process", "/blur", "/cancel"):
             return self._send(404, {"error": "not found"})
         arrived = time.time()

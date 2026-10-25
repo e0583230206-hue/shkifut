@@ -108,7 +108,7 @@ func manualBaseOf(meta map[string]any) manualBase {
 }
 
 func manualSignature(meta map[string]any, b manualBase) string {
-	return manualblur.Signature(metaString(meta, "moderation"), metaGeneration(meta), metaString(meta, "autoCheckedAt"), b.Base)
+	return manualblur.Signature(metaString(meta, "moderation"), metaGeneration(meta), metaString(meta, "autoCheckedAt"), metaString(meta, "reviewedAt"), b.Base)
 }
 
 func manualEntry(meta map[string]any) map[string]any {

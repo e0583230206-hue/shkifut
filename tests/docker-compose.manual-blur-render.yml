@@ -1,0 +1,24 @@
+# The REAL moderation service plus the backend with MANUAL_BLUR=1, in their own project and data directory (.ui-test/mb/, not in git),
+# on http://localhost:18084 - for tests/e2e_manual_blur_render.py. Needs ./moderation_models (see docker-compose.local.yml).
+#   docker compose -p tc-mb -f docker-compose.local.yml -f tests/docker-compose.manual-blur-render.yml up -d --build
+#   python -I tests/e2e_manual_blur_render.py http://localhost:18084
+#   docker compose -p tc-mb -f docker-compose.local.yml -f tests/docker-compose.manual-blur-render.yml down -v
+services:
+  backend:
+    ports: !override
+      - "127.0.0.1:18084:3000"
+    environment:
+      MANUAL_BLUR: "1"
+      DEV_LOGIN: "true"
+      NOINDEX_SITE: "0"
+    volumes: !override
+      - ./.ui-test/mb/channel_data:/app/files
+      - blurred:/app/blurred:ro
+      - kvrocks_sock:/app/data
+      - ./.ui-test/mb/logs:/app/logs
+      - ./.ui-test/mb/training:/app/training
+  moderation:
+    volumes: !override
+      - ./.ui-test/mb/channel_data:/files:ro
+      - blurred:/blurred
+      - ./moderation_models:/models:ro

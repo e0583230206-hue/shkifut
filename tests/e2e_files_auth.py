@@ -1,6 +1,6 @@
 """End-to-end test: texts are public, files (pictures, videos, audio) only for logged-in readers - also by their direct address.
 
-    BASE_URL=http://localhost:18083 python -I tests/e2e_files_auth.py     # the UI test stack (tests/docker-compose.ui-test.yml) or the local stack
+    python -I tests/e2e_files_auth.py http://localhost:18083     # (or BASE_URL=...) the UI test stack (tests/docker-compose.ui-test.yml) or the local stack
 
 Needs tests/media/man_twain.jpg and short.mp4 (not in git). Changes the setting require_auth_for_view_files for a moment and restores
 the settings afterwards. The default (setting absent) must be "files need a login".
@@ -18,7 +18,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _guard import base_url  # noqa: E402
 
-B = base_url()
+B = base_url(sys.argv[1] if len(sys.argv) > 1 else None)
 MEDIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "media")
 JSON = {"Content-Type": "application/json"}
 failures = []
