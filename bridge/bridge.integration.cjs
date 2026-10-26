@@ -142,6 +142,29 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
     check('a reply to a message that had only media quotes the word "מדיה", never the media', posts[4] === '[quote-embedded#](1@מדיה)\nתשובה לתמונה' && byUrl('/api/files').length === 0, JSON.stringify(posts[4]));
     check('a message that WhatsApp delivers again is not posted twice', posts.length === 5, String(posts.length));
   }
+  if (SCENARIO === 'capture' || SCENARIO === 'capture-expired') {
+    // Capture mode: a file with the end time. While it is open everything goes to the Chat as text and NOTHING to the site, also from the channel's group.
+    const fs = require('fs');
+    fs.mkdirSync('/tmp/media-test', { recursive: true });
+    fs.writeFileSync('/tmp/media-test/capture-until', String(Date.now() + (SCENARIO === 'capture' ? 60000 : -1000)));
+    const personal = { from: '972501112222@c.us', hasMedia: false, _data: { Info: { PushName: 'דנה' } } };
+    await send({ ...base, id: 'c1', hasMedia: false, body: 'חדשות מהקבוצה של הערוץ' }); await sleep(250);
+    await send({ ...personal, id: 'c2', body: 'הודעה אישית' }); await sleep(250);
+    await send({ fromMe: true, id: 'c3', from: '972500000000@c.us', to: '972509999999@c.us', hasMedia: false, body: 'אני כתבתי' }); await sleep(250);
+    await send({ ...personal, id: 'c4', hasMedia: true, body: 'תמונה אישית', media: { url: 'http://localhost:3000/api/files/default/p.jpg', mimetype: 'image/jpeg' } }); await sleep(250);
+    await send({ id: 'c5', from: 'status@broadcast', hasMedia: false, body: 'סטטוס של מישהו' }); await sleep(250);
+    await send({ ...personal, id: 'c2', body: 'הודעה אישית' }); await sleep(300);   // delivered twice
+    const texts = webhookPosts();
+    if (SCENARIO === 'capture') {
+      check('the channel group, a personal chat, my own message and a picture went to the Chat as text', texts.length === 4 && texts[0].includes('חדשות מהקבוצה של הערוץ') && texts[1].includes('דנה') && texts[2].includes('אני') && texts[3].includes('[מדיה: image/jpeg - לא נשלחה]'), JSON.stringify(texts));
+      check('NOTHING reached the site: no post, no upload (not even the channel group)', byUrl('site.test').length === 0, JSON.stringify(byUrl('site.test').map(c => c.url)));
+      check('the media of the personal chat was not downloaded and not sent to Chat as a file', byUrl('waha:3000').length === 0 && byUrl('/attachments:upload').length === 0 && !texts.join('').includes('http'));
+      check('a status post is not forwarded, and a message delivered twice is forwarded once', !texts.join('').includes('סטטוס של מישהו') && texts.filter(t => t.includes('הודעה אישית')).length === 1);
+    } else {
+      check('the window has passed: the channel group goes to the site as always', byUrl('site.test/api/import/post').length === 1 && JSON.parse(byUrl('site.test/api/import/post')[0].body).text === 'חדשות מהקבוצה של הערוץ');
+      check('... and a personal chat goes nowhere', !JSON.stringify(calls).includes('הודעה אישית') && !JSON.stringify(calls).includes('אני כתבתי'), JSON.stringify(texts));
+    }
+  }
   if (SCENARIO === 'notify' || SCENARIO === 'notify-off') {
     const post = (headers, body, method = 'POST') => new Promise((res) => {
       const r = http.request({ host: '127.0.0.1', port: 8080, path: '/notify', method, headers }, (x) => { x.resume(); x.on('end', () => res(x.statusCode)); });
