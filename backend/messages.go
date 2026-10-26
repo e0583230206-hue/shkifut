@@ -48,6 +48,45 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 	addViewsToMessages(ctx, messages)
 }
 
+// getMessage: GET /api/messages/<id> - one message, for its own page (/m/<id>). A missing or deleted message is a 404.
+// Like the list, the author is shown to writers only. Views are not counted here.
+func getMessage(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	idStr := chi.URLParam(r, "id")
+	if !messageIDRe.MatchString(idStr) {
+		http.NotFound(w, r)
+		return
+	}
+	id, _ := strconv.Atoi(idStr)
+	h, err := rdb.HGetAll(ctx, fmt.Sprintf("messages:%d", id)).Result()
+	if err != nil {
+		http.Error(w, "error", http.StatusInternalServerError)
+		return
+	}
+	if len(h) == 0 || h["deleted"] == "1" || h["deleted"] == "true" {
+		http.NotFound(w, r)
+		return
+	}
+
+	m := Message{ID: id, Type: h["type"], Text: h["text"], Topic: h["topic"], IsAds: h["is_ads"] == "1"}
+	m.Timestamp, _ = time.Parse(time.RFC3339Nano, h["timestamp"])
+	m.LastEdit, _ = time.Parse(time.RFC3339Nano, h["last_edit"])
+	if raw := h["reactions"]; raw != "" {
+		_ = json.Unmarshal([]byte(raw), &m.Reactions) // best effort: an unreadable value is shown as no reactions
+	}
+	if checkPrivilege(r, Writer) {
+		m.Author, m.AuthorId = h["author"], h["authorId"]
+	} else {
+		m.Author, m.AuthorId = "Anonymous", "Anonymous"
+	}
+	m.Poll = dbGetPoll(ctx, id)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(m)
+}
+
 func addMessage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

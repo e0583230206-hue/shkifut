@@ -9,6 +9,7 @@ import struct
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import zlib
@@ -113,9 +114,31 @@ try:
     st, sm, _ = get("/sitemap.xml")
     check("sitemap lists the message", st == 200 and f"/m/{msg['id']}</loc>" in sm)
 
+    # one message through the API (the page /m/<id> shows it instead of jumping to the channel)
+    st, one, _ = get(f"/api/messages/{msg['id']}")
+    j = json.loads(one) if st == 200 else {}
+    check("API: one message by number (text, time, no author for a reader)", st == 200 and j.get("id") == msg["id"] and "בדיקת SEO" in j.get("text", "") and j.get("author") == "Anonymous", one[:120])
+    st, one, _ = get(f"/api/messages/{msg['id']}", admin)
+    check("API: the writer sees the author", st == 200 and json.loads(one).get("author") not in ("", "Anonymous", None), one[:120])
+    check("API: a number that does not exist is a 404, a non-number too", get("/api/messages/987654321")[0] == 404 and get("/api/messages/abc")[0] == 404)
+    check("API: /messages/search and /messages/pinned still work next to /messages/<id>", get("/api/messages/pinned")[0] == 200 and get("/api/messages/search?q=" + urllib.parse.quote("בדיקת"))[0] == 200)
+
+    # HEAD must work where GET does (it used to be a 405)
+    def head(path):
+        try:
+            with anon.open(urllib.request.Request(B + path, method="HEAD")) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+    check("HEAD: message page, home, robots, sitemap -> 200", all(head(p) == 200 for p in (f"/m/{msg['id']}", "/", "/robots.txt", "/sitemap.xml")), [head(p) for p in (f"/m/{msg['id']}", "/", "/robots.txt")])
+    check("HEAD: an unknown message and an unknown page -> 404", head("/m/987654321") == 404 and head("/no-such-page-xyz") == 404)
+    check("HEAD on the live-update stream is refused (no stream nobody reads)", head("/api/events") == 405)
+
     post_del = admin.open(B + f"/api/admin/delete-message/{msg['id']}").read()
     st, html, _ = get(f"/m/{msg['id']}")
-    check("deleted message: 404", st == 404, st)
+    check("deleted message: 410 (gone, so search engines forget it sooner) + noindex", st == 410 and meta(html, "robots") == "noindex", st)
+    check("a message number that never existed: 404", get("/m/987654321")[0] == 404)
+    check("API: a deleted message is a 404", get(f"/api/messages/{msg['id']}")[0] == 404)
     st, sm, _ = get("/sitemap.xml")
     check("sitemap omits deleted messages", f"/m/{msg['id']}</loc>" not in sm)
 

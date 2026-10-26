@@ -116,6 +116,11 @@ export class ChatService {
     return firstValueFrom(this.http.get<SearchResult[]>('/api/messages/search', { params }));
   }
 
+  /** One message, for its own page (/m/<id>). Rejects with a 404 when it does not exist or was deleted. */
+  getMessage(id: number | string): Promise<ChatMessage> {
+    return firstValueFrom(this.http.get<ChatMessage>(`/api/messages/${id}`));
+  }
+
   async updateChannelInfo() {
     this.channelInfo = await firstValueFrom(this.http.get<Channel>('/api/channel/info'));
     return;

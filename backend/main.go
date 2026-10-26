@@ -24,6 +24,20 @@ func protectedWithPrivilege(Privilege Privilege, handler http.HandlerFunc) http.
 	}
 }
 
+// headAsGet answers HEAD with the GET handler (the body is dropped by net/http). The live-update stream is the one exception:
+// a HEAD there would open a stream that nobody reads.
+func headAsGet(next http.Handler) http.Handler {
+	withHead := middleware.GetHead(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead && r.URL.Path == "/api/events" {
+			w.Header().Set("Allow", "GET")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		withHead.ServeHTTP(w, r)
+	})
+}
+
 func ifRequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check every time
@@ -58,6 +72,7 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP) // client IP from nginx (X-Real-IP); the backend only listens on localhost in production
+	r.Use(headAsGet)         // HEAD works wherever GET does (link checkers, previews, monitors); it used to be a 405
 	r.Use(middleware.Logger)
 	r.Use(securityHeaders)
 	r.Use(privateAccess) // ALLOWED_EMAILS: closed site, enforced here for every route (access.go)
@@ -100,6 +115,7 @@ func main() {
 			api.Get("/messages", withPresence(getMessages))
 			api.Get("/messages/search", searchMessages)
 			api.Get("/messages/pinned", getPinnedMessages)
+			api.Get("/messages/{id}", getMessage) // one message: the page /m/<id> shows it (no redirect to the channel)
 			api.Get("/topics", getTopics)
 			api.Get("/events", getEvents)
 			api.Get("/files/{fileid}", serveFile)

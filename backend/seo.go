@@ -203,7 +203,11 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 	deleted, _ := vals[1].(string)
 	if err != nil || text == "" || deleted == "1" || deleted == "true" {
 		m.Title, m.NoIndex = "ההודעה לא נמצאה | "+name, true
-		renderIndex(w, r, m, http.StatusNotFound)
+		status := http.StatusNotFound
+		if err == nil && text != "" { // it existed and was deleted: "gone" lets search engines forget the address sooner than a 404
+			status = http.StatusGone
+		}
+		renderIndex(w, r, m, status)
 		return
 	}
 	plain := plainText(text)
