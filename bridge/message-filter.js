@@ -21,6 +21,8 @@ const COMMAND = /^!(ערוך|מחק)(\s|$)/;
 // The editing bot's real texts (posted to the site on 25.10.2026, as plain text with ordinary spaces):
 //   "⏳ מעדכן הודעה ב-3 קבוצות ו-1 ערוצי טלגרם..."
 //   "✅ הודעה עודכנה!" / "✅ הצלחות: 3" / "❌ שגיאות: 0" / "📣 ערוצי טלגרם: 1/1"
+// and its answer to a command with a wrong format (posted 26.10.2026, message 1192), three lines:
+//   "❌ פורמט שגוי!" / "שימוש נכון:" / "!ערוך ***תוכן חדש***"
 // The progress line carries the number of groups and channels, so those parts are optional and the numbers are free.
 const STATUS_LINES = [
   /^✅\s*הודעה עודכנה[.!]*$/,
@@ -29,6 +31,9 @@ const STATUS_LINES = [
   /^📣\s*ערוצי טלגרם\s*:?\s*(\d+\s*\/\s*\d+)?$/,
   /^⏳?\s*מעדכן הודעה(\s+ב-?\d+\s+קבוצ(ה|ות))?(\s+ו-?\d+\s+ערוצי טלגרם|\s+ו-?\d+\s+ערוץ טלגרם)?\s*[.!…]*$/,
   /^לא נמצאה במערכת[.!]*$/,
+  /^❌\s*פורמט שגוי[.!]*$/,
+  /^שימוש נכון\s*:?$/,
+  /^!(ערוך|מחק)(\s+[*_~]*תוכן חדש[*_~]*)?$/,
 ];
 
 function isStatusLine(line) {

@@ -16,6 +16,14 @@ test('a multi-line status report is dropped as a whole', () => {
   assert.equal(text('📣 ערוצי טלגרם\n✅ הצלחות: 2\n❌ שגיאות: 1'), 'bot status');
 });
 
+test('the wrong-format answer of the bot (real text of message 1192) is dropped, but not when real text comes with it', () => {
+  assert.equal(text('❌ פורמט שגוי!\n\nשימוש נכון:\n!ערוך ***תוכן חדש***'), 'bot status');
+  assert.equal(text('❌ פורמט שגוי!\n\nשימוש נכון:\n!מחק'), 'bot status');
+  assert.equal(text('‏❌️ פורמט שגוי!\n\nשימוש נכון:\n!ערוך ***תוכן חדש***'), 'bot status');
+  assert.equal(text('❌ פורמט שגוי!\nוגם חדשות אמיתיות'), '');
+  assert.equal(text('שימוש נכון: קראו את ההוראות'), '');
+});
+
 test('!ערוך and !מחק are dropped, also with direction marks and extra text', () => {
   for (const t of ['!ערוך 123 טקסט חדש', '!מחק 123', '!מחק', '!ערוך', '‏!מחק 123', '  !מחק 7'])
     assert.equal(text(t), 'command', t);
