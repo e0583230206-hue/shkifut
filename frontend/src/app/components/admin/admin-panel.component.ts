@@ -1,4 +1,5 @@
-import { Component, OnInit } from "@angular/core";
+import { Component, OnDestroy, OnInit } from "@angular/core";
+import { Subscription } from "rxjs";
 import { NbCardModule, NbLayoutModule, NbMenuItem, NbMenuModule, NbMenuService, NbSidebarModule } from "@nebular/theme";
 import { EmojisComponent } from "./emojis/emojis.component";
 import { SettingsComponent } from "./settings/settings.component";
@@ -6,6 +7,7 @@ import { PrivilegDashboardComponent } from "./privileg-dashboard/privileg-dashbo
 import { ChannelInfoFormComponent } from "../channel/channel-info-form/channel-info-form.component";
 import { ReportsComponent } from "./reports/reports.component";
 import { StatisticsComponent } from "./statistics/statistics.component";
+import { AdminService } from "../../services/admin.service";
 import { ContactInboxComponent } from "./contact-inbox/contact-inbox.component";
 import { AdsSettingsComponent } from "./ads-settings/ads-settings.component";
 import { TopicsComponent } from "./topics/topics.component";
@@ -33,7 +35,9 @@ import { AuthService } from "../../services/auth.service";
   templateUrl: './admin-panel.component.html',
   styleUrls: ['./admin-panel.component.scss']
 })
-export class AdminPanelComponent implements OnInit {
+export class AdminPanelComponent implements OnInit, OnDestroy {
+
+  private inboxSub?: Subscription;
 
   readonly info = "info";
   readonly settings = "settings";
@@ -110,7 +114,8 @@ export class AdminPanelComponent implements OnInit {
 
   constructor(
     private menuService: NbMenuService,
-    private authService: AuthService
+    private authService: AuthService,
+    private adminService: AdminService
   ) { }
 
   ngOnInit(): void {
@@ -119,6 +124,22 @@ export class AdminPanelComponent implements OnInit {
       this.navigationMenu = this.navigationMenu.filter(i => i.icon !== 'activity-outline');
     }
     this.handleMenuItemClick()
+
+    // A number next to "פניות" and "דיווחים" = how many are still open (the owner and "מנהל 1" only; the server enforces it too)
+    this.adminService.refreshInbox();
+    this.inboxSub = this.adminService.inboxObservable.subscribe(c => {
+      this.setBadge('email-outline', c.contact);
+      this.setBadge('alert-triangle-outline', c.reports);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.inboxSub?.unsubscribe();
+  }
+
+  private setBadge(icon: string, count: number) {
+    const item = this.navigationMenu.find(i => i.icon === icon);
+    if (item) item.badge = count > 0 ? { text: String(count), status: 'danger' } : undefined;
   }
 
   handleMenuItemClick() {

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { NbButtonModule, NbCardModule, NbToastrService } from '@nebular/theme';
 import { ContactMessage, ContactService } from '../../../services/contact.service';
 import { MessageTimePipe } from '../../../pipes/message-time.pipe';
+import { AdminService } from '../../../services/admin.service';
 
 @Component({
   selector: 'app-contact-inbox',
@@ -13,7 +14,7 @@ export class ContactInboxComponent implements OnInit {
   status: 'open' | 'all' = 'open';
   loading = false;
 
-  constructor(private contactService: ContactService, private toastrService: NbToastrService) { }
+  constructor(private contactService: ContactService, private toastrService: NbToastrService, private adminService: AdminService) { }
 
   ngOnInit(): void {
     this.load();
@@ -35,6 +36,7 @@ export class ContactInboxComponent implements OnInit {
     try {
       await this.contactService.setHandled(m.id, !m.handled);
       m.handled = !m.handled;
+      this.adminService.refreshInbox();
       if (this.status === 'open' && m.handled) {
         this.messages = this.messages.filter(x => x.id !== m.id);
       }

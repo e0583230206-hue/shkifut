@@ -95,6 +95,15 @@ try:
     check("manager 1: reads the contact messages", ok(one, "GET", "/api/admin/contact"))
     check("manager 1: sees who is online", ok(one, "GET", "/api/admin/presence"))
     check("manager 1: statistics", ok(one, "GET", "/api/admin/statistics"))
+    # reports and the numbers of open reports / contact messages (the tabs of the admin panel): the owner and manager 1 only
+    check("manager 1: reads the reports and the numbers of what is still open", ok(one, "GET", "/api/admin/reports/get?status=open") and ok(one, "GET", "/api/admin/inbox-counts"))
+    st, body = call(one, "GET", "/api/admin/inbox-counts")
+    cnt = json.loads(body) if st == 200 else {}
+    check("the numbers are two whole numbers (reports, contact)", isinstance(cnt.get("reports"), int) and isinstance(cnt.get("contact"), int), cnt)
+    check("owner: reads the reports and the numbers", ok(owner, "GET", "/api/admin/reports/get?status=open") and ok(owner, "GET", "/api/admin/inbox-counts"))
+    for name, op in (("manager 2", two), ("a reader", rd)):
+        check(f"{name}: no reports, no numbers of reports / contact", not any(ok(op, m, p, {} if m == "POST" else None) for m, p in (
+            ("GET", "/api/admin/reports/get?status=open"), ("POST", "/api/admin/reports/set"), ("GET", "/api/admin/inbox-counts"))))
     # ---- what manager 2 may NOT ----
     check("manager 2: cannot read the contact messages", not ok(two, "GET", "/api/admin/contact"))
     check("manager 2: cannot mark a contact message as handled", not ok(two, "POST", "/api/admin/contact/set", {"id": "x", "handled": True}))
@@ -103,9 +112,9 @@ try:
     check("manager 2: no topics / channel info / emojis", not any(ok(two, "POST", p, {}) for p in ("/api/admin/topics", "/api/admin/edit-channel-info", "/api/admin/set-emojis")))
     # ---- what neither may (only the owner) ----
     for name, op in (("manager 1", one), ("manager 2", two), ("a reader", rd)):
-        check(f"{name}: no settings, no permissions, no reports, no cleanup",
+        check(f"{name}: no settings, no permissions, no cleanup",
               not any(ok(op, m, p, {} if m == "POST" else None) for m, p in (("GET", "/api/admin/settings/get"), ("POST", "/api/admin/settings/set"), ("GET", "/api/admin/privilegs-users/get-list"),
-                                                                             ("POST", "/api/admin/privilegs-users/set"), ("GET", "/api/admin/reports/get"), ("POST", "/api/admin/media/cleanup"))))
+                                                                             ("POST", "/api/admin/privilegs-users/set"), ("POST", "/api/admin/media/cleanup"))))
         check(f"{name}: cannot write messages (that is the 'writer' flag, not a manager's)", not ok(op, "POST", "/api/admin/new", {"type": "md", "text": "x"}))
     check("a reader: no contact, no presence", not ok(rd, "GET", "/api/admin/contact") and not ok(rd, "GET", "/api/admin/presence"))
 

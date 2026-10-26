@@ -33,9 +33,34 @@ export class AdminService {
 
   private schedulingMessages: ChatMessage[] | null = null;
 
+  /** Open (not handled) reports and contact messages, for the numbers next to the admin tabs; only the owner and "מנהל 1" can read them. */
+  private inbox = new BehaviorSubject<{ reports: number; contact: number }>({ reports: 0, contact: 0 });
+  inboxObservable = this.inbox.asObservable();
+  private inboxTimer?: ReturnType<typeof setInterval>;
+
   constructor(
     private http: HttpClient,
   ) { }
+
+  async refreshInbox() {
+    try {
+      const c = await firstValueFrom(this.http.get<{ reports: number; contact: number }>('/api/admin/inbox-counts'));
+      this.inbox.next({ reports: c.reports || 0, contact: c.contact || 0 });
+    } catch { /* not allowed or offline: keep the last numbers */ }
+  }
+
+  /** Checks the numbers now and then once a minute (not while the tab is hidden). */
+  startInboxWatch() {
+    if (this.inboxTimer) return;
+    this.refreshInbox();
+    this.inboxTimer = setInterval(() => { if (!document.hidden) this.refreshInbox(); }, 60000);
+  }
+
+  stopInboxWatch() {
+    clearInterval(this.inboxTimer);
+    this.inboxTimer = undefined;
+    this.inbox.next({ reports: 0, contact: 0 });
+  }
 
   reloadSchedulingMessage() {
     this.schedulingBus.next();

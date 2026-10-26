@@ -43,9 +43,14 @@
   }
 
   @if (userInfo) {
-    <nb-user [name]="userInfo.username" shape="round" [nbContextMenu]="userMenu" [nbContextMenuTag]="userMenuTag"
-      [picture]="userInfo.picture || ''" [onlyPicture]="isSmallScreen">
-    </nb-user>
+    <span class="user-wrap">
+      <nb-user [name]="userInfo.username" shape="round" [nbContextMenu]="userMenu" [nbContextMenuTag]="userMenuTag"
+        [picture]="userInfo.picture || ''" [onlyPicture]="isSmallScreen">
+      </nb-user>
+      @if (inboxTotal > 0) {
+        <span class="inbox-dot" title="פניות ודיווחים פתוחים" aria-label="{{ inboxTotal }} פניות ודיווחים פתוחים">{{ inboxTotal }}</span>
+      }
+    </span>
   } @else {
     <button nbButton shape="round" appearance="outline" title="התחבר באמצעות חשבון גוגל"
       (click)="_authService.loginWithGoogle()">

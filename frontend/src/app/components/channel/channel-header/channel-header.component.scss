@@ -107,7 +107,8 @@
         margin: 0.1rem !important;
     }
 
-    .hdr > nb-user {
+    .hdr > nb-user,
+    .hdr > .user-wrap {
         margin: 0.1rem !important;
     }
 
@@ -124,4 +125,27 @@
     .site-count {
         font-size: 0.7rem;
     }
+}
+
+/* a number on the user's picture: open reports + contact messages (owner and "מנהל 1" only) */
+.user-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.inbox-dot {
+    position: absolute;
+    top: -4px;
+    inset-inline-start: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #e53935;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    pointer-events: none;
 }

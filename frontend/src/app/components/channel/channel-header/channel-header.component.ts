@@ -15,6 +15,7 @@ import { Router, RouterLink } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { Title } from '@angular/platform-browser';
 import { AuthService } from '../../../services/auth.service';
+import { AdminService } from '../../../services/admin.service';
 import { ChatService } from '../../../services/chat.service';
 import { NotificationsService } from '../../../services/notifications.service';
 import { AdminPanelComponent } from "../../admin/admin-panel.component";
@@ -41,10 +42,24 @@ export class ChannelHeaderComponent implements OnInit {
   @Input()
   set userInfo(user: User | undefined) {
     this._userInfo = user;
+    // The owner and "מנהל 1" see a number on "ניהול ערוץ": open reports + open contact messages (checked once a minute)
+    if (this.isManager) this.adminService.startInboxWatch(); else this.adminService.stopInboxWatch();
+    this.buildUserMenu();
+  }
+
+  private get isManager() {
+    return !!(this._userInfo?.privileges?.['admin'] || this._userInfo?.privileges?.['moderator']);
+  }
+
+  /** Open reports + open contact messages (0 for everyone who is not a manager). */
+  inboxTotal = 0;
+
+  private buildUserMenu() {
     this.userMenu = [
-      ...((user?.privileges?.['admin'] || user?.privileges?.['moderator']) ? [{
+      ...(this.isManager ? [{
         title: 'ניהול ערוץ',
         icon: 'people-outline',
+        ...(this.inboxTotal > 0 ? { badge: { text: String(this.inboxTotal), status: 'danger' as const } } : {}),
       }] : []),
       {
         title: 'התנתק',
@@ -83,6 +98,7 @@ export class ChannelHeaderComponent implements OnInit {
     private titleService: Title,
     private dialogService: NbDialogService,
     public themeService: ThemeService,
+    private adminService: AdminService,
   ) {
   }
 
@@ -96,6 +112,11 @@ export class ChannelHeaderComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.adminService.inboxObservable.subscribe(c => {
+      this.inboxTotal = c.reports + c.contact;
+      this.buildUserMenu();
+    });
+
     this.contextMenuService.onItemClick()
       .pipe(filter(({ tag }) => tag === 'theme-menu'))
       .subscribe(({ item }) => this.themeService.set(item.data as ThemeMode));

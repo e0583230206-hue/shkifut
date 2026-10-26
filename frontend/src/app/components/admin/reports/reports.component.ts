@@ -37,6 +37,7 @@ export class ReportsComponent implements OnInit {
     report.updatedAt = new Date();
     this.adminService.setReports(report).then(() => {
       this.toastrService.success('', report.closed ? 'דיווח נסגר בהצלחה' : 'דיווח נפתח מחדש');
+      this.adminService.refreshInbox();
       this.status === 'all' ? this.reports[this.reports.findIndex(r => r.id === report.id)] = report : this.reports = this.reports.filter(r => r.id !== report.id);
     }).catch(() => this.toastrService.danger('', ''));
   }
