@@ -30,10 +30,11 @@ const { makeChatSender } = require('./chat-sender.js');
 const chat = makeChatSender({ fetch, env: E, log });
 const { checkNotifyRequest } = require('./notify-guard.js');
 const { skipReason } = require('./message-filter.js');
-const { captureUntil, captureLine } = require('./capture.js');
+const { captureUntil, captureOn, captureLine } = require('./capture.js');
 const { stanzaId, snippetOf, quoteLine, createStore } = require('./reply-quote.js');
 const siteIds = createStore(path.join(MEDIA_DIR, 'wa-site-ids.json')); // WhatsApp message -> site message number (replies are quoted, repeats are not posted twice)
-const CAPTURE_FILE = path.join(MEDIA_DIR, 'capture-until'); // capture mode (capture.js): while its time has not passed, everything goes to the Chat only
+const CAPTURE_FILE = path.join(MEDIA_DIR, 'capture-until'); // capture mode (capture.js): chats other than the channel's group go to the Chat only
+const CAPTURE_ALL_FILE = path.join(MEDIA_DIR, 'capture-all');   // ... open until this file is removed
 const NOTIFY_KEY = E.NOTIFY_KEY || ''; // POST /notify from the site; without a key the endpoint is off
 
 function waToMd(t) {
@@ -124,8 +125,9 @@ async function handle(ev) {
   if (skip) { log('skipped (' + skip + ')', p.id || ''); return; }
   if (p.id && seen.has(p.id)) return;
   if (p.id) { seen.add(p.id); if (seen.size > 5000) seen.clear(); }
-  // Capture mode: text of every chat to the private Chat space, and NOTHING to the site (no matter which chat). Checked before the group filter.
-  if (captureUntil(CAPTURE_FILE)) {
+  // Capture mode: text of every chat that is not the channel's group to the private Chat space, and NOTHING of it to the site. The channel's group
+  // goes on below as always. Checked before the group filter.
+  if (captureOn(CAPTURE_FILE, CAPTURE_ALL_FILE) && !GROUP_IDS.includes(p.fromMe ? p.to : p.from)) {
     const line = captureLine(p);
     if (line) { log('capture: forwarded to the Chat only', p.id || ''); await postToGChat(line); }
     return;
@@ -179,12 +181,14 @@ async function health() {
     if (free < 0.1) log('WARNING: disk almost full,', Math.round(free * 100) + '% free');
   } catch {}
 }
-let captureWas = 0;
-setInterval(() => { // log when capture mode starts and ends (the time only)
-  const u = captureUntil(CAPTURE_FILE);
-  if (u && !captureWas) log('capture mode ON until', new Date(u).toISOString(), '- messages go to the Chat only, none to the site');
-  if (!u && captureWas) log('capture mode OFF');
-  captureWas = u;
+let captureWas = '', captureLogged = 0;
+setInterval(() => { // log when capture mode starts and ends (and once an hour while it is open, so it is not forgotten)
+  const on = captureOn(CAPTURE_FILE, CAPTURE_ALL_FILE);
+  if (on && !captureWas) log('capture mode ON (' + (on === 'all' ? 'open until capture-all is removed' : 'until ' + new Date(captureUntil(CAPTURE_FILE)).toISOString()) + ') - other chats go to the Chat only, none to the site; the channel group goes on as always');
+  else if (on === 'all' && Date.now() - captureLogged > 3600 * 1000) log('capture mode is still OPEN (capture-all)');
+  if (!on && captureWas) log('capture mode OFF');
+  if (on && (!captureWas || on === 'all') && Date.now() - captureLogged > 3600 * 1000) captureLogged = Date.now();
+  captureWas = on;
 }, 5000);
 setInterval(health, 10 * 60 * 1000); setTimeout(health, 30000);
 log('chat: ' + (chat.enabled ? 'ENABLED (original media -> ' + chat.space + ')' : 'disabled (no credentials)'));

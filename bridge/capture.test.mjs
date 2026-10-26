@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-const { captureUntil, captureLine, MAX_WINDOW_MS } = createRequire(import.meta.url)('./capture.js');
+const { captureUntil, captureOn, captureLine, MAX_WINDOW_MS } = createRequire(import.meta.url)('./capture.js');
 
 const NOW = 1_800_000_000_000;
 const withFile = (content, fn) => {
@@ -48,4 +48,19 @@ test('media is never carried over, only its kind; an empty message and status po
 
 test('a very long text is cut', () => {
   assert.ok(captureLine({ from: '972501112222@c.us', body: 'א'.repeat(9000) }).length < 3700);
+});
+
+test('captureOn: the open file wins, otherwise the window decides', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cap-'));
+  try {
+    const until = join(dir, 'capture-until'), all = join(dir, 'capture-all');
+    assert.equal(captureOn(until, all, NOW), '');
+    writeFileSync(until, String(NOW + 60_000));
+    assert.equal(captureOn(until, all, NOW), 'window');
+    assert.equal(captureOn(until, all, NOW + 120_000), '');       // the window has passed
+    writeFileSync(all, '');
+    assert.equal(captureOn(until, all, NOW + 120_000), 'all');    // open: no time limit
+    rmSync(all);
+    assert.equal(captureOn(until, all, NOW + 120_000), '');       // removing the file closes it
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

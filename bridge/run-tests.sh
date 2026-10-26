@@ -6,7 +6,7 @@ node --test bridge/chat-sender.test.mjs bridge/notify-guard.test.mjs bridge/mess
 B="$PWD/bridge"; command -v cygpath >/dev/null 2>&1 && B="$(cygpath -m "$B")"
 export MSYS_NO_PATHCONV=1
 fail=0
-for s in media-enabled media-disabled text-only chat-fails auth-fails other-group duplicate edit-events command-noise reply capture capture-expired notify notify-off; do
+for s in media-enabled media-disabled text-only chat-fails auth-fails other-group duplicate edit-events command-noise reply capture capture-all capture-expired notify notify-off; do
   out=$(docker run --rm -v "$B:/app:ro" -e SCENARIO=$s node:22-alpine node /app/bridge.integration.cjs 2>&1) || fail=1
   echo "$out" | grep -E "^(PASS|FAIL)" | sed "s/^/[$s] /"
 done
