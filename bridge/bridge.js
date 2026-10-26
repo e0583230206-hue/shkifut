@@ -30,6 +30,8 @@ const { makeChatSender } = require('./chat-sender.js');
 const chat = makeChatSender({ fetch, env: E, log });
 const { checkNotifyRequest } = require('./notify-guard.js');
 const { skipReason } = require('./message-filter.js');
+const { stanzaId, snippetOf, quoteLine, createStore } = require('./reply-quote.js');
+const siteIds = createStore(path.join(MEDIA_DIR, 'wa-site-ids.json')); // WhatsApp message -> site message number (replies are quoted, repeats are not posted twice)
 const NOTIFY_KEY = E.NOTIFY_KEY || ''; // POST /notify from the site; without a key the endpoint is off
 
 function waToMd(t) {
@@ -109,6 +111,8 @@ async function postToChannel(text) {
     body: JSON.stringify({ text }),
   });
   if (!r.ok) throw new Error('channel ' + r.status + ' ' + (await r.text()).slice(0, 200));
+  const out = await r.json().catch(() => null); // the site answers with the message it made
+  return out && Number.isInteger(out.id) ? out.id : 0;
 }
 
 async function handle(ev) {
@@ -126,6 +130,10 @@ async function handle(ev) {
   if (ALLOWED.length && !p.fromMe && !ALLOWED.some(a => sender.startsWith(a) || a.startsWith(sender))) {
     log('skipped sender', sender); return;
   }
+  if (p.id && siteIds.has(stanzaId(p.id))) return; // posted before (WhatsApp delivered it again, or the bridge was restarted)
+  // A reply to a message that is on the site gets the site's quote line in front (only text, see reply-quote.js).
+  const quotedSite = p.replyTo && p.replyTo.id ? siteIds.get(stanzaId(p.replyTo.id)) : 0;
+  const quote = quotedSite ? quoteLine(quotedSite, snippetOf(p.replyTo.body, p.replyTo.hasMedia)) : '';
   const parts = [];
   let media = null; // the original file (for the private Chat space)
   if (p.hasMedia) {
@@ -141,7 +149,12 @@ async function handle(ev) {
   sendToSpace(p, media).catch(e => log('chat error', e.message)); // independent of the site post below
   if (!CHANNEL_URL || !parts.length) return;
   for (let i = 1; i <= 3; i++) {
-    try { await postToChannel(parts.join('\n')); log('posted', p.id); return; }
+    try {
+      const siteId = await postToChannel((quote ? quote + '\n' : '') + parts.join('\n'));
+      if (p.id) siteIds.set(stanzaId(p.id), siteId);
+      log('posted', p.id, quote ? '(reply, quoted)' : (p.replyTo ? '(reply, not quoted: that message is not on the site)' : ''));
+      return;
+    }
     catch (e) { log('post failed try', i, e.message); await new Promise(r => setTimeout(r, 3000 * i)); }
   }
 }

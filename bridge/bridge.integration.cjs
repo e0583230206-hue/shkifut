@@ -6,6 +6,7 @@ const SCENARIO = process.env.SCENARIO;
 const GROUP = '120363427910588351@g.us';
 const ORIGINAL = Buffer.from('ORIGINAL-VIDEO-BYTES-' + 'x'.repeat(2000));
 const calls = [];
+let siteSeq = 0;
 const results = [];
 const check = (name, ok, detail = '') => { results.push(ok); console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  ' + detail)); };
 
@@ -25,7 +26,7 @@ globalThis.fetch = async (url, init = {}) => {
   calls.push({ method: init.method || 'GET', url, body, headers: init.headers || {} });
   if (url.startsWith('http://waha:3000')) return R(200, ORIGINAL, { 'content-type': 'video/mp4' });
   if (url === 'https://site.test/api/import/upload') return R(200, { url: '/api/files/aabbccddeeff00112233445566778899aabbccdd.mp4', filename: 'x.mp4', filetype: 'video' });
-  if (url === 'https://site.test/api/import/post') return R(200, { id: 1 });
+  if (url === 'https://site.test/api/import/post') return R(200, { id: ++siteSeq });   // the real site answers with the message it made
   if (url.startsWith('https://oauth2.googleapis.com/token')) return SCENARIO === 'auth-fails' ? R(400, { error: 'invalid_grant' }) : R(200, { access_token: 'at', expires_in: 3600 });
   if (url.includes('/attachments:upload')) return SCENARIO === 'chat-fails' ? R(403, { error: { message: 'not a member of the space' } }) : R(200, { attachmentDataRef: { attachmentUploadToken: 'UP' } });
   if (url === 'https://chat.googleapis.com/v1/spaces/AAAA/messages') return R(200, { name: 'spaces/AAAA/messages/1' });
@@ -123,6 +124,23 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
     await sleep(500);
     const posts = byUrl('site.test/api/import/post').map(c => JSON.parse(c.body).text);
     check('ordinary messages that merely contain those words are posted', JSON.stringify(posts) === JSON.stringify(keep), JSON.stringify(posts));
+  }
+  if (SCENARIO === 'reply') {
+    // A WhatsApp reply names the message it answers by its short id; the bridge quotes it only when that message is on the site.
+    const full = (stanza) => `false_${GROUP}_${stanza}_106953342742588@lid`;
+    await send({ ...base, id: full('AAAA1111'), hasMedia: false, body: 'ידיעה ראשונה' }); await sleep(300);
+    await send({ ...base, id: full('BBBB2222'), hasMedia: false, body: 'תגובה *חשובה*', replyTo: { id: 'AAAA1111', body: 'ידיעה ראשונה', hasMedia: false, participant: '972500000000@c.us' } }); await sleep(300);
+    await send({ ...base, id: full('CCCC3333'), hasMedia: false, body: 'עוד תגובה', replyTo: { id: 'NOTPOSTED9', body: 'טקסט פנימי שלא פורסם', hasMedia: false } }); await sleep(300);
+    await send({ ...base, id: full('DDDD4444'), hasMedia: false, body: 'תגובה לציטוט עם סימנים', replyTo: { id: full('AAAA1111'), body: '<script>x</script> [קישור](http://a) *מודגש*\nשורה שנייה (בסוגריים)', hasMedia: false } }); await sleep(300);
+    await send({ ...base, id: full('EEEE5555'), hasMedia: false, body: 'תשובה לתמונה', replyTo: { id: 'AAAA1111', body: '', hasMedia: true } }); await sleep(300);
+    await send({ ...base, id: full('AAAA1111'), hasMedia: false, body: 'ידיעה ראשונה' }); await sleep(400);   // delivered a second time (after a reconnect)
+    const posts = byUrl('site.test/api/import/post').map(c => JSON.parse(c.body).text);
+    check('a message that is not a reply is posted as it is', posts[0] === 'ידיעה ראשונה', JSON.stringify(posts[0]));
+    check('a reply gets the quote line with the number the site gave the first message', posts[1] === '[quote-embedded#](1@ידיעה ראשונה)\nתגובה **חשובה**', JSON.stringify(posts[1]));
+    check('a reply to a message that is not on the site has no quote, and the text of that message is not carried over', posts[2] === 'עוד תגובה' && !JSON.stringify(posts).includes('פנימי'), JSON.stringify(posts[2]));
+    check('markup, HTML and brackets in the quoted text cannot break the quote line or reach the page', /^\[quote-embedded#\]\(1@[^()<>\[\]@\n]*\)\nתגובה לציטוט עם סימנים$/.test(posts[3]) && !posts[3].includes('<script'), JSON.stringify(posts[3]));
+    check('a reply to a message that had only media quotes the word "מדיה", never the media', posts[4] === '[quote-embedded#](1@מדיה)\nתשובה לתמונה' && byUrl('/api/files').length === 0, JSON.stringify(posts[4]));
+    check('a message that WhatsApp delivers again is not posted twice', posts.length === 5, String(posts.length));
   }
   if (SCENARIO === 'notify' || SCENARIO === 'notify-off') {
     const post = (headers, body, method = 'POST') => new Promise((res) => {
