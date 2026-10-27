@@ -10,7 +10,7 @@ let siteSeq = 0;
 const results = [];
 const check = (name, ok, detail = '') => { results.push(ok); console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  ' + detail)); };
 
-const enabled = ['media-enabled', 'chat-fails', 'auth-fails', 'text-only', 'duplicate', 'edit-events', 'command-noise'].includes(SCENARIO);
+const enabled = ['media-enabled', 'chat-fails', 'auth-fails', 'text-only', 'duplicate', 'edit-events', 'command-noise', 'capture', 'capture-all', 'capture-media-fails'].includes(SCENARIO);
 Object.assign(process.env, {
   WAHA_URL: 'http://waha:3000', WAHA_API_KEY: 'waha-key', CHANNEL_API_KEY: 'site-key', GROUP_IDS: GROUP, MEDIA_DIR: '/tmp/media-test',
   CHANNEL_IMPORT_URL: 'https://site.test/api/import/post', CHANNEL_UPLOAD_URL: 'https://site.test/api/import/upload',
@@ -28,7 +28,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (url === 'https://site.test/api/import/upload') return R(200, { url: '/api/files/aabbccddeeff00112233445566778899aabbccdd.mp4', filename: 'x.mp4', filetype: 'video' });
   if (url === 'https://site.test/api/import/post') return R(200, { id: ++siteSeq });   // the real site answers with the message it made
   if (url.startsWith('https://oauth2.googleapis.com/token')) return SCENARIO === 'auth-fails' ? R(400, { error: 'invalid_grant' }) : R(200, { access_token: 'at', expires_in: 3600 });
-  if (url.includes('/attachments:upload')) return SCENARIO === 'chat-fails' ? R(403, { error: { message: 'not a member of the space' } }) : R(200, { attachmentDataRef: { attachmentUploadToken: 'UP' } });
+  if (url.includes('/attachments:upload')) return SCENARIO === 'chat-fails' || SCENARIO === 'capture-media-fails' ? R(403, { error: { message: 'not a member of the space' } }) : R(200, { attachmentDataRef: { attachmentUploadToken: 'UP' } });
   if (url === 'https://chat.googleapis.com/v1/spaces/AAAA/messages') return R(200, { name: 'spaces/AAAA/messages/1' });
   if (url.startsWith('https://chat.googleapis.com/v1/spaces/AAAA/messages?key=')) return R(200, {}); // the webhook
   return R(404, {});
@@ -142,12 +142,12 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
     check('a reply to a message that had only media quotes the word "מדיה", never the media', posts[4] === '[quote-embedded#](1@מדיה)\nתשובה לתמונה' && byUrl('/api/files').length === 0, JSON.stringify(posts[4]));
     check('a message that WhatsApp delivers again is not posted twice', posts.length === 5, String(posts.length));
   }
-  if (SCENARIO === 'capture' || SCENARIO === 'capture-all' || SCENARIO === 'capture-expired') {
+  if (SCENARIO === 'capture' || SCENARIO === 'capture-all' || SCENARIO === 'capture-expired' || SCENARIO === 'capture-media-fails') {
     // Capture mode (a window, or open until a file is removed): chats other than the channel's group go to the Chat as text and NOTHING of them to
     // the site; the channel's group goes on as always (the site and the Chat).
     const fs = require('fs');
     fs.mkdirSync('/tmp/media-test', { recursive: true });
-    if (SCENARIO === 'capture-all') fs.writeFileSync('/tmp/media-test/capture-all', '');
+    if (SCENARIO === 'capture-all' || SCENARIO === 'capture-media-fails') fs.writeFileSync('/tmp/media-test/capture-all', '');
     else fs.writeFileSync('/tmp/media-test/capture-until', String(Date.now() + (SCENARIO === 'capture' ? 60000 : -1000)));
     const personal = { from: '972501112222@c.us', hasMedia: false, _data: { Info: { PushName: 'דנה' } } };
     await send({ ...base, id: 'c1', hasMedia: false, body: 'חדשות מהקבוצה של הערוץ' }); await sleep(300);
@@ -159,13 +159,21 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
     const texts = webhookPosts();
     const sitePosts = byUrl('site.test/api/import/post').map(c => JSON.parse(c.body).text);
     const mine = texts.filter(t => t.startsWith('💬'));
-    if (SCENARIO !== 'capture-expired') {
-      check('a personal chat, my own message and a picture of a personal chat went to the Chat as text', mine.length === 3 && mine[0].includes('דנה') && mine[1].includes('אני') && mine[2].includes('[מדיה: image/jpeg - לא נשלחה]'), JSON.stringify(texts));
+    if (SCENARIO === 'capture' || SCENARIO === 'capture-all') {
+      check('a personal chat and my own message went to the Chat as text (the picture goes as a file, below)', mine.length === 2 && mine[0].includes('דנה') && mine[1].includes('אני'), JSON.stringify(texts));
       check('the channel group goes on to the site as always', sitePosts.length === 1 && sitePosts[0] === 'חדשות מהקבוצה של הערוץ', JSON.stringify(sitePosts));
       check('... and to the Chat, as before (plain, without the capture header)', texts.includes('חדשות מהקבוצה של הערוץ'), JSON.stringify(texts));
       check('NOTHING of the other chats reached the site (no post, no upload)', byUrl('site.test').length === 1 && !JSON.stringify(byUrl('site.test')).includes('אישית') && !JSON.stringify(byUrl('site.test')).includes('אני כתבתי'), JSON.stringify(byUrl('site.test').map(c => c.url)));
-      check('the media of the personal chat was not downloaded and not sent to Chat as a file', byUrl('waha:3000').length === 0 && byUrl('/attachments:upload').length === 0 && !mine.join('').includes('http'));
+      check('the picture of the personal chat was taken from WAHA once', byUrl('waha:3000').length === 1, String(byUrl('waha:3000').length));
+      const up = byUrl('/attachments:upload');
+      check('... and went to the private Chat as the ORIGINAL file, nothing of it to the site', up.length === 1 && asBuf(up[0].body).includes(ORIGINAL) && byUrl('site.test/api/import/upload').length === 0);
+      const cm = calls.filter(c => c.url === 'https://chat.googleapis.com/v1/spaces/AAAA/messages').map(c => JSON.parse(c.body));
+      check('the message of the file carries who / which chat / the caption, and no "not sent" note', cm.length === 1 && cm[0].text.includes('דנה') && cm[0].text.includes('תמונה אישית') && !cm[0].text.includes('לא נשלחה') && cm[0].attachment[0].attachmentDataRef.attachmentUploadToken === 'UP', JSON.stringify(cm));
       check('a status post is not forwarded, and a message delivered twice is forwarded once', !texts.join('').includes('סטטוס של מישהו') && mine.filter(t => t.includes('הודעה אישית')).length === 1);
+    } else if (SCENARIO === 'capture-media-fails') {
+      check('the channel group goes on to the site as always', sitePosts.length === 1 && sitePosts[0] === 'חדשות מהקבוצה של הערוץ', JSON.stringify(sitePosts));
+      check('the Chat refused the file: the text still arrives, with a note that the upload failed', mine.some(t => t.includes('תמונה אישית') && t.includes('ההעלאה לצ׳אט נכשלה')), JSON.stringify(texts));
+      check('... and nothing reached the site from the personal chat', byUrl('site.test').length === 1 && !JSON.stringify(byUrl('site.test')).includes('אישית'));
     } else {
       check('the window has passed: the channel group goes to the site as always', sitePosts.length === 1 && sitePosts[0] === 'חדשות מהקבוצה של הערוץ');
       check('... and a personal chat goes nowhere', !JSON.stringify(calls).includes('הודעה אישית') && !JSON.stringify(calls).includes('אני כתבתי'), JSON.stringify(texts));

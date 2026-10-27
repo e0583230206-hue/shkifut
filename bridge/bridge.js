@@ -128,14 +128,26 @@ async function handle(ev) {
   // Capture mode: text of every chat that is not the channel's group to the private Chat space, and NOTHING of it to the site. The channel's group
   // goes on below as always. Checked before the group filter.
   if (captureOn(CAPTURE_FILE, CAPTURE_ALL_FILE) && !GROUP_IDS.includes(p.fromMe ? p.to : p.from)) {
-    const line = captureLine(p);
+    // The owner's own chats go to the private Chat only, with the original file (voice messages, pictures, videos, documents); never to the site.
+    let state = '';
+    let media = null;
+    if (p.hasMedia) {
+      try { media = await fetchMedia(p.media); } catch (e) { log('capture: media error', e.message); }
+      state = 'failed';
+      if (media && chat.enabled) {
+        const caption = captureLine(p, 'sent');
+        try { await chat.sendMedia({ buf: media.buf, mime: media.mime, filename: media.filename, caption }); log('capture: forwarded to the Chat only (with the file)', p.id || ''); return; }
+        catch (e) { log('capture: chat media failed:', e.message); if (e.authFailed) alertAuth(); }
+      }
+    }
+    const line = captureLine(p, state || undefined);
     if (line) { log('capture: forwarded to the Chat only', p.id || ''); await postToGChat(line); }
     return;
   }
-  const chat = p.fromMe ? p.to : p.from;
-  if (!chat || !chat.endsWith('@g.us')) return;
-  if (!GROUP_IDS.length) { log('GROUP FOUND (set GROUP_IDS):', chat, '| text:', (p.body || '').slice(0, 40)); return; }
-  if (!GROUP_IDS.includes(chat)) return;
+  const chatId = p.fromMe ? p.to : p.from;   // not "chat": that is the Chat sender (capture mode above uses it)
+  if (!chatId || !chatId.endsWith('@g.us')) return;
+  if (!GROUP_IDS.length) { log('GROUP FOUND (set GROUP_IDS):', chatId, '| text:', (p.body || '').slice(0, 40)); return; }
+  if (!GROUP_IDS.includes(chatId)) return;
   const sender = String(p.participant || (p._data && p._data.Info && p._data.Info.Sender) || p.author || '').replace(/\D/g, '');
   if (ALLOWED.length && !p.fromMe && !ALLOWED.some(a => sender.startsWith(a) || a.startsWith(sender))) {
     log('skipped sender', sender); return;

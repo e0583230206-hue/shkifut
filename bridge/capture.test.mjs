@@ -64,3 +64,11 @@ test('captureOn: the open file wins, otherwise the window decides', () => {
     assert.equal(captureOn(until, all, NOW + 120_000), '');       // removing the file closes it
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('media: sent = the file travels with the message (no note), failed = noted, otherwise only the kind', () => {
+  const m = { from: '972501112222@c.us', hasMedia: true, body: '', media: { mimetype: 'audio/ogg; codecs=opus' } };
+  assert.equal(captureLine(m, 'sent'), '💬 972501112222 › שיחה אישית\n');
+  assert.ok(captureLine(m, 'failed').includes('ההעלאה לצ׳אט נכשלה') && captureLine(m, 'failed').includes('audio/ogg'));
+  assert.ok(captureLine(m).includes('[מדיה: audio/ogg - לא נשלחה]'));
+  assert.equal(captureLine({ from: '972501112222@c.us', hasMedia: false, body: '' }, 'sent'), '');
+});
