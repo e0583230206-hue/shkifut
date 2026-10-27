@@ -5,7 +5,7 @@ import { NbButtonModule, NbCardModule, NbDialogRef, NbToastrService } from '@neb
 import { HANDLES, Handle, Shape, ShapeType, fromDrag, hit, move, resize } from '../../../manual-blur-geometry';
 import {
   Interp, MAX_KEYS, MAX_TRACKS, MAX_VIDEO_SEC, Track, TrackHistory, addTrack, boxAt, deleteKey, deleteTrack, formatTime, fromServer, nearestKey, sameTracks,
-  setEnd, setInterp, setKey, toRequest, FOLLOW_STEP, FollowSample, recordFollow,
+  setEnd, setInterp, setKey, toRequest, FOLLOW_STEP, FollowSample, recordFollow, scaleBox,
 } from '../../../manual-blur-video-model';
 
 interface ManualVideoState {
@@ -17,7 +17,9 @@ interface ManualVideoState {
   job?: { state: string; percent?: number; error?: string };
 }
 
-type Tool = 'select' | ShapeType;
+type Tool = 'select' | 'brush' | ShapeType;
+
+const MIN_BRUSH = 0.01, MAX_BRUSH = 0.2;   // the radius of the brush: a share of the width of the picture
 
 const FRAME = 1 / 30;   // one step of the frame buttons (the page does not know the exact frame rate)
 
@@ -58,6 +60,9 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
   muted = true;
   /** The playback speed (a slower video is easier to follow with the mouse). */
   rate = 1;
+  /** The brush: a round blur that follows the mouse; its size is a radius (a share of the width). The ring shows it under the mouse. */
+  brushSize = 0.05;
+  hover: { x: number; y: number } | null = null;
   playing = false;
   time = 0;
   duration = 0;
@@ -133,6 +138,20 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
   get keyCount() { return this.tracks.reduce((n, t) => n + t.keys.length, 0); }
 
   /** The boxes shown on the picture at this second: the tracks that are active now (without the padding the renderer adds). */
+  /** Width / height of the picture as it is shown (a round brush has the same size in pixels both ways). */
+  get aspect() {
+    const r = this.stage?.nativeElement.getBoundingClientRect();
+    return r && r.height ? r.width / r.height : 16 / 9;
+  }
+
+  /** A round box of radius r (a share of the width) centred at (cx, cy), kept inside the picture. */
+  private brushBox(cx: number, cy: number, r: number): Shape {
+    const a = this.aspect;
+    const rr = Math.min(r, 0.5, 0.5 / a);
+    const w = 2 * rr, h = 2 * rr * a;
+    return { type: 'ellipse', x: Math.min(1 - w, Math.max(0, cx - rr)), y: Math.min(1 - h, Math.max(0, cy - h / 2)), w, h };
+  }
+
   get boxes(): { idx: number; box: Shape }[] {
     const out: { idx: number; box: Shape }[] = [];
     this.tracks.forEach((tr, idx) => { const b = boxAt(tr, this.time, 0); if (b) out.push({ idx, box: b }); });
@@ -241,6 +260,26 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     if (t !== 'select') this.selected = -1;
   }
 
+  /** Plus / minus: the box that is held or selected gets bigger or smaller (at this second a keyframe; while recording the next samples are bigger); the brush too. */
+  grow(f: number) {
+    const d = this.drag;
+    if (this.tool === 'brush') this.brushSize = Math.min(MAX_BRUSH, Math.max(MIN_BRUSH, this.brushSize * f));
+    if (d && d.mode === 'move' && d.startBox) {
+      d.startBox = scaleBox(d.startBox, f);
+      if (!d.follow) {
+        const next = setKey(d.startTracks, d.idx, this.time, move(d.startBox, (d.px ?? d.x0) - d.x0, (d.py ?? d.y0) - d.y0));
+        if (next) { this.tracks = next; d.changed = true; }
+      }
+      this.schedulePreview();
+      return;
+    }
+    if (this.selected < 0) return;
+    const b = boxAt(this.tracks[this.selected], this.time, 0);
+    if (!b) return;
+    const next = setKey(this.tracks, this.selected, this.time, scaleBox(b, f));
+    if (next) this.commit(next); else this.message = `אי אפשר יותר מ-${MAX_KEYS} נקודות מפתח בטשטוש אחד`;
+  }
+
   togglePreview() {
     this.previewOn = !this.previewOn;
     this.schedulePreview();
@@ -335,6 +374,16 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
       this.selected = shown[i].idx;
       this.video?.nativeElement.pause();
       this.drag = { mode: 'move', x0: p.x, y0: p.y, startTracks: this.tracks, startBox: shown[i].box, idx: shown[i].idx, changed: false };
+    } else if (this.tool === 'brush') {   // a round box under the mouse, which then follows it (paused: one keyframe; Space: recorded as the video plays)
+      if (this.tracks.length >= MAX_TRACKS) { this.message = `אפשר עד ${MAX_TRACKS} טשטושים בסרטון`; return; }
+      this.video?.nativeElement.pause();
+      const box = this.brushBox(p.x, p.y, this.brushSize);
+      const next = addTrack(this.tracks, box, this.time);
+      if (!next) return;
+      this.tracks = next;
+      this.selected = next.length - 1;
+      this.hover = null;
+      this.drag = { mode: 'move', x0: p.x, y0: p.y, px: p.x, py: p.y, startTracks: next, startBox: box, idx: next.length - 1, changed: true };
     } else {
       if (this.tracks.length >= MAX_TRACKS) { this.message = `אפשר עד ${MAX_TRACKS} טשטושים בסרטון`; return; }
       this.video?.nativeElement.pause();
@@ -348,7 +397,10 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
 
   onPointerMove(ev: PointerEvent) {
     const d = this.drag;
-    if (!d) return;
+    if (!d) {   // no button down: the ring of the brush follows the mouse
+      this.hover = this.tool === 'brush' ? this.point(ev) : null;
+      return;
+    }
     const p = this.point(ev);
     d.px = p.x;
     d.py = p.y;
@@ -454,6 +506,10 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     const mod = ev.ctrlKey || ev.metaKey;
     if (mod && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); ev.shiftKey ? this.redo() : this.undo(); }
     else if (mod && (ev.key === 'y' || ev.key === 'Y')) { ev.preventDefault(); this.redo(); }
+    else if ((ev.key === '+' || ev.key === '=' || ev.key === '-' || ev.key === '_') && !mod && tag !== 'INPUT') {
+      ev.preventDefault();
+      this.grow(ev.key === '+' || ev.key === '=' ? 1.15 : 1 / 1.15);
+    }
     else if (ev.key === ' ' && !ev.repeat && tag !== 'BUTTON' && tag !== 'SELECT') { ev.preventDefault(); this.togglePlay(); }
     else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
       ev.preventDefault();

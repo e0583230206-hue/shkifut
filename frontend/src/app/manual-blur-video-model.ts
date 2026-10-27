@@ -154,6 +154,15 @@ export function recordFollow(tracks: Track[], idx: number, samples: FollowSample
   return null;
 }
 
+/** The box made bigger (f > 1) or smaller (f < 1) around its centre, keeping its shape; it stays inside the picture and not smaller than MIN_SIZE. */
+export function scaleBox(b: Shape, f: number): Shape {
+  const lo = MIN_SIZE / Math.min(b.w, b.h), hi = 1 / Math.max(b.w, b.h);
+  const k = lo > hi ? 1 : Math.min(hi, Math.max(lo, f));
+  const w = b.w * k, h = b.h * k;
+  const x = Math.min(1 - w, Math.max(0, b.x + b.w / 2 - w / 2)), y = Math.min(1 - h, Math.max(0, b.y + b.h / 2 - h / 2));
+  return { ...b, x, y, w, h };
+}
+
 /** The index of the keyframe within KEY_MERGE of second t, or -1. */
 export function nearestKey(tr: Track, t: number): number {
   let best = -1, bestD = KEY_MERGE;

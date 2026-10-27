@@ -23,7 +23,10 @@
     <div class="toolbar" role="toolbar" aria-label="כלי טשטוש">
       <button type="button" class="tool" [class.on]="tool === 'rect'" (click)="setTool('rect')" aria-pressed="{{ tool === 'rect' }}" title="צייר מלבן על הסרטון בשנייה הנוכחית">▭ מלבן</button>
       <button type="button" class="tool" [class.on]="tool === 'ellipse'" (click)="setTool('ellipse')" aria-pressed="{{ tool === 'ellipse' }}" title="צייר עיגול או אליפסה בשנייה הנוכחית">◯ עיגול</button>
+      <button type="button" class="tool" [class.on]="tool === 'brush'" (click)="setTool('brush')" aria-pressed="{{ tool === 'brush' }}" title="מברשת: עיגול שהולך אחרי העכבר. לחץ והחזק, רווח לניגון, והזז. המקשים + ו- משנים את הגודל">🖌 מברשת</button>
       <button type="button" class="tool" [class.on]="tool === 'select'" (click)="setTool('select')" aria-pressed="{{ tool === 'select' }}" title="בחר טשטוש: הזזה או שינוי גודל בשנייה הנוכחית יוצרים נקודת מפתח">✥ בחירה והזזה</button>
+      <button type="button" class="tool" (click)="grow(1 / 1.15)" title="הקטן את הטשטוש הנבחר או את המברשת (מקש -)" aria-label="הקטן">➖</button>
+      <button type="button" class="tool" (click)="grow(1.15)" title="הגדל את הטשטוש הנבחר או את המברשת (מקש +)" aria-label="הגדל">➕</button>
       <span class="sep"></span>
       <button type="button" class="tool" (click)="undo()" [disabled]="!canUndo" title="ביטול (Ctrl+Z)">↶ ביטול</button>
       <button type="button" class="tool" (click)="redo()" [disabled]="!canRedo" title="חזרה (Ctrl+Y)">↷ חזרה</button>
@@ -32,7 +35,7 @@
       <span class="count" aria-live="polite">{{ tracks.length }} טשטושים · {{ keyCount }} נקודות מפתח</span>
     </div>
 
-    <div class="note" role="note">💡 <strong>לעקוב אחרי משהו שזז:</strong> סמן צורה, לחץ עליה והחזק את הכפתור השמאלי, לחץ רווח כדי שהסרטון ינגן, והזז את העכבר: הטשטוש ילך אחריו ונרשם. הרמת הכפתור עוצרת את ההקלטה. רווח שוב עוצר זמנית. כדי שיהיה קל יותר, בחר מהירות 0.5× או 0.25×.</div>
+    <div class="note" role="note">💡 <strong>לעקוב אחרי משהו שזז:</strong> סמן צורה (או בחר ״מברשת״ ולחץ על הסרטון), לחץ עליה והחזק את הכפתור השמאלי, לחץ רווח כדי שהסרטון ינגן, והזז את העכבר: הטשטוש ילך אחריו ונרשם. הרמת הכפתור עוצרת את ההקלטה. רווח שוב עוצר זמנית. המקשים + ו- משנים את הגודל, גם תוך כדי הקלטה. כדי שיהיה קל יותר, בחר מהירות 0.5× או 0.25×.</div>
     <div class="note scratch" role="note">⚠ שים לב: מה שלא מסומן בצורה <strong>יוצג לקוראים</strong>, גם אם הטשטוש האוטומטי היה מטשטש אותו, וגם בשניות שבהן אין טשטוש. סמן כל מה שצריך להיות מטושטש, לכל אורך הסרטון.</div>
     @if (staleNotice) {
     <div class="note" role="status">
@@ -49,9 +52,12 @@
     <div class="stage-wrap">
       <div #stage class="stage" [class.drawing]="tool !== 'select'" tabindex="0" aria-label="אזור העריכה של הסרטון"
         (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)"
-        (pointercancel)="onPointerCancel()">
+        (pointercancel)="onPointerCancel()" (pointerleave)="hover = null">
         <video #video [src]="videoUrl" [muted]="muted" preload="auto" playsinline (loadedmetadata)="onLoadedMetadata()" (error)="onVideoError()"
           (play)="onPlay()" (pause)="onPause()" (seeked)="syncTime()" (ended)="onPause()" aria-label="הסרטון לעריכה"></video>
+        @if (tool === 'brush' && hover && !following) {
+        <div class="ring" [style.left.%]="(hover.x - brushSize) * 100" [style.top.%]="(hover.y - brushSize * aspect) * 100" [style.width.%]="brushSize * 200" [style.height.%]="brushSize * 200 * aspect" aria-hidden="true"></div>
+        }
         <canvas #preview class="preview" [hidden]="!previewOn" aria-hidden="true"></canvas>
         @for (b of boxes; track b.idx) {
         <div class="shape" [class.ellipse]="b.box.type === 'ellipse'" [class.selected]="isSelected(b.idx)" tabindex="0" role="button"

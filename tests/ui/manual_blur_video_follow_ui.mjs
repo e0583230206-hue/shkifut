@@ -132,6 +132,61 @@ try {
   // undo takes the whole recording back in one step
   await key('z', 2, 'KeyZ');
   check('Ctrl+Z takes the whole recording back (one keyframe again)', (await nKeys()) === 1, await nKeys());
+
+  // ---- the brush: a round blur under the mouse, + / - change its size, it follows the mouse while the video plays ----
+  await seekTo(10);
+  await clickText('app-manual-blur-video .tool', 'מברשת');
+  r = await rectOf('app-manual-blur-video .stage');
+  await mouse('mouseMoved', at(r, 0.7, 0.6), 0); await sleep(150);
+  check('brush: a ring shows the size under the mouse', await ev(`!!document.querySelector('app-manual-blur-video .stage .ring')`));
+  const ringW = await ev(`document.querySelector('app-manual-blur-video .stage .ring').getBoundingClientRect().width`);
+  const ringH = await ev(`document.querySelector('app-manual-blur-video .stage .ring').getBoundingClientRect().height`);
+  check('the ring is round (same width and height in pixels)', Math.abs(ringW - ringH) < 2, `${ringW} x ${ringH}`);
+  await mouse('mousePressed', at(r, 0.7, 0.6)); await mouse('mouseReleased', at(r, 0.7, 0.6)); await sleep(250);
+  check('a click makes a round blur (a second track, one keyframe)', (await nTracks()) === 2 && (await nKeys(1)) === 1, `${await nTracks()} ${await nKeys(1)}`);
+  const bi = async () => { const i = (await ev(`document.querySelectorAll('app-manual-blur-video .stage .shape:not(.draft)').length`)) - 1; return { b: await boxStyle(i), i }; };
+  const px = (b) => ({ w: b.w / 100 * r.w, h: b.h / 100 * r.h, cx: (b.l + b.w / 2) / 100 * r.w, cy: (b.t + b.h / 2) / 100 * r.h });
+  let c0 = px((await bi()).b);
+  check('it is a circle in pixels, centred on the click', Math.abs(c0.w - c0.h) < 3 && Math.abs(c0.cx - r.w * 0.7) < 4 && Math.abs(c0.cy - r.h * 0.6) < 4, JSON.stringify(c0));
+  await key('+');
+  let c1 = px((await bi()).b);
+  check('"+" makes it bigger (and still round, same centre)', c1.w > c0.w * 1.1 && Math.abs(c1.w - c1.h) < 3 && Math.abs(c1.cx - c0.cx) < 3, `${c0.w} -> ${c1.w}`);
+  check('the size change is a keyframe at this second (still one: same second)', (await nKeys(1)) === 1, await nKeys(1));
+  await key('-'); await key('-');
+  let c2 = px((await bi()).b);
+  check('"-" makes it smaller', c2.w < c1.w * 0.9, `${c1.w} -> ${c2.w}`);
+  await key('z', 2, 'KeyZ'); await key('z', 2, 'KeyZ'); await key('z', 2, 'KeyZ');
+
+  // hold, Space, move: it follows; "+" while recording makes the next part bigger
+  await seekTo(12);
+  const tracksBefore = await nTracks();
+  r = await rectOf('app-manual-blur-video .stage');
+  const s0 = at(r, 0.2, 0.7);
+  await mouse('mouseMoved', s0, 0); await mouse('mousePressed', s0);
+  await key(' ');
+  check('brush: Space while the button is held plays and records', await waitFor(`!document.querySelector('app-manual-blur-video video').paused && !!document.querySelector('app-manual-blur-video .rec')`, 3000));
+  for (let i = 1; i <= 16; i++) { await mouse('mouseMoved', { x: s0.x + r.w * 0.5 * i / 16, y: s0.y - r.h * 0.2 * i / 16 }); await sleep(100); if (i === 8) await key('+'); }
+  await mouse('mouseReleased', { x: s0.x + r.w * 0.5, y: s0.y - r.h * 0.2 }); await sleep(500);
+  const nk = await nKeys(tracksBefore);
+  check('the brush recorded a path (keyframes)', (await nTracks()) === tracksBefore + 1 && nk >= 3 && nk < 40, `${await nTracks()} ${nk}`);
+  const tEnd = await ev(`document.querySelector('app-manual-blur-video video').currentTime`);
+  await seekTo(12.2);
+  const early = px((await bi()).b);
+  await seekTo(Math.min(39, tEnd + 0.5));
+  const late = px((await bi()).b);
+  check('it moved right and up with the mouse', late.cx > early.cx + r.w * 0.2 && late.cy < early.cy - r.h * 0.05, `${JSON.stringify(early)} ${JSON.stringify(late)}`);
+  check('"+" during the recording made it bigger later on, and it is still round', late.w > early.w * 1.1 && Math.abs(late.w - late.h) < 4, `${early.w} -> ${late.w} (${late.h})`);
+  await shot('f2-brush.png');
+
+  // plus / minus on a rectangle too
+  await clickText('app-manual-blur-video .tool', 'בחירה');
+  await seekTo(8);
+  r = await rectOf('app-manual-blur-video .stage');
+  const rb0 = await boxStyle(0);
+  await mouse('mouseMoved', at(r, (rb0.l + rb0.w / 2) / 100, (rb0.t + rb0.h / 2) / 100), 0); await mouse('mousePressed', at(r, (rb0.l + rb0.w / 2) / 100, (rb0.t + rb0.h / 2) / 100)); await mouse('mouseReleased', at(r, (rb0.l + rb0.w / 2) / 100, (rb0.t + rb0.h / 2) / 100)); await sleep(200);
+  await key('+');
+  const rb1 = await boxStyle(0);
+  check('a rectangle: "+" makes it bigger, same shape', rb1 && rb1.w > rb0.w * 1.1 && Math.abs(rb1.w / rb1.h - rb0.w / rb0.h) < 0.05, `${JSON.stringify(rb0)} ${JSON.stringify(rb1)}`);
 } catch (e) { console.log('ERROR', e); results.push(false); }
 try { ws.close(); proc.kill(); } catch {}
 console.log(results.every(Boolean) ? '\nALL PASSED' : '\nSOME CHECKS FAILED');
