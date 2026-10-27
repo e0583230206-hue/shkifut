@@ -113,6 +113,47 @@ export function setKey(tracks: Track[], idx: number, t: number, box: Shape): Tra
   return tracks.map((x, i) => (i === idx ? { ...x, keys } : x));
 }
 
+/** While a box follows the mouse during playback, a position is recorded at most this often (seconds). */
+export const FOLLOW_STEP = 0.1;
+const FOLLOW_TOLERANCE = 0.003;   // a share of the picture: a recorded point on a straight line, closer than this to it, is dropped
+
+export interface FollowSample { t: number; box: Shape }
+
+/** The samples that matter: the ends, and every point a straight line between its neighbours would miss by more than `tol` (Douglas-Peucker in x, y and time). */
+function thin(samples: FollowSample[], tol: number): FollowSample[] {
+  const keep = new Array(samples.length).fill(false);
+  keep[0] = keep[samples.length - 1] = true;
+  const walk = (a: number, b: number) => {
+    let worst = -1, worstD = tol;
+    for (let i = a + 1; i < b; i++) {
+      const s = (samples[i].t - samples[a].t) / (samples[b].t - samples[a].t);
+      const dx = Math.abs(samples[i].box.x - (samples[a].box.x + (samples[b].box.x - samples[a].box.x) * s));
+      const dy = Math.abs(samples[i].box.y - (samples[a].box.y + (samples[b].box.y - samples[a].box.y) * s));
+      const d = Math.max(dx, dy);
+      if (d > worstD) { worst = i; worstD = d; }
+    }
+    if (worst >= 0) { keep[worst] = true; walk(a, worst); walk(worst, b); }
+  };
+  if (samples.length > 2) walk(0, samples.length - 1);
+  return samples.filter((_, i) => keep[i]);
+}
+
+/**
+ * A recording of the box of a track following the mouse while the video played: the keyframes from the first sample to the last are replaced by the
+ * thinned samples (keyframes before and after stay). Null when it would need more than MAX_KEYS keyframes, or there is nothing to record.
+ */
+export function recordFollow(tracks: Track[], idx: number, samples: FollowSample[]): Track[] | null {
+  const tr = tracks[idx];
+  if (!tr || !samples.length) return null;
+  const t0 = samples[0].t, t1 = samples[samples.length - 1].t;
+  const kept = tr.keys.filter(k => k.t < t0 - KEY_MERGE || k.t > t1 + KEY_MERGE);
+  for (let tol = FOLLOW_TOLERANCE; tol < 0.2; tol *= 2) {
+    const keys = [...kept, ...thin(samples, tol).map(s => keyOf(s.t, s.box))].sort((a, b) => a.t - b.t);
+    if (keys.length <= MAX_KEYS) return tracks.map((x, i) => (i === idx ? { ...x, keys } : x));
+  }
+  return null;
+}
+
 /** The index of the keyframe within KEY_MERGE of second t, or -1. */
 export function nearestKey(tr: Track, t: number): number {
   let best = -1, bestD = KEY_MERGE;

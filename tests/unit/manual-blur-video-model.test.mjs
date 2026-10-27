@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   pchipDerivatives, evalChannel, boxAt, addTrack, setKey, nearestKey, deleteKey, deleteTrack, setEnd, setInterp, sameTracks, toRequest, fromServer,
-  TrackHistory, formatTime, MAX_TRACKS, MAX_KEYS, KEY_MERGE, PAD_FRAMES,
+  TrackHistory, formatTime, recordFollow, MAX_TRACKS, MAX_KEYS, KEY_MERGE, PAD_FRAMES,
 } from '../../frontend/src/app/manual-blur-video-model.ts';
 
 const fx = (name) => JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', name), 'utf8'));
@@ -139,4 +139,28 @@ test('time display', () => {
   assert.equal(formatTime(0), '0:00.0');
   assert.equal(formatTime(65.43), '1:05.4');
   assert.equal(formatTime(-3), '0:00.0');
+});
+
+test('recordFollow: a straight pass becomes two keyframes, a turn keeps its corner, the keyframes outside the pass stay', () => {
+  const tracks = [track(key(0, 0.1, 0.1, 0.2, 0.2), key(9, 0.5, 0.5, 0.2, 0.2))];
+  const samples = [];
+  for (let i = 0; i <= 20; i++) { const t = 1 + i * 0.1; samples.push({ t, box: box(0.1 + i * 0.01, 0.3, 0.2, 0.2) }); }
+  for (let i = 1; i <= 20; i++) { const t = 3 + i * 0.1; samples.push({ t, box: box(0.3, 0.3 + i * 0.01, 0.2, 0.2) }); }
+  const out = recordFollow(tracks, 0, samples);
+  const ts = out[0].keys.map(k => k.t);
+  assert.deepEqual(ts, [0, 1, 3, 5, 9]);   // the old key at 0 and at 9 stay, the pass 1..5 is three keys (start, corner, end)
+  assert.ok(near(out[0].keys[2].x, 0.3, 1e-6) && near(out[0].keys[2].y, 0.3, 1e-6));
+  assert.equal(out[0].keys[1].w, 0.2);
+});
+
+test('recordFollow: old keyframes inside the pass are replaced; a path too long for MAX_KEYS is thinned more or refused', () => {
+  const tracks = [track(key(1, 0, 0, 0.1, 0.1), key(2, 0.9, 0.9, 0.1, 0.1), key(3, 0.5, 0.5, 0.1, 0.1))];
+  const out = recordFollow(tracks, 0, [{ t: 1, box: box(0.2, 0.2, 0.1, 0.1) }, { t: 2.5, box: box(0.4, 0.4, 0.1, 0.1) }]);
+  assert.deepEqual(out[0].keys.map(k => k.t), [1, 2.5, 3]);
+  const wild = [];
+  for (let i = 0; i < 2000; i++) wild.push({ t: i * 0.1, box: box(i % 2 ? 0.1 : 0.7, 0.2, 0.1, 0.1) });
+  const r = recordFollow(tracks, 0, wild);
+  assert.ok(r === null || r[0].keys.length <= MAX_KEYS);
+  assert.equal(recordFollow(tracks, 5, wild), null);
+  assert.equal(recordFollow(tracks, 0, []), null);
 });

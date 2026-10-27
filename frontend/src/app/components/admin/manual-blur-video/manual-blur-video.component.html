@@ -32,6 +32,7 @@
       <span class="count" aria-live="polite">{{ tracks.length }} טשטושים · {{ keyCount }} נקודות מפתח</span>
     </div>
 
+    <div class="note" role="note">💡 <strong>לעקוב אחרי משהו שזז:</strong> סמן צורה, לחץ עליה והחזק את הכפתור השמאלי, לחץ רווח כדי שהסרטון ינגן, והזז את העכבר: הטשטוש ילך אחריו ונרשם. הרמת הכפתור עוצרת את ההקלטה. רווח שוב עוצר זמנית. כדי שיהיה קל יותר, בחר מהירות 0.5× או 0.25×.</div>
     <div class="note scratch" role="note">⚠ שים לב: מה שלא מסומן בצורה <strong>יוצג לקוראים</strong>, גם אם הטשטוש האוטומטי היה מטשטש אותו, וגם בשניות שבהן אין טשטוש. סמן כל מה שצריך להיות מטושטש, לכל אורך הסרטון.</div>
     @if (staleNotice) {
     <div class="note" role="status">
@@ -75,6 +76,10 @@
       <button type="button" class="tool play" (click)="togglePlay()" [attr.aria-label]="playing ? 'עצור' : 'נגן'" title="נגן / עצור (רווח)">{{ playing ? '⏸' : '▶' }}</button>
       <button type="button" class="tool" (click)="step(1)" title="פריים קדימה (→)">⏭</button>
       <span class="time" aria-live="off">{{ timeText }}</span>
+      @for (r of [0.25, 0.5, 1]; track r) {
+      <button type="button" class="tool" [class.on]="rate === r" (click)="setRate(r)" [attr.aria-pressed]="rate === r" title="מהירות ניגון: לאט יותר קל לעקוב עם העכבר">{{ r }}×</button>
+      }
+      @if (following) { <span class="rec" role="status">● מקליט תנועה</span> }
     </div>
 
     <div class="tl" dir="ltr">

@@ -5,7 +5,7 @@ import { NbButtonModule, NbCardModule, NbDialogRef, NbToastrService } from '@neb
 import { HANDLES, Handle, Shape, ShapeType, fromDrag, hit, move, resize } from '../../../manual-blur-geometry';
 import {
   Interp, MAX_KEYS, MAX_TRACKS, MAX_VIDEO_SEC, Track, TrackHistory, addTrack, boxAt, deleteKey, deleteTrack, formatTime, fromServer, nearestKey, sameTracks,
-  setEnd, setInterp, setKey, toRequest,
+  setEnd, setInterp, setKey, toRequest, FOLLOW_STEP, FollowSample, recordFollow,
 } from '../../../manual-blur-video-model';
 
 interface ManualVideoState {
@@ -56,6 +56,8 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
   tool: Tool = 'rect';
   previewOn = false;
   muted = true;
+  /** The playback speed (a slower video is easier to follow with the mouse). */
+  rate = 1;
   playing = false;
   time = 0;
   duration = 0;
@@ -71,7 +73,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
   readonly maxTracks = MAX_TRACKS;
 
   private history = new TrackHistory([]);
-  private drag: { mode: 'draw' | 'move' | 'resize'; x0: number; y0: number; startTracks: Track[]; startBox?: Shape; handle?: Handle; idx: number; changed: boolean } | null = null;
+  private drag: { mode: 'draw' | 'move' | 'resize'; x0: number; y0: number; startTracks: Track[]; startBox?: Shape; handle?: Handle; idx: number; changed: boolean; px?: number; py?: number; follow?: FollowSample[] } | null = null;
   private tlDrag: { kind: 'seek' | 'end'; idx: number } | null = null;
   private raf = 0;
   private clock = 0;
@@ -157,6 +159,11 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
 
   onPlay() {
     this.playing = true;
+    const d = this.drag;
+    if (d && d.mode === 'move' && d.startBox) {   // the button is held and the video plays: the box follows the mouse, a position is recorded as it goes
+      this.rebase(d);
+      d.follow = [{ t: this.time, box: d.startBox }];
+    }
     this.tick();
   }
 
@@ -164,6 +171,34 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     this.playing = false;
     cancelAnimationFrame(this.clock);
     this.syncTime();
+    const d = this.drag;
+    if (d && d.follow) { this.rebase(d); d.follow = undefined; }
+  }
+
+  /** What the box is now (after a recording or a move at another second) is the start of what comes next in the same hold. */
+  private rebase(d: NonNullable<typeof this.drag>) {
+    d.startTracks = this.tracks;
+    d.startBox = boxAt(this.tracks[d.idx], this.time, 0) ?? d.startBox;
+    d.x0 = d.px ?? d.x0;
+    d.y0 = d.py ?? d.y0;
+  }
+
+  /** True while a box is being recorded (the button is held and the video plays). */
+  get following() { return !!this.drag?.follow; }
+
+  setRate(r: number) {
+    this.rate = r;
+    if (this.video) this.video.nativeElement.playbackRate = r;
+  }
+
+  private followSample() {
+    const d = this.drag;
+    if (!d || !d.follow || !d.startBox) return;
+    if (this.time < d.follow[d.follow.length - 1].t + FOLLOW_STEP) return;
+    d.follow.push({ t: this.time, box: move(d.startBox, (d.px ?? d.x0) - d.x0, (d.py ?? d.y0) - d.y0) });
+    const next = recordFollow(d.startTracks, d.idx, d.follow);
+    if (next) { this.tracks = next; d.changed = true; }
+    else { this.video?.nativeElement.pause(); this.message = `אי אפשר יותר מ-${MAX_KEYS} נקודות מפתח בטשטוש אחד`; }
   }
 
   /** While the video plays the time follows it frame by frame (the page needs it for the boxes and the preview). */
@@ -171,6 +206,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     const v = this.video?.nativeElement;
     if (!v) return;
     this.syncTime();
+    this.followSample();
     if (this.playing) this.clock = requestAnimationFrame(() => this.tick());
   }
 
@@ -314,6 +350,9 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     const d = this.drag;
     if (!d) return;
     const p = this.point(ev);
+    d.px = p.x;
+    d.py = p.y;
+    if (d.follow) { this.schedulePreview(); return; }   // while the video plays the next sample takes the position of the mouse
     if (d.mode === 'draw') {
       this.draft = fromDrag(this.tool as ShapeType, d.x0, d.y0, p.x, p.y);
     } else if (d.startBox) {
@@ -341,6 +380,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     } else if (d.changed) {
       this.history.push(this.tracks);
     }
+    if (d.follow) this.video?.nativeElement.pause();   // letting go of the button ends the recording
     this.afterChange();
   }
 
@@ -414,7 +454,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     const mod = ev.ctrlKey || ev.metaKey;
     if (mod && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); ev.shiftKey ? this.redo() : this.undo(); }
     else if (mod && (ev.key === 'y' || ev.key === 'Y')) { ev.preventDefault(); this.redo(); }
-    else if (ev.key === ' ' && tag !== 'BUTTON' && tag !== 'SELECT') { ev.preventDefault(); this.togglePlay(); }
+    else if (ev.key === ' ' && !ev.repeat && tag !== 'BUTTON' && tag !== 'SELECT') { ev.preventDefault(); this.togglePlay(); }
     else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
       ev.preventDefault();
       const dir = ev.key === 'ArrowRight' ? 1 : -1;
