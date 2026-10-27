@@ -65,7 +65,7 @@ def blur_image(img, max_side=720):
     img = img.convert("RGB")
     img.thumbnail((max_side, max_side))
     w, h = img.size
-    small_w = 10
+    small_w = 6   # was 10: the fully blurred picture / poster, coarser too
     small = img.resize((small_w, max(1, round(h * small_w / w))), Image.BOX)
     return small.resize((w, h), Image.BICUBIC).filter(ImageFilter.GaussianBlur(radius=max(w, h) / 25))
 

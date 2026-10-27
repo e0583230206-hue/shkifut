@@ -210,7 +210,8 @@ class Rendering(Base):
         base, out = frames(self.src), frames(self.out)
         fr = 40
         cx1, cy1 = int(0.2 * W) + 2, int(0.2 * H) + 2                         # the top-left corner of the box, outside the ellipse
-        self.assertGreater(detail(out[fr][cy1:cy1 + 14, cx1:cx1 + 14]), detail(base[fr][cy1:cy1 + 14, cx1:cx1 + 14]) * 0.6)
+        # >= and not >: the corner of the synthetic test picture is flat (detail 0.0 in the source too), and a flat corner must not fail the test
+        self.assertGreaterEqual(detail(out[fr][cy1:cy1 + 14, cx1:cx1 + 14]), detail(base[fr][cy1:cy1 + 14, cx1:cx1 + 14]) * 0.6)
         mx, my = int(0.5 * W), int(0.5 * H)
         self.assertLess(detail(out[fr][my - 20:my + 20, mx - 30:mx + 30]), detail(base[fr][my - 20:my + 20, mx - 30:mx + 30]) * 0.3)
 

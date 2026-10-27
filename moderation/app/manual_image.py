@@ -17,7 +17,7 @@ from PIL import Image, ImageOps
 
 MAX_SHAPES = 50
 MIN_SIZE = 0.005
-CELLS = 6                  # blocks across the shorter side of a shape, as in regional.blur_region
+CELLS = 4                  # blocks across the shorter side of a shape, as in regional.blur_region (27.10.2026: was 6)
 JPEG_QUALITY = 88
 MIN_SIDE, MAX_SIDE = 512, 6000
 SUPERSAMPLE = 4            # the ellipse mask is drawn 4x larger and averaged down: a smooth, anti-aliased edge

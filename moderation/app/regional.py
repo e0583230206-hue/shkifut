@@ -189,7 +189,7 @@ def coverage(boxes, w, h, grid=64):
 
 # ---------- blurring ----------
 
-def blur_region(img, box, cells=6):
+def blur_region(img, box, cells=4):   # 4 blocks across the shorter side (27.10.2026: was 6, a coarser, thicker blur at the owner's request)
     """Pixelate to `cells` blocks across the shorter side, then smooth: no detail survives."""
     x1, y1, x2, y2 = [int(round(v)) for v in box]
     x1, y1 = max(0, x1), max(0, y1)
@@ -204,7 +204,7 @@ def blur_region(img, box, cells=6):
 
 
 def blur_full(img):
-    blur_region(img, [0, 0, img.shape[1], img.shape[0]], cells=10)
+    blur_region(img, [0, 0, img.shape[1], img.shape[0]], cells=6)   # was 10
 
 
 # ---------- figure decision ----------
