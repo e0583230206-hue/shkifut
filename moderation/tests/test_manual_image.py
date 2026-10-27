@@ -136,6 +136,75 @@ class Validation(Base):
                 M.check_paths(base, root, out)
 
 
+class Brush(Base):
+    def stroke(self, pts, r=0.06):
+        return {"type": "brush", "r": r, "pts": [list(p) for p in pts]}
+
+    def test_a_stroke_blurs_what_the_brush_passed_over_and_nothing_else(self):
+        src = np.full((300, 400, 3), 0, np.uint8)
+        src[:, ::2] = 255                                              # the finest detail there is
+        pts = [(0.1, 0.2), (0.5, 0.6), (0.9, 0.3)]
+        out, _ = self.render(src, [self.stroke(pts, r=0.05)])
+        gray = out.mean(axis=2)
+        horiz = np.abs(np.diff(gray, axis=1))
+        yy, xx = np.mgrid[0:300, 0:400]
+        P = [(x * 400, y * 300) for x, y in pts]
+
+        def seg(a, b):
+            ax, ay = b[0] - a[0], b[1] - a[1]
+            u = np.clip(((xx - a[0]) * ax + (yy - a[1]) * ay) / (ax * ax + ay * ay), 0, 1)
+            return np.hypot(xx - (a[0] + u * ax), yy - (a[1] + u * ay))
+        dist = np.minimum(seg(P[0], P[1]), seg(P[1], P[2]))
+        rad = 0.05 * 400
+        inside = dist <= rad * 0.93
+        far = dist >= rad + 6
+        self.assertLess(horiz[inside[:, 1:] & inside[:, :-1]].max(), 60, "stripes survive inside the stroke")
+        self.assertGreater(horiz[far[:, 1:] & far[:, :-1]].mean(), 200, "the picture away from the stroke was blurred")
+
+    def test_the_edge_is_smooth(self):
+        src = np.full((200, 200, 3), 0, np.uint8)
+        src[:, ::2] = 255
+        out, _ = self.render(src, [self.stroke([(0.3, 0.5), (0.7, 0.5)], r=0.1)])
+        col = out[100, :, :].mean(axis=1)
+        self.assertTrue(((col > 20) & (col < 235)).sum() > 10, "no gradation at the edge")
+
+    def test_a_dot(self):
+        src = noise_picture(200, 200)
+        out, _ = self.render(src, [self.stroke([(0.5, 0.5)], r=0.1)])
+        self.assertLess(laplacian_energy(out[90:110, 90:110]), laplacian_energy(src[90:110, 90:110]) * 0.1)   # inside the dot (its box has corners the brush never touched)
+        self.assertGreater(laplacian_energy(out[:40, :40]), laplacian_energy(src[:40, :40]) * 0.7)
+
+    def test_whatever_the_size_of_the_brush_the_inside_is_unrecognisable(self):
+        src = noise_picture(400, 300)
+        for r, band in ((0.12, 30), (0.02, 4)):
+            out, _ = self.render(src, [self.stroke([(0.2, 0.5), (0.8, 0.5)], r=r)])
+            self.assertLess(laplacian_energy(out[150 - band:150 + band, 100:300]), laplacian_energy(src[150 - band:150 + band, 100:300]) * 0.25, f"r={r}")
+
+    def test_strokes_work_beside_rectangles_and_ellipses(self):
+        src = noise_picture(300, 300)
+        out, res = self.render(src, [{"type": "rect", "x": 0.0, "y": 0.0, "w": 0.2, "h": 0.2}, self.stroke([(0.5, 0.5), (0.8, 0.8)], r=0.05),
+                                     {"type": "ellipse", "x": 0.0, "y": 0.8, "w": 0.2, "h": 0.2}])
+        self.assertEqual(res["shapes"], 3)
+        self.assertLess(laplacian_energy(out[0:50, 0:50]), laplacian_energy(src[0:50, 0:50]) * 0.1)
+        self.assertLess(laplacian_energy(out[190:200, 190:200]), laplacian_energy(src[190:200, 190:200]) * 0.2)   # on the diagonal stroke
+
+    def test_a_stroke_at_the_edge_of_the_picture(self):
+        src = noise_picture(200, 200)
+        out, _ = self.render(src, [self.stroke([(0.0, 0.0), (1.0, 1.0)], r=0.1)])
+        self.assertLess(laplacian_energy(out[0:20, 0:20]), laplacian_energy(src[0:20, 0:20]) * 0.3)
+        self.assertLess(laplacian_energy(out[180:200, 180:200]), laplacian_energy(src[180:200, 180:200]) * 0.3)
+
+    def test_validation(self):
+        ok = self.stroke([(0.5, 0.5)])
+        self.assertEqual(M.validate([dict(ok, pts=[[1.5, -0.2]])])[0][2], [(1.0, 0.0)], "points are clipped to the picture")
+        for bad in (dict(ok, r=0.0001), dict(ok, r=0.9), dict(ok, r=float("nan")), dict(ok, r="big"), {"type": "brush", "pts": [[0.5, 0.5]]},
+                    dict(ok, pts=[]), dict(ok, pts=None), dict(ok, pts=[[float("nan"), 0.5]]), dict(ok, pts=[["a", 0.5]]), dict(ok, pts=[[0.5]]),
+                    dict(ok, pts=[[0.5, 0.5]] * (M.MAX_BRUSH_POINTS + 1))):
+            with self.assertRaises(M.Rejected, msg=str(bad)[:60]):
+                M.validate([bad])
+        self.assertEqual(len(M.validate([dict(ok, pts=[[0.5, 0.5]] * M.MAX_BRUSH_POINTS)])[0][2]), M.MAX_BRUSH_POINTS)
+
+
 class ManualFiles(Base):
     ID, JOB = "b" * 40, "0123456789abcdef"
 

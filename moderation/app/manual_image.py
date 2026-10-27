@@ -16,6 +16,8 @@ import numpy as np
 from PIL import Image, ImageOps
 
 MAX_SHAPES = 50
+MAX_BRUSH_POINTS = 2000
+MIN_BRUSH_R, MAX_BRUSH_R = 0.003, 0.25   # the radius of a brush: a share of the WIDTH of the picture
 MIN_SIZE = 0.005
 CELLS = 4                  # blocks across the shorter side of a shape, as in regional.blur_region (27.10.2026: was 6)
 JPEG_QUALITY = 88
@@ -55,6 +57,9 @@ def validate(shapes):
         raise Rejected(f"at most {MAX_SHAPES} shapes")
     out = []
     for i, s in enumerate(shapes, 1):
+        if isinstance(s, dict) and s.get("type") == "brush":
+            out.append(_validate_brush(i, s))
+            continue
         if not isinstance(s, dict) or s.get("type") not in ("rect", "ellipse"):
             raise Rejected(f"shape {i}: unknown type")
         try:
@@ -69,6 +74,29 @@ def validate(shapes):
             raise Rejected(f"shape {i}: too small or outside the picture")
         out.append((s["type"], x1, y1, x2, y2))
     return out
+
+
+def _validate_brush(i, s):
+    """A stroke of the brush: ("brush", radius, [(x, y), ...]) with the points clipped to the picture."""
+    try:
+        r = float(s["r"])
+    except (KeyError, TypeError, ValueError):
+        raise Rejected(f"shape {i}: no brush size")
+    if not math.isfinite(r) or not MIN_BRUSH_R <= r <= MAX_BRUSH_R:
+        raise Rejected(f"shape {i}: the brush size is out of range")
+    raw = s.get("pts")
+    if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_BRUSH_POINTS:
+        raise Rejected(f"shape {i}: a stroke has between 1 and {MAX_BRUSH_POINTS} points")
+    pts = []
+    for p in raw:
+        try:
+            x, y = float(p[0]), float(p[1])
+        except (TypeError, ValueError, IndexError, KeyError):
+            raise Rejected(f"shape {i}: not a number")
+        if not (math.isfinite(x) and math.isfinite(y)):
+            raise Rejected(f"shape {i}: not a number")
+        pts.append((min(1.0, max(0.0, x)), min(1.0, max(0.0, y))))
+    return ("brush", r, pts)
 
 
 def load(path, max_side):
@@ -110,7 +138,11 @@ def ellipse_alpha(w, h):
 def apply_shapes(img, shapes):
     """Blur the shapes into `img` (BGR, in place). A box is widened to whole pixels, never narrowed: nothing of it stays uncovered."""
     H, W = img.shape[:2]
-    for kind, x1, y1, x2, y2 in shapes:
+    for shape in shapes:
+        if shape[0] == "brush":
+            apply_brush(img, shape[1], shape[2])
+            continue
+        kind, x1, y1, x2, y2 = shape
         px1, py1 = max(0, int(math.floor(x1 * W))), max(0, int(math.floor(y1 * H)))
         px2, py2 = min(W, int(math.ceil(x2 * W))), min(H, int(math.ceil(y2 * H)))
         if px2 - px1 < 2 or py2 - py1 < 2:
@@ -122,6 +154,34 @@ def apply_shapes(img, shapes):
         else:
             a = ellipse_alpha(px2 - px1, py2 - py1)[:, :, None]
             img[py1:py2, px1:px2] = np.clip(blurred * a + roi * (1.0 - a), 0, 255).astype(np.uint8)
+
+
+def apply_brush(img, r, pts):
+    """Blur what a brush stroke covers: a thick line through the points with round ends (a dot for a single point). The inside is covered
+    completely (the line is drawn a little thicker than the radius, never thinner), the edge is smooth. The blocks are a third of the brush
+    diameter, so whatever is under the brush is unrecognisable whatever the size of the brush."""
+    H, W = img.shape[:2]
+    rad = max(1.0, r * W)
+    P = [(x * W, y * H) for x, y in pts]
+    x1, y1 = max(0, int(math.floor(min(p[0] for p in P) - rad - 2))), max(0, int(math.floor(min(p[1] for p in P) - rad - 2)))
+    x2, y2 = min(W, int(math.ceil(max(p[0] for p in P) + rad + 2))), min(H, int(math.ceil(max(p[1] for p in P) + rad + 2)))
+    bw, bh = x2 - x1, y2 - y1
+    if bw < 2 or bh < 2:
+        return
+    ss = 4 if bw * bh <= 1_000_000 else 2 if bw * bh <= 4_000_000 else 1   # a smooth edge (a bigger mask only where it is cheap)
+    mask = np.zeros((bh * ss, bw * ss), np.uint8)
+    q = [(int(round((px - x1) * ss)), int(round((py - y1) * ss))) for px, py in P]
+    radius, thick = int(math.ceil(rad * ss)), max(1, int(math.ceil(2 * rad * ss)))
+    for a, b in zip(q, q[1:]):
+        cv2.line(mask, a, b, 255, thick)
+    for p in q:
+        cv2.circle(mask, p, radius, 255, -1)
+    alpha = (cv2.resize(mask, (bw, bh), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0)[:, :, None]
+    roi = img[y1:y2, x1:x2]
+    block = max(4, int(round(2 * rad / 3)))
+    small = cv2.resize(roi, (max(1, bw // block), max(1, bh // block)), interpolation=cv2.INTER_AREA)
+    pix = cv2.resize(small, (bw, bh), interpolation=cv2.INTER_LINEAR)
+    img[y1:y2, x1:x2] = np.clip(pix * alpha + roi * (1.0 - alpha), 0, 255).astype(np.uint8)
 
 
 def render(base_path, out_path, shapes, max_side=2560):

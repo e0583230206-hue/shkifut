@@ -3,6 +3,7 @@ package manualblur
 import (
 	"errors"
 	"math"
+	"reflect"
 	"testing"
 )
 
@@ -54,7 +55,7 @@ func TestValidateLimit(t *testing.T) {
 func TestMetaRoundTripAcceptsYamlNumbers(t *testing.T) {
 	in := []Shape{{Type: Ellipse, X: 0.25, Y: 0.5, W: 0.5, H: 0.25}}
 	back := FromMeta(ToMeta(in))
-	if len(back) != 1 || back[0] != in[0] {
+	if len(back) != 1 || !reflect.DeepEqual(back[0], in[0]) {
 		t.Errorf("round trip: %+v", back)
 	}
 	// YAML decodes 1.0 as int 1 and 0.5 as float
@@ -99,5 +100,48 @@ func TestStaticImageMime(t *testing.T) {
 		if StaticImageMime(m) {
 			t.Errorf("%s should not be editable", m)
 		}
+	}
+}
+
+func TestBrushStrokes(t *testing.T) {
+	ok := Shape{Type: Brush, R: 0.05, Pts: [][2]float64{{0.1, 0.1}, {0.5, 0.5}, {1.2, -0.3}}}
+	got, err := Validate([]Shape{ok, {Type: Rect, X: 0.1, Y: 0.1, W: 0.2, H: 0.2}})
+	if err != nil || len(got) != 2 {
+		t.Fatalf("a brush stroke and a rectangle: %v %v", err, got)
+	}
+	if got[0].Pts[2] != [2]float64{1, 0} || got[0].R != 0.05 || got[0].Type != Brush {
+		t.Errorf("the points are clipped to the picture: %+v", got[0])
+	}
+	dot, err := Validate([]Shape{{Type: Brush, R: 0.02, Pts: [][2]float64{{0.5, 0.5}}}})
+	if err != nil || len(dot[0].Pts) != 1 {
+		t.Errorf("a tap makes a dot: %v %v", err, dot)
+	}
+	bad := map[string]Shape{
+		"no points":           {Type: Brush, R: 0.05},
+		"radius too small":    {Type: Brush, R: 0.0001, Pts: [][2]float64{{0.5, 0.5}}},
+		"radius too big":      {Type: Brush, R: 0.9, Pts: [][2]float64{{0.5, 0.5}}},
+		"radius NaN":          {Type: Brush, R: math.NaN(), Pts: [][2]float64{{0.5, 0.5}}},
+		"point NaN":           {Type: Brush, R: 0.05, Pts: [][2]float64{{math.NaN(), 0.5}}},
+		"point Inf":           {Type: Brush, R: 0.05, Pts: [][2]float64{{0.5, math.Inf(1)}}},
+		"too many points":     {Type: Brush, R: 0.05, Pts: make([][2]float64, MaxBrushPoints+1)},
+		"radius zero (unset)": {Type: Brush, Pts: [][2]float64{{0.5, 0.5}}},
+	}
+	for name, s := range bad {
+		if _, err := Validate([]Shape{s}); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if _, err := Validate([]Shape{{Type: Brush, R: 0.05, Pts: make([][2]float64, MaxBrushPoints)}}); err != nil {
+		t.Errorf("%d points should pass: %v", MaxBrushPoints, err)
+	}
+	// the metadata round trip, with the numbers YAML gives back
+	back := FromMeta(ToMeta(got))
+	if len(back) != 2 || back[0].Type != Brush || len(back[0].Pts) != 3 || back[0].R != 0.05 || back[0].Pts[1] != [2]float64{0.5, 0.5} {
+		t.Errorf("round trip: %+v", back)
+	}
+	yamlLike := []any{map[string]any{"type": "brush", "r": 0.1, "pts": []any{[]any{0, 1}, []any{0.5, 0.25}}}}
+	y := FromMeta(yamlLike)
+	if len(y) != 1 || len(y[0].Pts) != 2 || y[0].Pts[0] != [2]float64{0, 1} {
+		t.Errorf("int numbers in a stroke: %+v", y)
 	}
 }

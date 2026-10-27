@@ -21,6 +21,14 @@ const (
 
 	Rect    = "rect"
 	Ellipse = "ellipse"
+	// Brush is a stroke painted with a round brush: the blur goes wherever the brush has been (a thick line through the points, round ends).
+	Brush = "brush"
+
+	// MaxBrushPoints: a stroke has at most this many points (the page simplifies a stroke before it is saved).
+	MaxBrushPoints = 2000
+	// MinBrushRadius / MaxBrushRadius: the radius of the brush as a share of the WIDTH of the picture (the same number in x and y: a round brush).
+	MinBrushRadius = 0.003
+	MaxBrushRadius = 0.25
 )
 
 // Shape is one blurred area. All numbers are shares of the picture (0..1): x, y is the top-left corner of the box
@@ -31,6 +39,10 @@ type Shape struct {
 	Y    float64 `json:"y" yaml:"y"`
 	W    float64 `json:"w" yaml:"w"`
 	H    float64 `json:"h" yaml:"h"`
+	// A brush stroke (Type "brush") has no box: R is the radius of the brush (a share of the width of the picture) and Pts the points it went through
+	// (x, y as shares of the picture). x, y, w, h are not used for it.
+	R   float64      `json:"r,omitempty" yaml:"r,omitempty"`
+	Pts [][2]float64 `json:"pts,omitempty" yaml:"pts,omitempty"`
 }
 
 var ErrTooMany = errors.New("too many shapes")
@@ -43,6 +55,14 @@ func Validate(in []Shape) ([]Shape, error) {
 	}
 	out := make([]Shape, 0, len(in))
 	for i, s := range in {
+		if s.Type == Brush {
+			b, err := validateBrush(i+1, s)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, b)
+			continue
+		}
 		if s.Type != Rect && s.Type != Ellipse {
 			return nil, fmt.Errorf("shape %d: unknown type %q", i+1, s.Type)
 		}
@@ -61,6 +81,24 @@ func Validate(in []Shape) ([]Shape, error) {
 	return out, nil
 }
 
+// validateBrush: at least one point (a tap makes a dot), at most MaxBrushPoints, finite numbers, points clipped to the picture, a radius in range.
+func validateBrush(n int, s Shape) (Shape, error) {
+	if math.IsNaN(s.R) || math.IsInf(s.R, 0) || s.R < MinBrushRadius || s.R > MaxBrushRadius {
+		return Shape{}, fmt.Errorf("shape %d: the brush size is out of range", n)
+	}
+	if len(s.Pts) < 1 || len(s.Pts) > MaxBrushPoints {
+		return Shape{}, fmt.Errorf("shape %d: a stroke has between 1 and %d points", n, MaxBrushPoints)
+	}
+	pts := make([][2]float64, 0, len(s.Pts))
+	for _, p := range s.Pts {
+		if math.IsNaN(p[0]) || math.IsInf(p[0], 0) || math.IsNaN(p[1]) || math.IsInf(p[1], 0) {
+			return Shape{}, fmt.Errorf("shape %d: not a number", n)
+		}
+		pts = append(pts, [2]float64{round6(clamp(p[0])), round6(clamp(p[1]))})
+	}
+	return Shape{Type: Brush, R: round6(s.R), Pts: pts}, nil
+}
+
 func clamp(v float64) float64 { return math.Min(1, math.Max(0, v)) }
 
 func round6(v float64) float64 { return math.Round(v*1e6) / 1e6 }
@@ -75,7 +113,15 @@ func FromMeta(v any) []Shape {
 			continue
 		}
 		t, _ := m["type"].(string)
-		out = append(out, Shape{Type: t, X: num(m["x"]), Y: num(m["y"]), W: num(m["w"]), H: num(m["h"])})
+		sh := Shape{Type: t, X: num(m["x"]), Y: num(m["y"]), W: num(m["w"]), H: num(m["h"]), R: num(m["r"])}
+		if pts, ok := m["pts"].([]any); ok {
+			for _, pv := range pts {
+				if pp, ok := pv.([]any); ok && len(pp) == 2 {
+					sh.Pts = append(sh.Pts, [2]float64{num(pp[0]), num(pp[1])})
+				}
+			}
+		}
+		out = append(out, sh)
 	}
 	return out
 }
@@ -84,7 +130,15 @@ func FromMeta(v any) []Shape {
 func ToMeta(shapes []Shape) []any {
 	out := make([]any, 0, len(shapes))
 	for _, s := range shapes {
-		out = append(out, map[string]any{"type": s.Type, "x": s.X, "y": s.Y, "w": s.W, "h": s.H})
+		m := map[string]any{"type": s.Type, "x": s.X, "y": s.Y, "w": s.W, "h": s.H}
+		if s.Type == Brush {
+			pts := make([]any, 0, len(s.Pts))
+			for _, p := range s.Pts {
+				pts = append(pts, []any{p[0], p[1]})
+			}
+			m["r"], m["pts"] = s.R, pts
+		}
+		out = append(out, m)
 	}
 	return out
 }

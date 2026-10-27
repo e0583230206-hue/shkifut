@@ -2,7 +2,7 @@
 // All numbers are shares of the picture (0..1), like the shapes the server stores: x, y = top-left corner, w, h = size.
 // An "ellipse" is the ellipse inside its box.
 
-export type ShapeType = 'rect' | 'ellipse';
+export type ShapeType = 'rect' | 'ellipse' | 'brush';
 
 export interface Shape {
   type: ShapeType;
@@ -10,7 +10,14 @@ export interface Shape {
   y: number;
   w: number;
   h: number;
+  /** A brush stroke (type 'brush') has no box: r is the radius of the brush (a share of the WIDTH of the picture) and pts the points it went through. */
+  r?: number;
+  pts?: [number, number][];
 }
+
+export const MAX_BRUSH_POINTS = 2000;
+export const MIN_BRUSH_R = 0.003;
+export const MAX_BRUSH_R = 0.25;
 
 /** Smallest shape the editor makes (the server accepts 0.5%: a click, not a shape, is below this). */
 export const MIN_SIZE = 0.015;
@@ -30,8 +37,19 @@ export function fromDrag(type: ShapeType, x0: number, y0: number, x1: number, y1
   return { type, x: left, y: top, w: right - left, h: bottom - top };
 }
 
+/** Move a brush stroke; all its points stay inside the picture. */
+export function moveBrush(s: Shape, dx: number, dy: number): Shape {
+  const pts = s.pts ?? [];
+  if (!pts.length) return s;
+  const minX = Math.min(...pts.map(p => p[0])), maxX = Math.max(...pts.map(p => p[0]));
+  const minY = Math.min(...pts.map(p => p[1])), maxY = Math.max(...pts.map(p => p[1]));
+  const ddx = Math.min(1 - maxX, Math.max(-minX, dx)), ddy = Math.min(1 - maxY, Math.max(-minY, dy));
+  return { ...s, pts: pts.map(p => [p[0] + ddx, p[1] + ddy] as [number, number]) };
+}
+
 /** Move a shape; it stays inside the picture (it is not squeezed). */
 export function move(s: Shape, dx: number, dy: number): Shape {
+  if (s.type === 'brush') return moveBrush(s, dx, dy);
   const x = Math.min(1 - s.w, Math.max(0, s.x + dx));
   const y = Math.min(1 - s.h, Math.max(0, s.y + dy));
   return { ...s, x, y };
@@ -70,8 +88,29 @@ export function resize(s: Shape, handle: Handle, dx: number, dy: number): Shape 
 /** Keyboard nudge: like move, by shares of the picture. */
 export const nudge = move;
 
-/** Is the point (px, py) on the shape? An ellipse only inside the ellipse, not in the corners of its box. */
-export function contains(s: Shape, px: number, py: number): boolean {
+function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.min(1, Math.max(0, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+/** The distance of a point to a brush stroke, in units of the WIDTH of the picture (aspect = width / height, so that the brush is round). */
+export function brushDistance(s: Shape, px: number, py: number, aspect = 1): number {
+  const pts = s.pts ?? [];
+  if (!pts.length) return Infinity;
+  const k = 1 / aspect;   // a step of 1 in y is k widths
+  let best = Infinity;
+  if (pts.length === 1) return Math.hypot(px - pts[0][0], (py - pts[0][1]) * k);
+  for (let i = 0; i < pts.length - 1; i++) {
+    best = Math.min(best, distToSegment(px, py * k, pts[i][0], pts[i][1] * k, pts[i + 1][0], pts[i + 1][1] * k));
+  }
+  return best;
+}
+
+/** Is the point (px, py) on the shape? An ellipse only inside the ellipse, not in the corners of its box; a brush stroke within the radius of the brush. */
+export function contains(s: Shape, px: number, py: number, aspect = 1): boolean {
+  if (s.type === 'brush') return brushDistance(s, px, py, aspect) <= (s.r ?? 0);
   if (px < s.x || px > s.x + s.w || py < s.y || py > s.y + s.h) return false;
   if (s.type === 'rect') return true;
   const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
@@ -80,18 +119,44 @@ export function contains(s: Shape, px: number, py: number): boolean {
 }
 
 /** The shape on top at the point (the last one drawn), or -1. */
-export function hit(shapes: Shape[], px: number, py: number): number {
-  for (let i = shapes.length - 1; i >= 0; i--) if (contains(shapes[i], px, py)) return i;
+export function hit(shapes: Shape[], px: number, py: number, aspect = 1): number {
+  for (let i = shapes.length - 1; i >= 0; i--) if (contains(shapes[i], px, py, aspect)) return i;
   return -1;
 }
 
 export function sameShapes(a: Shape[], b: Shape[]): boolean {
-  return a.length === b.length && a.every((s, i) => s.type === b[i].type && s.x === b[i].x && s.y === b[i].y && s.w === b[i].w && s.h === b[i].h);
+  return a.length === b.length && a.every((s, i) => s.type === b[i].type && s.x === b[i].x && s.y === b[i].y && s.w === b[i].w && s.h === b[i].h
+    && s.r === b[i].r && JSON.stringify(s.pts ?? null) === JSON.stringify(b[i].pts ?? null));
+}
+
+/**
+ * Fewer points for a stroke (Ramer-Douglas-Peucker): a hand makes hundreds of points a second, a few dozen show the same line. `eps` is in units of
+ * the width of the picture. The first and the last point stay; a stroke never ends up with more than MAX_BRUSH_POINTS (the tolerance is raised until it fits).
+ */
+export function simplifyStroke(pts: [number, number][], eps: number, aspect = 1): [number, number][] {
+  if (pts.length <= 2) return pts.slice();
+  const k = 1 / aspect;
+  const keep = new Array(pts.length).fill(false);
+  keep[0] = keep[pts.length - 1] = true;
+  const stack: [number, number][] = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let worst = -1, wi = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = distToSegment(pts[i][0], pts[i][1] * k, pts[a][0], pts[a][1] * k, pts[b][0], pts[b][1] * k);
+      if (d > worst) { worst = d; wi = i; }
+    }
+    if (worst > eps && wi > 0) { keep[wi] = true; stack.push([a, wi], [wi, b]); }
+  }
+  const out = pts.filter((_, i) => keep[i]);
+  return out.length > MAX_BRUSH_POINTS ? simplifyStroke(pts, eps * 2, aspect) : out;
 }
 
 /** What is sent to the server. */
 export function toRequest(shapes: Shape[]): Shape[] {
-  return shapes.map(s => ({ type: s.type, x: round6(s.x), y: round6(s.y), w: round6(s.w), h: round6(s.h) }));
+  return shapes.map(s => (s.type === 'brush'
+    ? { type: s.type, x: 0, y: 0, w: 0, h: 0, r: round6(s.r ?? 0), pts: (s.pts ?? []).map(p => [round6(p[0]), round6(p[1])] as [number, number]) }
+    : { type: s.type, x: round6(s.x), y: round6(s.y), w: round6(s.w), h: round6(s.h) }));
 }
 
 /** Shapes from the server, made safe to edit (a broken entry is dropped, not edited). */
@@ -101,6 +166,14 @@ export function fromServer(list: unknown): Shape[] {
   for (const it of list) {
     if (!it || typeof it !== 'object') continue;
     const s = it as Partial<Shape>;
+    if (s.type === 'brush') {   // a stroke: a sane radius and at least one point
+      const r = s.r;
+      const pts = Array.isArray(s.pts) ? s.pts.filter(p => Array.isArray(p) && p.length === 2 && p.every(v => typeof v === 'number' && Number.isFinite(v))) : [];
+      if (typeof r === 'number' && Number.isFinite(r) && r >= MIN_BRUSH_R && r <= MAX_BRUSH_R && pts.length) {
+        out.push({ type: 'brush', x: 0, y: 0, w: 0, h: 0, r, pts: pts.slice(0, MAX_BRUSH_POINTS).map(p => [clamp01(p[0]), clamp01(p[1])] as [number, number]) });
+      }
+      continue;
+    }
     if ((s.type !== 'rect' && s.type !== 'ellipse') || ![s.x, s.y, s.w, s.h].every(v => typeof v === 'number' && Number.isFinite(v))) continue;
     const left = clamp01(s.x!), top = clamp01(s.y!), right = clamp01(s.x! + s.w!), bottom = clamp01(s.y! + s.h!);
     if (right - left > 0 && bottom - top > 0) out.push({ type: s.type, x: left, y: top, w: right - left, h: bottom - top });

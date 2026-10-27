@@ -2,7 +2,7 @@
 //   node --test tests/unit/manual-blur-geometry.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fromDrag, move, resize, contains, hit, sameShapes, toRequest, fromServer, History, MIN_SIZE, MAX_SHAPES } from '../../frontend/src/app/manual-blur-geometry.ts';
+import { fromDrag, move, resize, contains, hit, sameShapes, toRequest, fromServer, History, MIN_SIZE, MAX_SHAPES, brushDistance, moveBrush, simplifyStroke, MAX_BRUSH_POINTS } from '../../frontend/src/app/manual-blur-geometry.ts';
 
 const rect = (x, y, w, h) => ({ type: 'rect', x, y, w, h });
 const ell = (x, y, w, h) => ({ type: 'ellipse', x, y, w, h });
@@ -109,4 +109,75 @@ test('history: undo, redo, a change after undo drops the redo branch, equal stat
   let undos = 0;
   while (limited.canUndo) { limited.undo(); undos++; }
   assert.equal(undos, 3, 'history is limited');
+});
+
+const stroke = (pts, r = 0.05) => ({ type: 'brush', x: 0, y: 0, w: 0, h: 0, r, pts });
+
+test('brush: a point is on the stroke when it is within the radius of the line (the brush is round whatever the shape of the picture)', () => {
+  const s = stroke([[0.2, 0.5], [0.8, 0.5]], 0.05);
+  assert.ok(contains(s, 0.5, 0.5));
+  assert.ok(contains(s, 0.5, 0.5 + 0.04));                 // a square picture: 0.04 high is 0.04 wide
+  assert.ok(!contains(s, 0.5, 0.5 + 0.06));
+  assert.ok(contains(s, 0.2 - 0.04, 0.5), 'the round end');
+  assert.ok(!contains(s, 0.2 - 0.06, 0.5));
+  // a wide picture (2:1): one unit of y is half a width, so the same 0.06 in y is only 0.03 widths: on the stroke
+  assert.ok(contains(s, 0.5, 0.5 + 0.06, 2));
+  assert.ok(!contains(s, 0.5, 0.5 + 0.12, 2));
+  assert.ok(Math.abs(brushDistance(s, 0.5, 0.6, 1) - 0.1) < 1e-9);
+  assert.ok(contains(stroke([[0.5, 0.5]], 0.05), 0.52, 0.5), 'a dot');
+  assert.ok(!contains(stroke([[0.5, 0.5]], 0.05), 0.6, 0.5));
+  assert.equal(brushDistance({ type: 'brush', x: 0, y: 0, w: 0, h: 0, r: 0.05, pts: [] }, 0.5, 0.5), Infinity);
+});
+
+test('brush: hit finds the stroke drawn last', () => {
+  const list = [{ type: 'rect', x: 0.1, y: 0.1, w: 0.8, h: 0.8 }, stroke([[0.2, 0.5], [0.8, 0.5]])];
+  assert.equal(hit(list, 0.5, 0.5), 1);
+  assert.equal(hit(list, 0.5, 0.2), 0);
+});
+
+test('brush: moving keeps every point inside the picture and does not change the shape of the stroke', () => {
+  const s = stroke([[0.1, 0.1], [0.3, 0.2], [0.2, 0.4]]);
+  const m = move(s, 0.2, 0.1);
+  assert.ok(Math.abs(m.pts[0][0] - 0.3) < 1e-9 && Math.abs(m.pts[2][1] - 0.5) < 1e-9);
+  assert.ok(Math.abs((m.pts[1][0] - m.pts[0][0]) - 0.2) < 1e-9, 'the same shape');
+  const far = moveBrush(s, 5, -5);
+  assert.ok(far.pts.every(p => p[0] >= 0 && p[0] <= 1 && p[1] >= 0 && p[1] <= 1), JSON.stringify(far.pts));
+  assert.ok(Math.abs(far.pts[1][0] - far.pts[0][0] - 0.2) < 1e-9 && Math.abs(far.pts[1][1] - far.pts[0][1] - 0.1) < 1e-9, 'moved as a whole');
+  assert.equal(s.pts[0][0], 0.1, 'the old stroke is not changed');
+});
+
+test('brush: simplifying a stroke keeps its line, its ends and a limit on the points', () => {
+  const line = Array.from({ length: 300 }, (_, i) => [i / 299, 0.5 + 0.0003 * Math.sin(i)]);   // a straight stroke with a tiny wobble
+  const out = simplifyStroke(line, 0.002);
+  assert.ok(out.length <= 4, String(out.length));
+  assert.deepEqual(out[0], line[0]);
+  assert.deepEqual(out[out.length - 1], line[299]);
+  const curve = Array.from({ length: 400 }, (_, i) => [0.5 + 0.4 * Math.cos(i / 63), 0.5 + 0.4 * Math.sin(i / 63)]);
+  const c = simplifyStroke(curve, 0.002);
+  assert.ok(c.length > 8 && c.length < 120, String(c.length));
+  for (const p of curve) {   // every original point is within eps of the simplified line
+    const d = Math.min(...c.slice(1).map((q, i) => { const a = c[i], dx = q[0] - a[0], dy = q[1] - a[1], l2 = dx * dx + dy * dy, t = l2 ? Math.min(1, Math.max(0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0; return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }));
+    assert.ok(d <= 0.0021, 'point ' + p + ' is ' + d + ' from the line');
+  }
+  assert.deepEqual(simplifyStroke([[0.5, 0.5]], 0.01), [[0.5, 0.5]]);
+  assert.equal(simplifyStroke([[0.1, 0.1], [0.2, 0.2]], 0.01).length, 2);
+  const noisy = Array.from({ length: 5000 }, (_, i) => [Math.random(), Math.random()]);
+  assert.ok(simplifyStroke(noisy, 0.0001).length <= MAX_BRUSH_POINTS, 'the limit is respected even for a scribble');
+});
+
+test('brush: request, server round trip and comparison', () => {
+  const s = stroke([[0.123456789, 0.2], [0.5, 0.987654321]], 0.0512345678);
+  const req = toRequest([s, { type: 'rect', x: 0.1, y: 0.1, w: 0.2, h: 0.2 }]);
+  assert.equal(req[0].r, 0.051235);
+  assert.deepEqual(req[0].pts[0], [0.123457, 0.2]);
+  assert.equal(req[1].x, 0.1);
+  const back = fromServer(JSON.parse(JSON.stringify(req)));
+  assert.equal(back.length, 2);
+  assert.equal(back[0].type, 'brush');
+  assert.ok(sameShapes([back[0]], [{ ...s, r: 0.051235, pts: [[0.123457, 0.2], [0.5, 0.987654]] }]));
+  assert.ok(!sameShapes([s], [{ ...s, r: 0.06 }]));
+  assert.ok(!sameShapes([s], [{ ...s, pts: [[0.1, 0.2], [0.5, 0.9]] }]));
+  assert.deepEqual(fromServer([{ type: 'brush', r: 0.0001, pts: [[0.5, 0.5]] }, { type: 'brush', r: 0.05, pts: [] }, { type: 'brush', r: 0.05, pts: [['a', 1]] }, { type: 'brush', r: 0.05 }]), []);
+  const clipped = fromServer([{ type: 'brush', r: 0.05, pts: [[-0.5, 1.5], [0.5, 0.5]] }]);
+  assert.deepEqual(clipped[0].pts[0], [0, 1]);
 });

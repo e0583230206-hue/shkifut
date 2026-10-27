@@ -14,12 +14,19 @@
     <div class="toolbar" role="toolbar" aria-label="כלי טשטוש">
       <button type="button" class="tool" [class.on]="tool === 'rect'" (click)="setTool('rect')" aria-pressed="{{ tool === 'rect' }}" title="צייר מלבן: גרור על התמונה">▭ מלבן</button>
       <button type="button" class="tool" [class.on]="tool === 'ellipse'" (click)="setTool('ellipse')" aria-pressed="{{ tool === 'ellipse' }}" title="צייר עיגול או אליפסה: גרור על התמונה">◯ עיגול</button>
+      <button type="button" class="tool brush-tool" [class.on]="tool === 'brush'" (click)="setTool('brush')" aria-pressed="{{ tool === 'brush' }}" title="מברשת: צבע על התמונה, וכל מה שהמברשת עברה עליו יטושטש">🖌 מברשת</button>
       <button type="button" class="tool" [class.on]="tool === 'select'" (click)="setTool('select')" aria-pressed="{{ tool === 'select' }}" title="בחר צורה כדי להזיז אותה או לשנות את גודלה">✥ בחירה והזזה</button>
       <span class="sep"></span>
       <button type="button" class="tool" (click)="undo()" [disabled]="!canUndo" title="ביטול (Ctrl+Z)">↶ ביטול</button>
       <button type="button" class="tool" (click)="redo()" [disabled]="!canRedo" title="חזרה (Ctrl+Y)">↷ חזרה</button>
       <button type="button" class="tool danger" (click)="deleteSelected()" [disabled]="selected < 0" title="מחק את הצורה שנבחרה (Delete)">✕ מחק צורה</button>
       <button type="button" class="tool" [class.on]="previewOn" (click)="togglePreview()" aria-pressed="{{ previewOn }}" title="הדמיה של הטשטוש. התוצאה הסופית נבנית בשרת">👁 הדמיה</button>
+      @if (tool === 'brush' || selectedBrush) {
+      <label class="size" title="גודל המברשת">גודל
+        <input type="range" class="size-slider" min="0.01" max="0.15" step="0.005" [value]="currentBrushSize" (input)="onSizeInput($any($event.target).value)" (change)="onSizeChange()" aria-label="גודל המברשת">
+        <span class="size-px">{{ currentBrushPx }}px</span>
+      </label>
+      }
       <span class="count" aria-live="polite">{{ shapes.length }} צורות</span>
     </div>
 
@@ -38,10 +45,12 @@
     <div class="stage-wrap">
       <div #stage class="stage" [class.drawing]="tool !== 'select'" tabindex="0" aria-label="אזור העריכה של התמונה"
         (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)"
-        (pointercancel)="onPointerCancel()">
+        (pointercancel)="onPointerCancel()" (pointerleave)="onPointerLeave()">
         <img #img [src]="imgUrl" alt="התמונה לעריכה" draggable="false" (load)="onImgLoad()" (error)="onImgError()">
         <canvas #preview class="preview" [hidden]="!previewOn" aria-hidden="true"></canvas>
+        <canvas #layer class="layer" aria-hidden="true"></canvas>
         @for (s of shapes; track $index) {
+        @if (s.type !== 'brush') {
         <div class="shape" [class.ellipse]="s.type === 'ellipse'" [class.selected]="isSelected($index)" tabindex="0" role="button"
           [attr.aria-label]="(s.type === 'ellipse' ? 'עיגול ' : 'מלבן ') + ($index + 1)" (focus)="selectShape($index)"
           [style.left.%]="s.x * 100" [style.top.%]="s.y * 100" [style.width.%]="s.w * 100" [style.height.%]="s.h * 100">
@@ -52,6 +61,7 @@
           }
         </div>
         }
+        }
         @if (draft) {
         <div class="shape draft" [class.ellipse]="draft.type === 'ellipse'"
           [style.left.%]="draft.x * 100" [style.top.%]="draft.y * 100" [style.width.%]="draft.w * 100" [style.height.%]="draft.h * 100"></div>
@@ -59,7 +69,7 @@
       </div>
     </div>
     <small class="text-muted d-block mt-2">
-      גרור כדי לצייר. בלחיצה על צורה אפשר להזיז אותה, לשנות את גודלה בידיות, או להזיז עם החיצים (Shift = יותר). Delete מוחק.
+      גרור כדי לצייר (במברשת: צבע, ובטאפ מקבלים נקודה). בלחיצה על צורה אפשר להזיז אותה, לשנות את גודלה בידיות, או להזיז עם החיצים (Shift = יותר). Delete מוחק.
     </small>
     }
     @if (message) {

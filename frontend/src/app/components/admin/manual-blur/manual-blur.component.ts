@@ -3,7 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { NbButtonModule, NbCardModule, NbDialogRef, NbToastrService } from '@nebular/theme';
 import {
-  Handle, HANDLES, History, MAX_SHAPES, Shape, ShapeType, fromDrag, fromServer, hit, move, nudge, resize, sameShapes, toRequest,
+  Handle, HANDLES, History, MAX_SHAPES, MAX_BRUSH_POINTS, Shape, ShapeType, fromDrag, fromServer, hit, move, nudge, resize, sameShapes, simplifyStroke, toRequest,
 } from '../../../manual-blur-geometry';
 
 interface ManualBlurState {
@@ -50,6 +50,10 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
   tool: Tool = 'rect';
   previewOn = false;
   draft: Shape | null = null;
+  /** The brush: its size (a share of the width of the picture), the stroke being painted, and where the pointer is (for the ring that shows the size). */
+  brushSize = 0.04;
+  stroke: [number, number][] | null = null;
+  hover: { x: number; y: number } | null = null;
   confirmClose = false;
   /** Saving shows the question first: the readers get the original with ONLY the shapes blurred. */
   confirmSave = false;
@@ -59,12 +63,14 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
   readonly maxShapes = MAX_SHAPES;
 
   private history = new History([]);
-  private drag: { mode: 'draw' | 'move' | 'resize'; x0: number; y0: number; start?: Shape; handle?: Handle; changed: boolean } | null = null;
+  private drag: { mode: 'draw' | 'move' | 'resize' | 'brush'; x0: number; y0: number; start?: Shape; handle?: Handle; changed: boolean } | null = null;
   private raf = 0;
+  private observer?: ResizeObserver;
 
   @ViewChild('stage') stage?: ElementRef<HTMLDivElement>;
   @ViewChild('img') img?: ElementRef<HTMLImageElement>;
   @ViewChild('preview') preview?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('layer') layer?: ElementRef<HTMLCanvasElement>;
 
   constructor(public dialogRef: NbDialogRef<ManualBlurComponent>, private http: HttpClient, private toastr: NbToastrService) { }
 
@@ -90,6 +96,43 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     cancelAnimationFrame(this.raf);
+    this.observer?.disconnect();
+  }
+
+  /** Width / height of the picture as it is shown (a brush is round: its size is a share of the width). */
+  get aspect() {
+    const r = this.stage?.nativeElement.getBoundingClientRect();
+    return r && r.height ? r.width / r.height : 1;
+  }
+
+  get selectedBrush(): Shape | null {
+    const s = this.shapes[this.selected];
+    return s && s.type === 'brush' ? s : null;
+  }
+
+  /** The stroke the slider changes: the selected one, but never while the brush tool is on (then the slider is for the next stroke). */
+  private get sizeTarget(): Shape | null { return this.tool === 'brush' ? null : this.selectedBrush; }
+
+  /** The size the slider shows: of the selected stroke, or of the next one. */
+  get currentBrushSize() { return this.sizeTarget?.r ?? this.brushSize; }
+
+  get currentBrushPx() {
+    const w = this.stage?.nativeElement.getBoundingClientRect().width ?? 0;
+    return Math.round(this.currentBrushSize * w * 2);
+  }
+
+  onSizeInput(v: string) {
+    const r = Math.min(0.15, Math.max(0.01, Number(v)));
+    if (!Number.isFinite(r)) return;
+    if (this.sizeTarget) this.shapes = this.shapes.map((s, i) => (i === this.selected ? { ...s, r } : s));
+    else this.brushSize = r;
+    this.afterChange();
+  }
+
+  /** The slider was let go: the new size of a selected stroke is one step of the undo history. */
+  onSizeChange() {
+    if (this.sizeTarget) this.history.push(this.shapes);
+    this.brushSize = this.sizeTarget?.r ?? this.brushSize;
   }
 
   get baseLabel() {
@@ -112,6 +155,7 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
   setTool(t: Tool) {
     this.tool = t;
     if (t !== 'select') this.selected = -1;
+    this.drawLayer();
   }
 
   togglePreview() {
@@ -144,6 +188,7 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
     if (this.selected >= this.shapes.length) this.selected = -1;
     this.message = '';
     this.schedulePreview();
+    this.drawLayer();
   }
 
   // ---- pointer (mouse, pen, touch) ----
@@ -162,10 +207,20 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
     if (handle && this.selected >= 0) {
       this.drag = { mode: 'resize', x0: p.x, y0: p.y, start: this.shapes[this.selected], handle, changed: false };
     } else if (this.tool === 'select') {
-      const i = hit(this.shapes, p.x, p.y);
+      const i = hit(this.shapes, p.x, p.y, this.aspect);
       this.selected = i;
+      this.drawLayer();
       if (i < 0) return;
       this.drag = { mode: 'move', x0: p.x, y0: p.y, start: this.shapes[i], changed: false };
+    } else if (this.tool === 'brush') {
+      if (this.shapes.length >= MAX_SHAPES) {
+        this.message = `אפשר עד ${MAX_SHAPES} צורות בתמונה`;
+        return;
+      }
+      this.selected = -1;
+      this.stroke = [[p.x, p.y]];   // a tap makes a dot
+      this.drag = { mode: 'brush', x0: p.x, y0: p.y, changed: false };
+      this.drawLayer();
     } else {
       if (this.shapes.length >= MAX_SHAPES) {
         this.message = `אפשר עד ${MAX_SHAPES} צורות בתמונה`;
@@ -181,8 +236,18 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
 
   onPointerMove(ev: PointerEvent) {
     const d = this.drag;
-    if (!d) return;
+    if (!d) {   // no button down: only the ring of the brush follows the pointer
+      if (this.tool === 'brush' && this.stage) { this.hover = this.point(ev); this.drawLayer(); }
+      return;
+    }
     const p = this.point(ev);
+    if (d.mode === 'brush' && this.stroke) {
+      const last = this.stroke[this.stroke.length - 1];
+      if (Math.hypot(p.x - last[0], (p.y - last[1]) / this.aspect) > 0.0015 && this.stroke.length < MAX_BRUSH_POINTS * 4) this.stroke.push([p.x, p.y]);
+      this.hover = p;
+      this.drawLayer();
+      return;
+    }
     if (d.mode === 'draw') {
       const s = fromDrag(this.tool as ShapeType, d.x0, d.y0, p.x, p.y);
       this.draft = s;
@@ -201,6 +266,16 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
     if (!d) return;
     this.drag = null;
     try { this.stage?.nativeElement.releasePointerCapture(ev.pointerId); } catch { /* already released */ }
+    if (d.mode === 'brush') {
+      const pts = this.stroke ? simplifyStroke(this.stroke, 0.0015, this.aspect) : [];
+      this.stroke = null;
+      if (pts.length) {
+        this.commit([...this.shapes, { type: 'brush', x: 0, y: 0, w: 0, h: 0, r: this.brushSize, pts }]);
+        this.selected = this.shapes.length - 1;
+      }
+      this.afterChange();
+      return;
+    }
     if (d.mode === 'draw') {
       const s = this.draft;
       this.draft = null;
@@ -214,10 +289,16 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
     this.afterChange();
   }
 
+  onPointerLeave() {
+    this.hover = null;
+    this.drawLayer();
+  }
+
   onPointerCancel() {
     const d = this.drag;
     this.drag = null;
     this.draft = null;
+    this.stroke = null;
     if (d?.start && this.selected >= 0) {
       this.shapes = this.shapes.map((s, i) => (i === this.selected ? d.start! : s));
     }
@@ -228,6 +309,7 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
   selectShape(i: number) {
     if (this.tool !== 'select') this.tool = 'select';
     this.selected = i;
+    this.drawLayer();
   }
 
   // ---- keyboard ----
@@ -260,7 +342,12 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
 
   onImgLoad() {
     this.imgError = false;
+    if (!this.observer && this.stage && typeof ResizeObserver !== 'undefined') {
+      this.observer = new ResizeObserver(() => this.drawLayer());
+      this.observer.observe(this.stage.nativeElement);
+    }
     this.schedulePreview();
+    this.drawLayer();
   }
 
   onImgError() {
@@ -286,6 +373,7 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
     const tctx = tiny.getContext('2d');
     if (!tctx) return;
     for (const s of this.shapes) {
+      if (s.type === 'brush') { this.previewBrush(ctx, img, s, W, H); continue; }
       const dx = s.x * W, dy = s.y * H, dw = s.w * W, dh = s.h * H;
       const scale = 6 / Math.min(dw, dh);   // 6 blocks across the shorter side, as the server does
       tiny.width = Math.max(1, Math.round(dw * scale));
@@ -302,6 +390,105 @@ export class ManualBlurComponent implements OnInit, OnDestroy {
       ctx.imageSmoothingEnabled = true;
       ctx.drawImage(tiny, 0, 0, tiny.width, tiny.height, dx, dy, dw, dh);
       ctx.restore();
+    }
+  }
+
+  /** A stroke in the preview: the picture under it pixelated in blocks of a third of the brush diameter (as the server does), cut to the stroke. */
+  private previewBrush(ctx: CanvasRenderingContext2D, img: HTMLImageElement, s: Shape, W: number, H: number) {
+    const pts = s.pts ?? [];
+    if (!pts.length) return;
+    const rad = Math.max(1, (s.r ?? 0) * W);
+    const x1 = Math.max(0, Math.floor(Math.min(...pts.map(p => p[0] * W)) - rad - 2)), y1 = Math.max(0, Math.floor(Math.min(...pts.map(p => p[1] * H)) - rad - 2));
+    const x2 = Math.min(W, Math.ceil(Math.max(...pts.map(p => p[0] * W)) + rad + 2)), y2 = Math.min(H, Math.ceil(Math.max(...pts.map(p => p[1] * H)) + rad + 2));
+    const bw = x2 - x1, bh = y2 - y1;
+    if (bw < 2 || bh < 2) return;
+    const block = Math.max(4, Math.round((2 * rad) / 3));
+    const tiny = document.createElement('canvas');
+    tiny.width = Math.max(1, Math.floor(bw / block));
+    tiny.height = Math.max(1, Math.floor(bh / block));
+    const tctx = tiny.getContext('2d');
+    const piece = document.createElement('canvas');
+    piece.width = bw;
+    piece.height = bh;
+    const pctx = piece.getContext('2d');
+    if (!tctx || !pctx) return;
+    tctx.imageSmoothingEnabled = true;
+    tctx.imageSmoothingQuality = 'high';
+    tctx.drawImage(img, (x1 / W) * img.naturalWidth, (y1 / H) * img.naturalHeight, (bw / W) * img.naturalWidth, (bh / H) * img.naturalHeight, 0, 0, tiny.width, tiny.height);
+    pctx.imageSmoothingEnabled = true;
+    pctx.drawImage(tiny, 0, 0, tiny.width, tiny.height, 0, 0, bw, bh);
+    pctx.globalCompositeOperation = 'destination-in';   // keep only what the brush covers
+    pctx.lineCap = 'round';
+    pctx.lineJoin = 'round';
+    pctx.lineWidth = 2 * rad;
+    pctx.strokeStyle = '#000';
+    pctx.beginPath();
+    pctx.moveTo(pts[0][0] * W - x1, pts[0][1] * H - y1);
+    if (pts.length === 1) pctx.lineTo(pts[0][0] * W - x1 + 0.01, pts[0][1] * H - y1);
+    for (const p of pts.slice(1)) pctx.lineTo(p[0] * W - x1, p[1] * H - y1);
+    pctx.stroke();
+    ctx.drawImage(piece, x1, y1);
+  }
+
+  // ---- the layer that shows the brush strokes (and the ring of the brush) ----
+
+  /** Draws every stroke as a translucent thick line with a ring, the selected one in blue, the one being painted, and the ring that shows the size. */
+  drawLayer() {
+    const c = this.layer?.nativeElement, st = this.stage?.nativeElement;
+    if (!c || !st) return;
+    const W = Math.round(st.clientWidth), H = Math.round(st.clientHeight);
+    if (!W || !H) return;
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+    const path = (g: CanvasRenderingContext2D, pts: [number, number][]) => {
+      g.beginPath();
+      g.moveTo(pts[0][0] * W, pts[0][1] * H);
+      if (pts.length === 1) g.lineTo(pts[0][0] * W + 0.01, pts[0][1] * H);
+      for (const p of pts.slice(1)) g.lineTo(p[0] * W, p[1] * H);
+    };
+    const paint = (pts: [number, number][], r: number, fill: string, edge: string) => {
+      if (!pts.length) return;
+      const ring = document.createElement('canvas');   // the edge: a stroke a little wider, with the inside cut out
+      ring.width = W;
+      ring.height = H;
+      const g = ring.getContext('2d');
+      if (!g) return;
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      g.strokeStyle = edge;
+      g.lineWidth = 2 * r * W + 3;
+      path(g, pts);
+      g.stroke();
+      g.globalCompositeOperation = 'destination-out';
+      g.lineWidth = 2 * r * W;
+      g.strokeStyle = '#000';
+      path(g, pts);
+      g.stroke();
+      ctx.drawImage(ring, 0, 0);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = 2 * r * W;
+      path(ctx, pts);
+      ctx.stroke();
+    };
+    this.shapes.forEach((s, i) => {
+      if (s.type !== 'brush' || !s.pts?.length) return;
+      const sel = i === this.selected;
+      paint(s.pts, s.r ?? 0, sel ? 'rgba(51,102,255,0.30)' : 'rgba(255,61,113,0.30)', sel ? '#3366ff' : '#ff3d71');
+    });
+    if (this.stroke) paint(this.stroke, this.brushSize, 'rgba(255,61,113,0.30)', '#ff3d71');
+    if (this.tool === 'brush' && this.hover && !this.stroke) {
+      ctx.beginPath();
+      ctx.arc(this.hover.x * W, this.hover.y * H, this.brushSize * W, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
     }
   }
 
