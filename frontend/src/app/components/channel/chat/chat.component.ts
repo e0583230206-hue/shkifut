@@ -24,6 +24,8 @@ import { Ad, AdsService } from '../../../services/ads.service';
 import { AdvertisingComponent } from '../advertising/advertising.component';
 import { PinnedBarComponent } from './pinned-bar/pinned-bar.component';
 import { TopicBarComponent } from './topic-bar/topic-bar.component';
+import { WaitingBarComponent } from './waiting-bar/waiting-bar.component';
+import { WaitingService } from '../../../services/waiting.service';
 import { firstUnreadId, newestVisibleId, unreadCount } from '../../../read-position';
 
 type LoadMsgOpt = {
@@ -55,7 +57,8 @@ type ScrollOpt = {
     MessageComponent,
     AdvertisingComponent,
     PinnedBarComponent,
-    TopicBarComponent
+    TopicBarComponent,
+    WaitingBarComponent
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
@@ -98,6 +101,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     private router: ActivatedRoute,
     private mediaModeration: MediaModerationService,
     private adsService: AdsService,
+    private waiting: WaitingService,
   ) {
     this._adminService.schedulingBusObservable.subscribe(() => {
       //this.scheduledMessages.length = 0;
@@ -169,6 +173,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this._authService.loadUserInfo().then((res) => {
       this.userInfo = res;
+      this.waiting.init(res);
       this.userInfo.privileges?.['writer'] && this.loadScheduledMessages();
       this.notificationService.init();
     });
@@ -276,6 +281,9 @@ export class ChatComponent implements OnInit, OnDestroy {
           break;
         case 'pins':
           this.zone.run(() => this.chatService.loadPinned());
+          break;
+        case 'hold-waiting':
+          this.waiting.changed();
           break;
         case 'file-moderation':
           this.zone.run(() => this.mediaModeration.notify(message.file.id, message.file.status));

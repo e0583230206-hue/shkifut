@@ -538,6 +538,8 @@ func moderateFile(id string) error {
 }
 
 func publishFileModeration(ctx context.Context, id, status string) {
+	waitingInvalidate()
+	defer publishWaitingChanged(ctx)
 	data, _ := json.Marshal(map[string]any{
 		"type": "file-moderation",
 		"file": map[string]string{"id": id, "status": status},
