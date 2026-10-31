@@ -1,6 +1,7 @@
 import { AfterViewInit, Component, ElementRef, inject, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { MediaModerationService } from '../../services/media-moderation.service';
+import { NbLayoutModule } from '@nebular/theme';
 import { AuthService } from '../../services/auth.service';
 
 /**
@@ -9,12 +10,16 @@ import { AuthService } from '../../services/auth.service';
  */
 @Component({
   selector: 'app-review-link',
+  // nb-layout: the dialogs of the moderator's bar (figure review, manual blur) need it, Nebular has no place to open them without it
+  imports: [NbLayoutModule],
   template: `
+    <nb-layout><nb-layout-column>
     <div class="review-page">
       <h5>{{ title }}</h5>
       <div #host class="review-host"></div>
       @if (message) { <p class="review-message">{{ message }}</p> }
     </div>
+    </nb-layout-column></nb-layout>
   `,
   styles: [`.review-page { max-width: 640px; margin: 24px auto; padding: 0 16px; } .review-message { color: var(--tc-warn-fg, #7a5200); }`],
 })

@@ -4,17 +4,50 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata" // the date of WAITING_SINCE is in Israel time, also in an image without the system zones
 )
 
 // What waits for an approver (the banner at the top for approvers and owners):
 //   - a video the readers do not get yet: held until approved (HOLD_VIDEOS_UNTIL_APPROVED) or flagged "needs review" (STRICT_UNTIL_REVIEWED);
 //   - an image in which people were found and no moderator has reviewed yet (STRICT_UNTIL_REVIEWED): readers get it fully blurred.
 // It is computed from the metadata of the files, not kept in a second place that every decision would have to update.
+
+// WAITING_SINCE (empty by default = everything that waits): "2026-10-31" (from the start of that day, Israel time) or a full RFC 3339 time. The bar then
+// counts only files uploaded from then on; older ones, and files from before "uploadedAt" existed, are left out (they still wait for a decision as always).
+var waitingSince = parseWaitingSince(os.Getenv("WAITING_SINCE"))
+
+func parseWaitingSince(s string) time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
+	loc, err := time.LoadLocation("Asia/Jerusalem")
+	if err != nil {
+		loc = time.UTC
+	}
+	if t, err := time.ParseInLocation("2006-01-02", s, loc); err == nil {
+		return t
+	}
+	return time.Time{} // not understood: count everything rather than nothing
+}
+
+// uploadedSince: counts for the bar (always true without WAITING_SINCE).
+func uploadedSince(meta map[string]any, since time.Time) bool {
+	if since.IsZero() {
+		return true
+	}
+	t, err := time.Parse(time.RFC3339, metaString(meta, "uploadedAt"))
+	return err == nil && !t.Before(since)
+}
 
 const (
 	waitingVideo = "video"
@@ -85,7 +118,7 @@ func currentWaiting() *waitingSummary {
 			return nil
 		}
 		kind := waitingKind(meta)
-		if kind == "" {
+		if kind == "" || !uploadedSince(meta, waitingSince) {
 			return nil
 		}
 		if kind == waitingVideo {

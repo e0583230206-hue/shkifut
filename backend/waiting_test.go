@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // Tests of what waits for an approver (waiting.go). They need a Redis only because the package connects to one when it starts.
@@ -125,5 +126,44 @@ func TestWaitingEndpoint(t *testing.T) {
 	}
 	if rec.Header().Get("Cache-Control") != "no-store" {
 		t.Errorf("the answer must not be cached by the browser")
+	}
+}
+
+func TestWaitingSince(t *testing.T) {
+	oldRoot, oldHold, oldStrict, oldSince := rootUploadPath, holdVideos, strictUntilReviewed, waitingSince
+	t.Cleanup(func() {
+		rootUploadPath, holdVideos, strictUntilReviewed, waitingSince = oldRoot, oldHold, oldStrict, oldSince
+		waitingInvalidate()
+	})
+	rootUploadPath, holdVideos, strictUntilReviewed = t.TempDir(), true, true
+
+	old := "6666666666666666666666666666666666666666"
+	noDate := "7777777777777777777777777777777777777777"
+	today := "8888888888888888888888888888888888888888"
+	writeWaitingFile(t, old, map[string]any{"type": "video", "holdRequired": true, "uploadedAt": "2026-10-30T20:00:00Z"})
+	writeWaitingFile(t, noDate, map[string]any{"type": "video", "holdRequired": true})
+	writeWaitingFile(t, today, map[string]any{"type": "video", "holdRequired": true, "uploadedAt": "2026-10-30T22:30:00Z"})
+
+	waitingSince = time.Time{}
+	waitingInvalidate()
+	if got := currentWaiting(); got.Videos != 3 {
+		t.Errorf("without a date everything waits: %+v", got)
+	}
+
+	waitingSince = parseWaitingSince("2026-10-31") // the start of the day in Israel: 22:00 UTC the evening before (winter time)
+	waitingInvalidate()
+	got := currentWaiting()
+	if got.Videos != 1 || got.Items[0].ID != today {
+		t.Errorf("from 2026-10-31 only the new one is counted: %+v", got)
+	}
+
+	for in, want := range map[string]string{
+		"2026-10-31T10:00:00Z": "2026-10-31T10:00:00Z",
+		"":                     "0001-01-01T00:00:00Z",
+		"not a date":           "0001-01-01T00:00:00Z",
+	} {
+		if got := parseWaitingSince(in).UTC().Format(time.RFC3339); got != want {
+			t.Errorf("parseWaitingSince(%q) = %s, want %s", in, got, want)
+		}
 	}
 }
