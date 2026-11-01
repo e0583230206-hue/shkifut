@@ -178,6 +178,44 @@ try {
   check('"+" during the recording made it bigger later on, and it is still round', late.w > early.w * 1.1 && Math.abs(late.w - late.h) < 4, `${early.w} -> ${late.w} (${late.h})`);
   await shot('f2-brush.png');
 
+  // ---- the brush without holding a button: Space starts, the blur follows the mouse, the wheel changes the size, Space (or a click) stops ----
+  await seekTo(20);
+  await clickText('app-manual-blur-video .tool', 'מברשת');
+  r = await rectOf('app-manual-blur-video .stage');
+  const f0 = at(r, 0.15, 0.8);
+  await mouse('mouseMoved', f0, 0); await sleep(150);
+  const nBefore = await nTracks();
+  await key(' ');
+  check('free brush: Space starts the video and the recording', await waitFor(`!document.querySelector('app-manual-blur-video video').paused && !!document.querySelector('app-manual-blur-video .rec')`, 3000));
+  for (let i = 1; i <= 16; i++) {
+    await mouse('mouseMoved', { x: f0.x + r.w * 0.5 * i / 16, y: f0.y - r.h * 0.3 * i / 16 }, 0); await sleep(100);
+    if (i === 8) await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: f0.x + r.w * 0.25, y: f0.y - r.h * 0.15, deltaX: 0, deltaY: -100 });
+  }
+  await key(' ');
+  check('free brush: Space again stops it', await waitFor(`document.querySelector('app-manual-blur-video video').paused && !document.querySelector('app-manual-blur-video .rec')`, 3000));
+  const fk = await nKeys(nBefore);
+  check('free brush: a path was recorded, no button held', (await nTracks()) === nBefore + 1 && fk >= 3 && fk < 40, `${await nTracks()} ${fk}`);
+  const fEnd = await ev(`document.querySelector('app-manual-blur-video video').currentTime`);
+  await seekTo(20.3);
+  const fe = px((await bi()).b);
+  await seekTo(Math.min(39, fEnd + 0.3));
+  const fl = px((await bi()).b);
+  check('free brush: it followed the mouse (right and up)', fl.cx > fe.cx + r.w * 0.2 && fl.cy < fe.cy - r.h * 0.08, `${JSON.stringify(fe)} ${JSON.stringify(fl)}`);
+  check('free brush: the wheel made it bigger, still round', fl.w > fe.w * 1.1 && Math.abs(fl.w - fl.h) < 4, `${fe.w} -> ${fl.w} (${fl.h})`);
+  await key('z', 2, 'KeyZ');
+  check('free brush: Ctrl+Z takes the whole recording back', (await nTracks()) === nBefore, await nTracks());
+
+  // a click stops a recording started with Space
+  await seekTo(25);
+  await mouse('mouseMoved', f0, 0); await sleep(150);
+  await key(' ');
+  await waitFor(`!document.querySelector('app-manual-blur-video video').paused`, 3000);
+  await mouse('mouseMoved', { x: f0.x + 60, y: f0.y }, 0); await sleep(300);
+  await mouse('mousePressed', { x: f0.x + 60, y: f0.y }); await mouse('mouseReleased', { x: f0.x + 60, y: f0.y });
+  check('free brush: a click stops it', await waitFor(`document.querySelector('app-manual-blur-video video').paused`, 3000));
+  await sleep(300);
+  check('free brush: after a click one track was added, and the page is not stuck', (await nTracks()) === nBefore + 1 && !(await ev(`!!document.querySelector('app-manual-blur-video .rec')`)), await nTracks());
+
   // plus / minus on a rectangle too
   await clickText('app-manual-blur-video .tool', 'בחירה');
   await seekTo(8);

@@ -35,7 +35,10 @@
       <span class="count" aria-live="polite">{{ tracks.length }} טשטושים · {{ keyCount }} נקודות מפתח</span>
     </div>
 
-    <div class="note" role="note">💡 <strong>לעקוב אחרי משהו שזז:</strong> סמן צורה (או בחר ״מברשת״ ולחץ על הסרטון), לחץ עליה והחזק את הכפתור השמאלי, לחץ רווח כדי שהסרטון ינגן, והזז את העכבר: הטשטוש ילך אחריו ונרשם. הרמת הכפתור עוצרת את ההקלטה. רווח שוב עוצר זמנית. המקשים + ו- משנים את הגודל, גם תוך כדי הקלטה. כדי שיהיה קל יותר, בחר מהירות 0.5× או 0.25×.</div>
+    <div class="note" role="note">💡 <strong>לעקוב אחרי משהו שזז:</strong>
+      <strong>במברשת:</strong> בחר ״מברשת״, העמד את העכבר על מה שרוצים לטשטש ולחץ <strong>רווח</strong>: הסרטון מתנגן והטשטוש הולך אחרי העכבר ונרשם. רווח שוב (או לחיצה) עוצר.
+      <strong>בצורה:</strong> לחץ על הצורה והחזק את הכפתור, לחץ רווח והזז. <strong>גודל:</strong> גלגלת העכבר או המקשים + ו-, גם תוך כדי הקלטה. אם קשה לעקוב, בחר מהירות 0.5× או 0.25×.
+    </div>
     <div class="note scratch" role="note">⚠ שים לב: מה שלא מסומן בצורה <strong>יוצג לקוראים</strong>, גם אם הטשטוש האוטומטי היה מטשטש אותו, וגם בשניות שבהן אין טשטוש. סמן כל מה שצריך להיות מטושטש, לכל אורך הסרטון.</div>
     @if (staleNotice) {
     <div class="note" role="status">
@@ -52,7 +55,7 @@
     <div class="stage-wrap">
       <div #stage class="stage" [class.drawing]="tool !== 'select'" tabindex="0" aria-label="אזור העריכה של הסרטון"
         (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)"
-        (pointercancel)="onPointerCancel()" (pointerleave)="hover = null">
+        (pointercancel)="onPointerCancel()" (pointerleave)="hover = null" (wheel)="onWheel($event)">
         <video #video [src]="videoUrl" [muted]="muted" preload="auto" playsinline (loadedmetadata)="onLoadedMetadata()" (error)="onVideoError()"
           (play)="onPlay()" (pause)="onPause()" (seeked)="syncTime()" (ended)="onPause()" aria-label="הסרטון לעריכה"></video>
         @if (tool === 'brush' && hover && !following) {

@@ -78,7 +78,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
   readonly maxTracks = MAX_TRACKS;
 
   private history = new TrackHistory([]);
-  private drag: { mode: 'draw' | 'move' | 'resize'; x0: number; y0: number; startTracks: Track[]; startBox?: Shape; handle?: Handle; idx: number; changed: boolean; px?: number; py?: number; follow?: FollowSample[] } | null = null;
+  private drag: { mode: 'draw' | 'move' | 'resize'; x0: number; y0: number; startTracks: Track[]; startBox?: Shape; handle?: Handle; idx: number; changed: boolean; px?: number; py?: number; follow?: FollowSample[]; free?: boolean } | null = null;
   private tlDrag: { kind: 'seek' | 'end'; idx: number } | null = null;
   private raf = 0;
   private clock = 0;
@@ -192,6 +192,38 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
     this.syncTime();
     const d = this.drag;
     if (d && d.follow) { this.rebase(d); d.follow = undefined; }
+    if (d && d.free) {   // the recording started with Space alone (no button held): it ends with the pause
+      this.drag = null;
+      if (d.changed) this.history.push(this.tracks);
+      this.afterChange();
+    }
+  }
+
+  /**
+   * Brush tool, mouse over the picture, nothing held: Space puts the round blur under the mouse and starts the video; it follows the mouse until
+   * Space (or a click, or the end of the video). Returns false when this is not the situation (then Space is play / pause as usual).
+   */
+  private startFreeBrush(): boolean {
+    if (this.tool !== 'brush' || this.drag || !this.hover || this.playing) return false;
+    if (this.tracks.length >= MAX_TRACKS) { this.message = `אפשר עד ${MAX_TRACKS} טשטושים בסרטון`; return true; }
+    const p = this.hover;
+    const box = this.brushBox(p.x, p.y, this.brushSize);
+    const next = addTrack(this.tracks, box, this.time);
+    if (!next) return true;
+    this.tracks = next;
+    this.selected = next.length - 1;
+    this.hover = null;
+    this.drag = { mode: 'move', x0: p.x, y0: p.y, px: p.x, py: p.y, startTracks: next, startBox: box, idx: next.length - 1, changed: true, free: true };
+    this.video?.nativeElement.play().catch(() => { this.drag = null; });
+    return true;
+  }
+
+  /** The wheel over the picture: bigger / smaller (the brush, the held or the selected blur). */
+  onWheel(ev: WheelEvent) {
+    if (!(this.tool === 'brush' || this.drag || this.selected >= 0)) return;
+    ev.preventDefault();
+    const step = Math.min(100, Math.abs(ev.deltaY)) * 0.0015;
+    this.grow(Math.exp(ev.deltaY < 0 ? step : -step));
   }
 
   /** What the box is now (after a recording or a move at another second) is the start of what comes next in the same hold. */
@@ -359,6 +391,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
 
   onPointerDown(ev: PointerEvent) {
     if (!this.stage || ev.button > 0 || !this.duration) return;
+    if (this.drag?.free) { this.video?.nativeElement.pause(); ev.preventDefault(); return; }   // a click ends a recording started with Space
     this.confirmClose = false;
     const p = this.point(ev);
     const handle = (ev.target as HTMLElement).dataset?.['handle'] as Handle | undefined;
@@ -510,7 +543,7 @@ export class ManualBlurVideoComponent implements OnInit, OnDestroy {
       ev.preventDefault();
       this.grow(ev.key === '+' || ev.key === '=' ? 1.15 : 1 / 1.15);
     }
-    else if (ev.key === ' ' && !ev.repeat && tag !== 'BUTTON' && tag !== 'SELECT') { ev.preventDefault(); this.togglePlay(); }
+    else if (ev.key === ' ' && !ev.repeat && tag !== 'BUTTON' && tag !== 'SELECT') { ev.preventDefault(); if (!this.startFreeBrush()) this.togglePlay(); }
     else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
       ev.preventDefault();
       const dir = ev.key === 'ArrowRight' ? 1 : -1;

@@ -186,6 +186,9 @@ func deleteMessage(w http.ResponseWriter, r *http.Request) {
 		publishPinsChanged(ctx) // a deleted message cannot stay pinned
 	}
 
+	waitingInvalidate() // its video or image no longer waits for a decision
+	publishWaitingChanged(ctx)
+
 	go SendWebhook(context.Background(), "delete", &message)
 
 	response := Response{Success: true}

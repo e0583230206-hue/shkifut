@@ -1,5 +1,5 @@
 @if (current; as pin) {
-<div class="pinned-bar" [style.top.px]="top" role="button" tabindex="0" (click)="open()" (keydown.enter)="open()"
+<div class="pinned-bar" [style.top]="'calc(' + top + 'px + var(--waiting-bar-h, 0px))'" role="button" tabindex="0" (click)="open()" (keydown.enter)="open()"
   [attr.aria-label]="'הודעה נעוצה: ' + pin.snippet">
   <div class="pin-marks" aria-hidden="true">
     @for (p of pins; track p.id) {

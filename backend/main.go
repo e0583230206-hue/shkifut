@@ -144,6 +144,7 @@ func main() {
 				protected.Get("/files/{fileid}/figures/{name}", protectedWithApprover(getFigureCrop))
 				protected.Post("/files/{fileid}/figures", protectedWithApprover(setFigures))
 				protected.Post("/files/{fileid}/approve", protectedWithApprover(approveVideo))
+				protected.Get("/hold/waiting", protectedWithApprover(getWaiting)) // the banner: videos and images that wait for a decision
 				// MANUAL_BLUR (off by default): draw blur shapes on an image; owners and approvers only (404 while the flag is off)
 				protected.Get("/files/{fileid}/manual-blur", protectedWithManualBlur(getManualBlur))
 				protected.Post("/files/{fileid}/manual-blur", protectedWithManualBlur(setManualBlur))

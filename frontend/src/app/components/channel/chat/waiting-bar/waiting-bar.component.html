@@ -1,0 +1,8 @@
+@if (waiting.summary$ | async; as w) {
+@if (w.items.length) {
+<div class="waiting-bar" role="status">
+  <span class="waiting-text"><strong>ממתינים לאישור:</strong> {{ label(w.videos, w.images) }}</span>
+  <a class="waiting-open" target="_blank" rel="noopener" [routerLink]="['/review', w.items[0].id]" [queryParams]="{ kind: w.items[0].kind }">לבדיקה</a>
+</div>
+}
+}
