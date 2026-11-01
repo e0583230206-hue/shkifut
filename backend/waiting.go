@@ -97,6 +97,40 @@ func waitingInvalidate() {
 	waitingMu.Unlock()
 }
 
+// deletedOnlyFileIDs: files whose only messages were deleted. Deleting a message keeps its upload (the message can be restored, and the
+// cleanup removes it after MEDIA_CLEANUP_DAYS), so without this the bar would go on counting a video nobody can see any more.
+// A file that no message uses yet (just uploaded, being written) is not in the set and still counts. On a Redis error: empty set.
+func deletedOnlyFileIDs() map[string]bool {
+	ctx, cancel := redisCtx()
+	defer cancel()
+	out := map[string]bool{}
+	keys, err := rdb.ZRange(ctx, "m_times:1", 0, -1).Result()
+	if err != nil {
+		return out
+	}
+	live := map[string]bool{}
+	for _, k := range keys {
+		vals, err := rdb.HMGet(ctx, k, "text", "deleted").Result()
+		if err != nil || len(vals) != 2 {
+			continue
+		}
+		text, _ := vals[0].(string)
+		del, _ := vals[1].(string)
+		isDeleted := del == "1" || del == "true"
+		for _, m := range fileRefRe.FindAllStringSubmatch(text, -1) {
+			if isDeleted {
+				out[m[1]] = true
+			} else {
+				live[m[1]] = true
+			}
+		}
+	}
+	for id := range live {
+		delete(out, id)
+	}
+	return out
+}
+
 // currentWaiting: the count and the list, from a scan of the metadata that is repeated at most every waitingCacheTTL (or after a change).
 func currentWaiting() *waitingSummary {
 	waitingMu.Lock()
@@ -105,12 +139,13 @@ func currentWaiting() *waitingSummary {
 		return waitingCached
 	}
 	sum := &waitingSummary{Items: []waitingItem{}}
-	_ = filepath.WalkDir(rootUploadPath, func(p string, d fs.DirEntry, err error) error {
+	deleted := deletedOnlyFileIDs()
+	_ =filepath.WalkDir(rootUploadPath, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".yaml") {
 			return nil
 		}
 		id := strings.TrimSuffix(filepath.Base(p), ".yaml")
-		if !validFileId(id) {
+		if !validFileId(id) || deleted[id] {
 			return nil
 		}
 		meta, err := readMetadata(id)

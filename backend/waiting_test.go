@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // Tests of what waits for an approver (waiting.go). They need a Redis only because the package connects to one when it starts.
@@ -164,6 +167,45 @@ func TestWaitingSince(t *testing.T) {
 	} {
 		if got := parseWaitingSince(in).UTC().Format(time.RFC3339); got != want {
 			t.Errorf("parseWaitingSince(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+func TestWaitingIgnoresDeletedMessages(t *testing.T) {
+	oldRoot, oldHold, oldStrict := rootUploadPath, holdVideos, strictUntilReviewed
+	ctx := context.Background()
+	keys := []string{"messages:990001", "messages:990002", "messages:990003"}
+	t.Cleanup(func() {
+		rootUploadPath, holdVideos, strictUntilReviewed = oldRoot, oldHold, oldStrict
+		for _, k := range keys {
+			rdb.Del(ctx, k)
+			rdb.ZRem(ctx, "m_times:1", k)
+		}
+		waitingInvalidate()
+	})
+	rootUploadPath, holdVideos, strictUntilReviewed = t.TempDir(), true, true
+
+	gone := "9999999999999999999999999999999999999991"
+	kept := "9999999999999999999999999999999999999992"
+	loose := "9999999999999999999999999999999999999993"
+	for _, id := range []string{gone, kept, loose} {
+		writeWaitingFile(t, id, map[string]any{"type": "video", "holdRequired": true})
+	}
+	rdb.HSet(ctx, keys[0], "text", "/api/files/"+gone, "deleted", true)
+	rdb.HSet(ctx, keys[1], "text", "/api/files/"+kept, "deleted", false)
+	rdb.HSet(ctx, keys[2], "text", "*ההודעה נמחקה*", "deleted", true)
+	for i, k := range keys {
+		rdb.ZAdd(ctx, "m_times:1", redis.Z{Score: float64(990001 + i), Member: k})
+	}
+
+	waitingInvalidate()
+	got := currentWaiting()
+	if got.Videos != 2 {
+		t.Fatalf("want the live message's file and the file no message uses: %+v", got)
+	}
+	for _, it := range got.Items {
+		if it.ID == gone {
+			t.Errorf("a file of a deleted message must not be counted")
 		}
 	}
 }
