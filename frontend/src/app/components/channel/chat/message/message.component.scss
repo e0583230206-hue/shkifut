@@ -191,6 +191,62 @@ nb-icon {
   }
 }
 
+.share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+  padding: 5px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #2f4bff;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  nb-icon {
+    font-size: 1rem;
+  }
+
+  &:hover {
+    background: #1f36d9;
+  }
+}
+
+::ng-deep .share-popover .popover-body {
+  padding: 6px !important;
+}
+
+.share-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+
+  .share-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: inherit;
+    font-size: 0.95rem;
+    text-decoration: none;
+    text-align: start;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--tc-surface-2, #f0f0f0);
+    }
+  }
+}
+
 .message-card[style*="opacity: 0.5"] .emojis-section {
   opacity: 0.6;
   pointer-events: none;

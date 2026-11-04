@@ -22,6 +22,9 @@ import { PollComponent } from './poll/poll.component';
 import { MediaModerationService } from '../../../../services/media-moderation.service';
 import { Subscription } from 'rxjs';
 import { groupImageEmbeds, lockEmbeds } from '../../../../gallery';
+/** Opens the writing window of Gmail in a new tab (a plain mailto: link opens whatever mail program the computer has, often Outlook). */
+const GMAIL_COMPOSE = 'https://mail.google.com/mail/?view=cm&fs=1';
+
 @Component({
   selector: 'app-message',
   imports: [
@@ -270,6 +273,66 @@ export class MessageComponent implements OnInit, OnDestroy {
     } catch (err: any) {
       this.toastrService.danger('', err?.status === 409 ? 'אפשר לנעוץ עד 10 הודעות' : 'הפעולה נכשלה');
     }
+  }
+
+  /** A phone or a tablet (WhatsApp is offered there only). */
+  get isMobile(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  }
+
+  /** The share button invites to the SITE (its home page), not to one message: the small link icon copies the address of the message. */
+  private siteUrl(): string {
+    return `${window.location.origin}/`;
+  }
+
+  private siteName(): string {
+    return this.chatService.channelInfo?.name || 'שקיפות';
+  }
+
+  private shareText(): string {
+    return `${this.siteName()} - חדשות ועדכונים שוטפים. מוזמנים להצטרף:`;
+  }
+
+  whatsappHref(): string {
+    return 'https://wa.me/?text=' + encodeURIComponent(this.shareText() + '\n' + this.siteUrl());
+  }
+
+  emailHref(): string {
+    return GMAIL_COMPOSE + '&su=' + encodeURIComponent(`${this.siteName()} - חדשות ועדכונים`) + '&body=' + encodeURIComponent(this.shareText() + '\n\n' + this.siteUrl());
+  }
+
+  /** The text of a message without markup and embeds, short enough for a line (the title of a shared message). */
+  private messageTitle(message: ChatMessage): string {
+    const t = (message.text || '')
+      .replace(/\[[a-z]+-embedded#\]\([^)]*\)/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[*_`~>#|]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return t.length > 100 ? t.slice(0, 99).trim() + '…' : t;
+  }
+
+  /** The server redirects /m/<id> to the readable address and adds the preview. */
+  private messageUrl(message: ChatMessage): string {
+    return `${window.location.origin}/m/${message.id}`;
+  }
+
+  messageWhatsappHref(message: ChatMessage): string {
+    const title = this.messageTitle(message);
+    return 'https://wa.me/?text=' + encodeURIComponent((title ? title + '\n' : '') + this.messageUrl(message));
+  }
+
+  messageEmailHref(message: ChatMessage): string {
+    const title = this.messageTitle(message);
+    return GMAIL_COMPOSE + '&su=' + encodeURIComponent(title || this.siteName()) + '&body=' + encodeURIComponent((title ? title + '\n\n' : '') + this.messageUrl(message));
+  }
+
+  copySiteLink() {
+    navigator.clipboard.writeText(this.siteUrl()).then(() => {
+      this.toastrService.success('', 'הקישור לאתר הועתק. אפשר להדביק ולשלוח');
+    });
   }
 
   copyLink(messageId?: number) {

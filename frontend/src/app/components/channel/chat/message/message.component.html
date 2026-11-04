@@ -59,10 +59,15 @@
         <nb-icon icon="alert-triangle-outline"></nb-icon>
       </button>
       }
-      <button class="icon-button" nbButton ghost shape="round" size="small" (click)="copyLink(message.id)"
-        title="העתק קישור להודעה">
+      <!-- shares THIS message: copy its link, e-mail it, and on a phone or a tablet WhatsApp too -->
+      @if (message.id && !isSchedulingMessage) {
+      <button #msgSharePopover="ngbPopover" class="icon-button" nbButton ghost shape="round" size="small" type="button"
+        [ngbPopover]="messageShareMenu" [popoverContext]="{ message, popover: msgSharePopover }" triggers="click"
+        [autoClose]="'outside'" container="body" popoverClass="share-popover" [placement]="['bottom', 'top']"
+        title="שתף את ההודעה" aria-label="שתף את ההודעה">
         <nb-icon icon="link-2"></nb-icon>
       </button>
+      }
       @if (reacts.length && !isSchedulingMessage && !message.is_ads) {
       <!-- opens the list of reactions on a click or a tap (works on a phone); the reactions themselves stay under the message -->
       <button #emojiPopover="ngbPopover" class="icon-button emoji-button" nbButton ghost shape="round" size="small" type="button"
@@ -90,6 +95,15 @@
             <nb-icon icon="eye-outline"></nb-icon>
           </div>
           }
+          @if (message.id && !isSchedulingMessage && !message.deleted) {
+          <!-- the share list opens on a click or a tap: copy the link to the SITE and e-mail everywhere, WhatsApp on a phone or a tablet only -->
+          <button #sharePopover="ngbPopover" class="share-button" type="button" [ngbPopover]="shareMenu"
+            [popoverContext]="{ message, popover: sharePopover }" triggers="click" [autoClose]="'outside'" container="body"
+            popoverClass="share-popover" [placement]="['top', 'bottom']" title="שתפו את האתר עם חברים" aria-label="שתפו את האתר עם חברים">
+            <nb-icon icon="share-outline"></nb-icon>
+            <span>שתפו את האתר</span>
+          </button>
+          }
         </div>
         @if (message.reactions) {
         <div class="emojis-section">
@@ -107,6 +121,38 @@
   </div>
 </div>
 }
+
+<ng-template #messageShareMenu let-message="message" let-popover="popover">
+  <div class="share-menu">
+    <button class="share-option" type="button" (click)="copyLink(message.id); popover.close()">
+      <nb-icon icon="link-2"></nb-icon><span>העתק קישור להודעה</span>
+    </button>
+    @if (isMobile) {
+    <a class="share-option" [href]="messageWhatsappHref(message)" target="_blank" rel="noopener" (click)="popover.close()">
+      <nb-icon icon="message-circle-outline"></nb-icon><span>שלח בוואטסאפ</span>
+    </a>
+    }
+    <a class="share-option" [href]="messageEmailHref(message)" target="_blank" rel="noopener" (click)="popover.close()">
+      <nb-icon icon="email-outline"></nb-icon><span>שלח ב-Gmail</span>
+    </a>
+  </div>
+</ng-template>
+
+<ng-template #shareMenu let-message="message" let-popover="popover">
+  <div class="share-menu">
+    <button class="share-option" type="button" (click)="copySiteLink(); popover.close()">
+      <nb-icon icon="link-2"></nb-icon><span>העתק קישור לאתר</span>
+    </button>
+    @if (isMobile) {
+    <a class="share-option" [href]="whatsappHref()" target="_blank" rel="noopener" (click)="popover.close()">
+      <nb-icon icon="message-circle-outline"></nb-icon><span>שלח בוואטסאפ</span>
+    </a>
+    }
+    <a class="share-option" [href]="emailHref()" target="_blank" rel="noopener" (click)="popover.close()">
+      <nb-icon icon="email-outline"></nb-icon><span>שלח ב-Gmail</span>
+    </a>
+  </div>
+</ng-template>
 
 <ng-template #emojiMenu let-message="message" let-popover="popover">
   <div class="emoji-picker-menu">
