@@ -298,8 +298,22 @@ export class MessageComponent implements OnInit, OnDestroy {
     return 'https://wa.me/?text=' + encodeURIComponent(this.shareText() + '\n' + this.siteUrl());
   }
 
+  /**
+   * A new e-mail with the subject and the text already in it. On a computer: the writing window of Gmail (a plain mailto: opens whatever program
+   * the computer has, often Outlook). On a phone: mailto:, which opens the mail app with the draft (the Gmail address above only shows the inbox there).
+   */
+  private mailLink(subject: string, body: string): string {
+    const q = 'su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    return this.isMobile ? `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` : `${GMAIL_COMPOSE}&${q}`;
+  }
+
+  /** Gmail opens in a new tab on a computer; the mail app of a phone is opened in place. */
+  get mailTarget(): string | null {
+    return this.isMobile ? null : '_blank';
+  }
+
   emailHref(): string {
-    return GMAIL_COMPOSE + '&su=' + encodeURIComponent(`${this.siteName()} - חדשות ועדכונים`) + '&body=' + encodeURIComponent(this.shareText() + '\n\n' + this.siteUrl());
+    return this.mailLink(`${this.siteName()} - חדשות ועדכונים`, this.shareText() + '\n\n' + this.siteUrl());
   }
 
   /** The text of a message without markup and embeds, short enough for a line (the title of a shared message). */
@@ -326,7 +340,7 @@ export class MessageComponent implements OnInit, OnDestroy {
 
   messageEmailHref(message: ChatMessage): string {
     const title = this.messageTitle(message);
-    return GMAIL_COMPOSE + '&su=' + encodeURIComponent(title || this.siteName()) + '&body=' + encodeURIComponent((title ? title + '\n\n' : '') + this.messageUrl(message));
+    return this.mailLink(title || this.siteName(), (title ? title + '\n\n' : '') + this.messageUrl(message));
   }
 
   copySiteLink() {

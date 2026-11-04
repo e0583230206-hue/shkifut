@@ -132,8 +132,8 @@
       <nb-icon icon="message-circle-outline"></nb-icon><span>שלח בוואטסאפ</span>
     </a>
     }
-    <a class="share-option" [href]="messageEmailHref(message)" target="_blank" rel="noopener" (click)="popover.close()">
-      <nb-icon icon="email-outline"></nb-icon><span>שלח ב-Gmail</span>
+    <a class="share-option" [href]="messageEmailHref(message)" [attr.target]="mailTarget" rel="noopener" (click)="popover.close()">
+      <nb-icon icon="email-outline"></nb-icon><span>שלח במייל</span>
     </a>
   </div>
 </ng-template>
@@ -148,8 +148,8 @@
       <nb-icon icon="message-circle-outline"></nb-icon><span>שלח בוואטסאפ</span>
     </a>
     }
-    <a class="share-option" [href]="emailHref()" target="_blank" rel="noopener" (click)="popover.close()">
-      <nb-icon icon="email-outline"></nb-icon><span>שלח ב-Gmail</span>
+    <a class="share-option" [href]="emailHref()" [attr.target]="mailTarget" rel="noopener" (click)="popover.close()">
+      <nb-icon icon="email-outline"></nb-icon><span>שלח במייל</span>
     </a>
   </div>
 </ng-template>

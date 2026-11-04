@@ -46,9 +46,9 @@ try {
   await open();
   check('a "שתפו את האתר" button is on the message', (await ev(`!!document.querySelector('.share-button')`)));
   let list = await ev(items);
-  check('computer: the list has copy link and e-mail', list.some(x => x.includes('העתק קישור')) && list.some(x => x.includes('שלח ב-Gmail')), JSON.stringify(list));
+  check('computer: the list has copy link and e-mail', list.some(x => x.includes('העתק קישור')) && list.some(x => x.includes('שלח במייל')), JSON.stringify(list));
   check('computer: NO WhatsApp', !list.some(x => x.includes('וואטסאפ')), JSON.stringify(list));
-  const mail = await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('Gmail'))?.getAttribute('href')`);
+  const mail = await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('מייל'))?.getAttribute('href')`);
   check('computer: the e-mail link carries the address of the SITE (not of the message)', !!mail && mail.startsWith('https://mail.google.com/mail/?view=cm') && decodeURIComponent(mail).includes(`${BASE}/`) && !decodeURIComponent(mail).includes(`/m/${id}`) && !decodeURIComponent(mail).includes('embedded'), mail);
   await shot('share-computer.png');
 
@@ -56,8 +56,8 @@ try {
   const openIcon = async () => { await send('Page.navigate', { url: `${BASE}/m/${id}` }); await sleep(6000); await ev(`document.querySelector('button[title="שתף את ההודעה"]')?.click()`); await sleep(600); };
   await openIcon();
   list = await ev(items);
-  check('computer, message icon: copy link and e-mail, no WhatsApp', list.some(x => x.includes('העתק קישור להודעה')) && list.some(x => x.includes('Gmail')) && !list.some(x => x.includes('וואטסאפ')), JSON.stringify(list));
-  const mmail = decodeURIComponent(await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('Gmail'))?.getAttribute('href') || ''`));
+  check('computer, message icon: copy link and e-mail, no WhatsApp', list.some(x => x.includes('העתק קישור להודעה')) && list.some(x => x.includes('מייל')) && !list.some(x => x.includes('וואטסאפ')), JSON.stringify(list));
+  const mmail = decodeURIComponent(await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('מייל'))?.getAttribute('href') || ''`));
   check('computer, message icon: the e-mail carries the title and the address of the MESSAGE', mmail.includes('ידיעה לדוגמה') && mmail.includes(`/m/${id}`) && !mmail.includes('embedded'), mmail);
 
   // 2. a phone
@@ -65,16 +65,21 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 800, deviceScaleFactor: 2, mobile: true });
   await open();
   list = await ev(items);
-  check('phone: the list has copy link, WhatsApp and e-mail', list.some(x => x.includes('העתק קישור')) && list.some(x => x.includes('וואטסאפ')) && list.some(x => x.includes('Gmail')), JSON.stringify(list));
+  check('phone: the list has copy link, WhatsApp and e-mail', list.some(x => x.includes('העתק קישור')) && list.some(x => x.includes('וואטסאפ')) && list.some(x => x.includes('מייל')), JSON.stringify(list));
   const wa = await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('וואטסאפ'))?.getAttribute('href')`);
   check('phone: the WhatsApp link is wa.me with the address of the SITE', !!wa && wa.startsWith('https://wa.me/?text=') && decodeURIComponent(wa).includes(`${BASE}/`) && !decodeURIComponent(wa).includes(`/m/${id}`), wa);
+  const pmail = await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('מייל'))?.getAttribute('href') || ''`);
+  check('phone: the e-mail link is a mailto: draft (opens the mail app) with the address of the SITE', pmail.startsWith('mailto:?subject=') && decodeURIComponent(pmail).includes(`${BASE}/`) && !decodeURIComponent(pmail).includes(`/m/${id}`), pmail);
+  check('phone: the e-mail link opens in place (no new tab)', (await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('מייל'))?.hasAttribute('target')`)) === false);
   check('phone: no horizontal scroll', (await ev('document.documentElement.scrollWidth <= window.innerWidth')));
   await shot('share-phone.png');
   await openIcon();
   list = await ev(items);
-  check('phone, message icon: copy link, WhatsApp and e-mail', list.some(x => x.includes('העתק קישור להודעה')) && list.some(x => x.includes('וואטסאפ')) && list.some(x => x.includes('Gmail')), JSON.stringify(list));
+  check('phone, message icon: copy link, WhatsApp and e-mail', list.some(x => x.includes('העתק קישור להודעה')) && list.some(x => x.includes('וואטסאפ')) && list.some(x => x.includes('מייל')), JSON.stringify(list));
   const mwa = decodeURIComponent(await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('וואטסאפ'))?.getAttribute('href') || ''`));
   check('phone, message icon: the WhatsApp link carries the title and the address of the MESSAGE', mwa.startsWith('https://wa.me/?text=') && mwa.includes('ידיעה לדוגמה') && mwa.includes(`/m/${id}`), mwa);
+  const pmmail = decodeURIComponent(await ev(`[...document.querySelectorAll('.share-option')].find(e => e.innerText.includes('מייל'))?.getAttribute('href') || ''`));
+  check('phone, message icon: the e-mail is a mailto: draft with the title and the address of the MESSAGE', pmmail.startsWith('mailto:?subject=') && pmmail.includes('ידיעה לדוגמה') && pmmail.includes(`/m/${id}`), pmmail);
   await shot('share-phone-icon.png');
 } finally {
   ws.close(); proc.kill();
