@@ -16,6 +16,7 @@ export const routes: Routes = [
   // Shareable message address (the server adds preview tags): the page shows the message itself, with a button to open it in the channel.
   // It must not redirect to the channel by itself: a search engine that runs the page would see the home page and drop the address.
   { path: 'm/:id', component: MessagePageComponent },
+  { path: 'm/:id/:slug', component: MessagePageComponent }, // the readable address: the server redirects /m/<id> to it
   // The link in the "video waits for approval" notification: the video with the moderator's bar and the review grid.
   { path: 'review/:fileId', component: ReviewLinkComponent, canActivate: [AuthGuard] },
   { path: 'privacy', component: StaticPageComponent, data: { page: 'privacy' }, title: 'מדיניות פרטיות' },

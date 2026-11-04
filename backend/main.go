@@ -171,6 +171,7 @@ func main() {
 		r.Handle("/assets/*", staticCache(http.StripPrefix("/assets/", http.FileServer(http.Dir(settingConfig.RootStaticFolder)))))
 		// SEO: meta tags for link previews, a shareable page per message, sitemap and robots (seo.go)
 		r.Get("/m/{id}", serveMessagePage)
+		r.Get("/m/{id}/{slug}", serveMessagePage) // the same page under its readable address (serveMessagePage redirects a wrong slug)
 		r.Get("/robots.txt", serveRobots)
 		r.Get("/sitemap.xml", serveSitemap)
 		r.NotFound(serveSpaFile)

@@ -77,7 +77,7 @@ if (MSG_ID) {
   await go(`/m/${MSG_ID}`, 5000);
   // The page shows the message itself and stays where it is (a page that jumps to the home page is a "redirect" for search engines);
   // the button opens the channel at the message. More in tests/ui/message_page_check.mjs.
-  check('/m/<id> shows the message and stays on /m/<id>', (await evaluate('location.pathname')) === `/m/${MSG_ID}` && (await evaluate(`!!document.querySelector('app-message')`)), await evaluate('location.href'));
+  check('/m/<id> shows the message and stays on /m/<id>', ((await evaluate('location.pathname')) === `/m/${MSG_ID}` || (await evaluate('location.pathname')).startsWith(`/m/${MSG_ID}/`)) && (await evaluate(`!!document.querySelector('app-message')`)), await evaluate('location.href'));
   await evaluate(`document.querySelector('.open-link')?.click()`);
   await sleep(3000);
   check('the "פתח בערוץ" button opens the channel at the message', (await evaluate('location.pathname + location.hash')) === `/#${MSG_ID}`, await evaluate('location.href'));

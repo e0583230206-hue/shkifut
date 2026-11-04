@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"channel/msgslug"
 	"github.com/go-chi/chi"
 )
 
@@ -179,7 +180,7 @@ func serveSpaFile(w http.ResponseWriter, r *http.Request) {
 	renderIndex(w, r, m, status)
 }
 
-// serveMessagePage is the shareable address of a single message: /m/{id}.
+// serveMessagePage is the shareable address of a single message: /m/{id}/{slug} (and /m/{id}, which redirects there).
 func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
@@ -211,6 +212,17 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	plain := plainText(text)
+	// The one address of a message is /m/<id>/<slug>; /m/<id> and a slug that is no longer the text's get a 301 to it.
+	slug := msgslug.Slug(plain)
+	canonical := msgslug.Path(id, slug)
+	if r.URL.Path != msgslug.PlainPath(id, slug) {
+		if r.URL.RawQuery != "" {
+			canonical += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, canonical, http.StatusMovedPermanently)
+		return
+	}
+	m.Path = msgslug.Path(id, slug)
 	if plain != "" {
 		m.Title = truncate(plain, 70) + " | " + name
 		m.Description = truncate(plain, 200)
@@ -261,11 +273,16 @@ func serveSitemap(w http.ResponseWriter, r *http.Request) {
 			if _, err := strconv.Atoi(id); err != nil {
 				continue
 			}
-			if d, _ := rdb.HGet(ctx, key, "deleted").Result(); d == "1" || d == "true" {
+			vals, _ := rdb.HMGet(ctx, key, "text", "deleted").Result()
+			if len(vals) < 2 {
 				continue
 			}
+			if d, _ := vals[1].(string); d == "1" || d == "true" {
+				continue
+			}
+			text, _ := vals[0].(string)
 			lastmod := time.Unix(int64(z.Score), 0).UTC().Format("2006-01-02")
-			fmt.Fprintf(&b, "  <url><loc>%s/m/%s</loc><lastmod>%s</lastmod></url>\n", base, id, lastmod)
+			fmt.Fprintf(&b, "  <url><loc>%s%s</loc><lastmod>%s</lastmod></url>\n", base, html.EscapeString(msgslug.Path(id, msgslug.Slug(plainText(text)))), lastmod)
 		}
 	}
 	b.WriteString("</urlset>\n")

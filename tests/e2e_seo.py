@@ -40,6 +40,23 @@ def get(path, op=anon):
         return e.code, e.read().decode("utf-8", "replace"), e.headers
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+raw = urllib.request.build_opener(_NoRedirect)
+
+
+def get_raw(path):
+    """GET without following a redirect: (status, Location)."""
+    try:
+        with raw.open(B + path) as r:
+            return r.status, r.headers.get("Location")
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get("Location")
+
+
 def post(path, obj, op=admin, raw=None, headers=None):
     data = raw if raw is not None else json.dumps(obj).encode()
     r = urllib.request.Request(B + path, data=data, headers=headers or {"Content-Type": "application/json"})
@@ -98,6 +115,14 @@ try:
     created.append(msg["id"])
     st, html, _ = get(f"/m/{msg['id']}")
     check("message page: 200", st == 200, st)
+    # readable address: /m/<id> -> 301 -> /m/<id>/<slug>; a wrong slug too; the right one is served
+    st, loc = get_raw(f"/m/{msg['id']}?utm=x")
+    slug_path = urllib.parse.urlsplit(loc or "").path
+    check("/m/<id>: 301 to /m/<id>/<slug> (query kept)", st == 301 and slug_path.startswith(f"/m/{msg['id']}/") and (loc or "").endswith("?utm=x"), (st, loc))
+    check("the slug is made of the text (Hebrew, no markup)", "ידיעה-חשובה-על" in urllib.parse.unquote(slug_path) and "script" not in slug_path, slug_path)
+    check("/m/<id>/<wrong slug>: 301 to the right one", get_raw(f"/m/{msg['id']}/wrong-slug") == (301, slug_path), get_raw(f"/m/{msg['id']}/wrong-slug"))
+    st2, html2, _ = get(slug_path)
+    check("/m/<id>/<slug>: 200 without a redirect, canonical = its own address", get_raw(slug_path)[0] == 200 and f'rel="canonical" href="{B}{slug_path}"' in html2, slug_path)
     check("message page: title from text (markdown removed)", (title(html) or "").startswith("ידיעה חשובה על"), title(html))
     check("message page: og:type article", meta(html, "og:type") == "article")
     # Files need a login (default): no page may mention the address of a file, so the preview has no image.
@@ -112,7 +137,7 @@ try:
     check("message page: formatting tags (<u>) do not leak into the title", "u&gt;" not in (title(html) or "") and "מודגש" in (title(html) or ""), title(html))
 
     st, sm, _ = get("/sitemap.xml")
-    check("sitemap lists the message", st == 200 and f"/m/{msg['id']}</loc>" in sm)
+    check("sitemap lists the message under its readable address", st == 200 and re.search(rf"/m/{msg['id']}/[^<]+</loc>", sm) is not None)
 
     # one message through the API (the page /m/<id> shows it instead of jumping to the channel)
     st, one, _ = get(f"/api/messages/{msg['id']}")
@@ -140,7 +165,7 @@ try:
     check("a message number that never existed: 404", get("/m/987654321")[0] == 404)
     check("API: a deleted message is a 404", get(f"/api/messages/{msg['id']}")[0] == 404)
     st, sm, _ = get("/sitemap.xml")
-    check("sitemap omits deleted messages", f"/m/{msg['id']}</loc>" not in sm)
+    check("sitemap omits deleted messages", not re.search(rf"/m/{msg['id']}(/[^<]*)?</loc>", sm))
 
     check("invalid message id: 404", get("/m/abc")[0] == 404)
     st, robots, _ = get("/robots.txt")

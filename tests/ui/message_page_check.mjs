@@ -43,7 +43,7 @@ try {
   await send('Page.navigate', { url: `${BASE}/m/${id}` });
   await sleep(6000);
   const where = await ev('location.pathname + location.hash');
-  check('the page stays on /m/<id> after its scripts have run (no jump to the home page)', where === `/m/${id}`, where);
+  check('the page stays on /m/<id> after its scripts have run (no jump to the home page)', where === `/m/${id}` || where.startsWith(`/m/${id}/`), where); // the server adds the readable part (301)
   const body = await ev('document.body.innerText');
   check('the message text is in the page that was run (not only in <noscript>)', body.includes('ידיעה לדוגמה'), body.slice(0, 200));
   check('a button "פתח בערוץ" is there', body.includes('פתח בערוץ'));
