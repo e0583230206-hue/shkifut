@@ -109,6 +109,9 @@ func renderIndex(w http.ResponseWriter, r *http.Request, m pageMeta, status int)
 	fmt.Fprintf(&head, "<title>%s</title>\n", e(m.Title))
 	fmt.Fprintf(&head, "  <meta name=\"description\" content=\"%s\">\n", e(m.Description))
 	fmt.Fprintf(&head, "  <link rel=\"canonical\" href=\"%s\">\n", e(canonical))
+	if v := appVersion(); v != "" {
+		fmt.Fprintf(&head, "  <meta name=\"app-version\" content=\"%s\">\n", e(v))
+	}
 	if googleSiteVerification != "" { // Google Search Console: proves that the site is ours
 		fmt.Fprintf(&head, "  <meta name=\"google-site-verification\" content=\"%s\">\n", e(googleSiteVerification))
 	}

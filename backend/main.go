@@ -112,6 +112,7 @@ func main() {
 			api.Post("/channel/notifications-subscribe", subscribeNotifications)
 
 			api.Get("/channel/info", getChannelInfo)
+			api.Get("/version", getAppVersion) // the page asks it now and then and offers a refresh when the frontend was updated
 			api.Get("/messages", withPresence(getMessages))
 			api.Get("/messages/search", searchMessages)
 			api.Get("/messages/pinned", getPinnedMessages)
