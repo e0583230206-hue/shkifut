@@ -4,8 +4,10 @@
 @use '@nebular/theme/styles/themes/dark';
 
 // Light theme "custom" (the original) and dark theme "custom-dark"; the header switch picks light / dark / system (theme.service.ts).
+// The light page is a little cooler and deeper than Nebular's default so that the dark-red top bar sits on it (layout-background-color).
 $nb-themes: nb-register-theme((font-family-primary: 'Assistant, sans-serif',
             font-family-secondary: 'Assistant, sans-serif',
+            layout-background-color: #e3e8f3,
         ),
         custom,
         default);

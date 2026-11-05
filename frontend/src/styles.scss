@@ -267,7 +267,7 @@ markdown p {
 nb-layout-header nav {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(to left, #e5202e 0%, #c11a28 26%, #4a0f17 60%, #14171f 100%) !important;
+    background: linear-gradient(to left, #e5202e 0%, #c11a28 24%, #3a1426 58%, #171a2d 100%) !important; // ends in the navy of the side panel (the ad)
     border-bottom: 0 !important;
     box-shadow: 0 6px 22px rgba(20, 23, 31, 0.5) !important;
 
@@ -282,6 +282,6 @@ nb-layout-header nav {
 }
 
 .nb-theme-custom-dark nb-layout-header nav {
-    background: linear-gradient(to left, #b3121f 0%, #8f1523 26%, #35090f 60%, #0d0f14 100%) !important;
+    background: linear-gradient(to left, #b3121f 0%, #8f1523 24%, #2a1020 58%, #101320 100%) !important;
     box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6) !important;
 }
