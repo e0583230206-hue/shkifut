@@ -24,6 +24,12 @@
     border-radius: 50%;
 }
 
+// a white ring around the logo (the picture of the channel or the lens) on the coloured top bar
+.site-lens,
+.hdr > .rounded-circle {
+    box-shadow: 0 0 0 3px #fff, 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
 .hdr-info {
     min-width: 0;
     line-height: 1.25;
@@ -34,6 +40,7 @@
     font-size: 1.6rem;
     font-weight: 800;
     line-height: 1.15;
+    color: #fff; // on the coloured top bar
 }
 
 .site-desc,
@@ -41,7 +48,14 @@
     display: block;
     font-size: 0.8rem;
     line-height: 1.25;
-    color: var(--tc-muted, #5b6785);
+    color: rgba(255, 255, 255, 0.82); // on the coloured top bar
+}
+
+// the name of the signed-in user (Nebular's nb-user) on the coloured bar
+:host ::ng-deep nb-user .user-name,
+:host ::ng-deep nb-user .user-title,
+:host ::ng-deep nb-user .user-picture.initials {
+    color: #fff;
 }
 
 // "Developed and maintained by": a gold-edged capsule that matches the picture (black and gold), in the site font

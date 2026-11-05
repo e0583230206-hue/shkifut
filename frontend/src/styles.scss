@@ -261,3 +261,27 @@ markdown p {
     .mod-link { color: var(--tc-muted); }
     .user-row { border-color: var(--tc-border); }
 }
+
+/* The top bar of the channel: the red of the logo on the logo's side (the start side, on the right), turning to black on the other side, with a
+   glowing red line along the bottom edge. The texts on it are white (channel-header.component.scss). The dark theme has the same bar, deeper. */
+nb-layout-header nav {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(to left, #e5202e 0%, #c11a28 26%, #4a0f17 60%, #14171f 100%) !important;
+    border-bottom: 0 !important;
+    box-shadow: 0 6px 22px rgba(20, 23, 31, 0.5) !important;
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 3px;
+        background: linear-gradient(to left, #ff5a4d, #e5202e 40%, rgba(229, 32, 46, 0));
+        pointer-events: none;
+    }
+}
+
+.nb-theme-custom-dark nb-layout-header nav {
+    background: linear-gradient(to left, #b3121f 0%, #8f1523 26%, #35090f 60%, #0d0f14 100%) !important;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6) !important;
+}
