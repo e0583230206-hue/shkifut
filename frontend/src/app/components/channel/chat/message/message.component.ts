@@ -14,6 +14,7 @@ import Viewer from 'viewerjs';
 import { YoutubePlayerComponent } from '../youtube-player/youtube-player.component';
 import { NgbPopover, NgbPopoverModule } from '@ng-bootstrap/ng-bootstrap';
 import { MessageTimePipe } from '../../../../pipes/message-time.pipe';
+import { StarredService } from '../../../../services/starred.service';
 import { ChatMessage, ChatService } from '../../../../services/chat.service';
 import { AdminService } from '../../../../services/admin.service';
 import { AuthService } from '../../../../services/auth.service';
@@ -67,6 +68,7 @@ export class MessageComponent implements OnInit, OnDestroy {
     private toastrService: NbToastrService,
     public _authService: AuthService,
     private mediaModeration: MediaModerationService,
+    protected starred: StarredService,
   ) { }
 
   reacts: string[] = [];
@@ -262,6 +264,13 @@ export class MessageComponent implements OnInit, OnDestroy {
     const date = new Date(message.last_edit).getFullYear();
     if (isNaN(date)) return false;
     return date !== 1;
+  }
+
+  /** The star: saves the message in the reader's own list (kept in this browser), or takes it out. */
+  toggleStar(message: ChatMessage) {
+    if (!message.id) return;
+    const now = this.starred.toggle(message);
+    this.toastrService.success('', now ? 'ההודעה נשמרה בכוכב' : 'ההודעה הוסרה מהשמורים');
   }
 
   async togglePin(message: ChatMessage) {

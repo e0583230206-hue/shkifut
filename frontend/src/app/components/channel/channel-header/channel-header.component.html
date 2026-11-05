@@ -34,6 +34,14 @@
       <nb-icon icon="search-outline"></nb-icon>
     </button>
 
+    <!-- the saved messages (the stars of this browser) -->
+    <button nbButton shape="round" class="m-2 star-list-btn" title="הודעות שמורות" aria-label="הודעות שמורות" (click)="openStarred()" status="basic">
+      <nb-icon [icon]="starred.count ? 'star' : 'star-outline'" [class.star-on]="starred.count > 0"></nb-icon>
+      @if (starred.count > 0) {
+      <span class="star-badge" aria-hidden="true">{{ starred.count }}</span>
+      }
+    </button>
+
     <button nbButton shape="round" class="m-2 theme-switch" title="מצב תצוגה" aria-label="מצב תצוגה: בהיר, כהה או לפי המערכת" status="basic"
       [nbContextMenu]="themeMenu" nbContextMenuTag="theme-menu">
       <nb-icon [icon]="themeIcon"></nb-icon>

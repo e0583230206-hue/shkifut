@@ -68,13 +68,12 @@
         <nb-icon icon="link-2"></nb-icon>
       </button>
       }
-      @if (reacts.length && !isSchedulingMessage && !message.is_ads) {
-      <!-- opens the list of reactions on a click or a tap (works on a phone); the reactions themselves stay under the message -->
-      <button #emojiPopover="ngbPopover" class="icon-button emoji-button" nbButton ghost shape="round" size="small" type="button"
-        [ngbPopover]="emojiMenu" [popoverContext]="{ message, popover: emojiPopover }" triggers="click" [autoClose]="'outside'"
-        container="body" popoverClass="emoji-picker-popover" [placement]="['bottom', 'top']"
-        title="הגב באימוג'י" aria-label="הגב באימוג'י">
-        <nb-icon icon="smiling-face-outline"></nb-icon>
+      <!-- the star: saves the message in the reader's own list (this browser), see StarredService -->
+      @if (message.id && !isSchedulingMessage && !message.deleted) {
+      <button class="icon-button star-button" [class.on]="starred.has(message.id)" nbButton ghost shape="round" size="small" type="button"
+        (click)="toggleStar(message)" [attr.aria-pressed]="starred.has(message.id)"
+        [title]="starred.has(message.id) ? 'הסר מהשמורים' : 'שמור בכוכב'" [attr.aria-label]="starred.has(message.id) ? 'הסר מהשמורים' : 'שמור את ההודעה בכוכב'">
+        <nb-icon [icon]="starred.has(message.id) ? 'star' : 'star-outline'"></nb-icon>
       </button>
       }
     </div>
@@ -89,12 +88,23 @@
           }
         </div>
         <div class="d-flex justify-content-between align-items-center mx-2 gap-2 mb-1">
-          @if (message.views) {
-          <div class="d-flex flex-row align-items-center text-black-50 gap-1" title="צפיות">
-            <small>{{ message.views }}</small>
-            <nb-icon icon="eye-outline"></nb-icon>
+          <div class="d-flex flex-row align-items-center gap-2">
+            @if (reacts.length && !isSchedulingMessage && !message.is_ads) {
+            <!-- opens the list of reactions on a click or a tap (works on a phone); the reactions themselves are under it -->
+            <button #emojiPopover="ngbPopover" class="icon-button emoji-button" nbButton ghost shape="round" size="small" type="button"
+              [ngbPopover]="emojiMenu" [popoverContext]="{ message, popover: emojiPopover }" triggers="click" [autoClose]="'outside'"
+              container="body" popoverClass="emoji-picker-popover" [placement]="['top', 'bottom']"
+              title="הגב באימוג'י" aria-label="הגב באימוג'י">
+              <nb-icon icon="smiling-face-outline"></nb-icon>
+            </button>
+            }
+            @if (message.views) {
+            <div class="d-flex flex-row align-items-center text-black-50 gap-1" title="צפיות">
+              <small>{{ message.views }}</small>
+              <nb-icon icon="eye-outline"></nb-icon>
+            </div>
+            }
           </div>
-          }
           @if (message.id && !isSchedulingMessage && !message.deleted) {
           <!-- the share list opens on a click or a tap: copy the link to the SITE and e-mail everywhere, WhatsApp on a phone or a tablet only -->
           <button #sharePopover="ngbPopover" class="share-button" type="button" [ngbPopover]="shareMenu"

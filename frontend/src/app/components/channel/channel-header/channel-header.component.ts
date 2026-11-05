@@ -23,6 +23,8 @@ import { User } from '../../../models/user.model';
 import { ContactComponent } from '../contact/contact.component';
 import { SearchComponent } from '../search/search.component';
 import { HeaderSearchComponent } from '../header-search/header-search.component';
+import { StarredListComponent } from '../starred/starred-list.component';
+import { StarredService } from '../../../services/starred.service';
 import { ThemeMode, ThemeService } from '../../../services/theme.service';
 
 @Component({
@@ -101,6 +103,7 @@ export class ChannelHeaderComponent implements OnInit {
     private dialogService: NbDialogService,
     public themeService: ThemeService,
     private adminService: AdminService,
+    public starred: StarredService,
   ) {
   }
 
@@ -192,6 +195,11 @@ export class ChannelHeaderComponent implements OnInit {
   }
 
   /** Built-in contact form; an external link can still be set with the "contact_us" setting. */
+  /** The saved messages (the stars), in a window. */
+  openStarred() {
+    this.dialogService.open(StarredListComponent, { closeOnBackdropClick: true, autoFocus: false });
+  }
+
   openSearch() {
     this.dialogService.open(SearchComponent, { closeOnBackdropClick: true, autoFocus: false });
   }

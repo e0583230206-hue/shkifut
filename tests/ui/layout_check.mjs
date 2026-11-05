@@ -92,7 +92,7 @@ async function loggedIn(label, w, h, mobile, port) {
     check(`${label}: nothing pops up when the mouse hovers over a message`, await b.ev(`!document.querySelector('.emoji-picker-menu')`));
     await scrollTo(b, REACTED);
     await sleep(500);
-    check(`${label}: a small emoji button sits next to report and link`, await b.ev(`(() => { const m = document.getElementById('${REACTED}'); const bs = [...m.querySelectorAll('.msg-head button.icon-button')]; const i = bs.findIndex(x => x.classList.contains('emoji-button')); return i >= 0 && bs.length >= 3 && i === bs.length - 1; })()`));
+    check(`${label}: the emoji button is at the bottom of the message (under the text, not in the row above it)`, await b.ev(`(() => { const m = document.getElementById('${REACTED}'); const e = m.querySelector('.emoji-button'); const t = m.querySelector('markdown'); if (!e || !t) return false; return !e.closest('.msg-head') && e.getBoundingClientRect().top >= t.getBoundingClientRect().bottom - 2; })()`));
     check(`${label}: reaction tags (emoji + number) stay under the message`, await b.ev(`document.querySelectorAll('[id="${REACTED}"] .emojis-section .emoji-reaction .count').length >= 3`));
     await b.shot(`${label}-1-reactions.png`);
     await b.ev(`document.querySelector('[id="${REACTED}"] .emoji-button').click()`);

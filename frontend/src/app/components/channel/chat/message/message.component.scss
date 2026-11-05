@@ -263,3 +263,8 @@ nb-icon {
   cursor: pointer;
   align-self: center;
 }
+
+/* the star above a message: gold when the message is saved */
+.star-button.on {
+  color: #f5a300;
+}

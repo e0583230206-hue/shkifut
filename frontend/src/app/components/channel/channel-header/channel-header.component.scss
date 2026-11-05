@@ -63,7 +63,7 @@ app-header-search {
     }
 
     .hdr {
-        --hs-side: 400px;
+        --hs-side: 440px;
     }
 
     app-header-search {
@@ -165,12 +165,26 @@ app-header-search {
         gap: 0.25rem !important;
     }
 
+    // (six small buttons now, with the star: 30 px and a thin gap, so that the text of the logo keeps its width)
+    .hdr-end {
+        gap: 0.1rem;
+    }
+
     .hdr-end > button {
-        width: 34px;
-        height: 34px;
+        width: 30px;
+        height: 30px;
         min-width: 0;
         padding: 0 !important;
-        margin: 0.1rem !important;
+        margin: 0.05rem !important;
+    }
+
+    .star-list-btn .star-badge {
+        top: -5px;
+        min-width: 15px;
+        height: 15px;
+        padding: 0 3px;
+        font-size: 9px;
+        line-height: 15px;
     }
 
     .hdr-end > nb-user,
@@ -189,7 +203,14 @@ app-header-search {
 
     .site-desc,
     .site-count {
-        font-size: 0.7rem;
+        font-size: 0.64rem;
+    }
+
+    .hdr-end nb-user .user-picture,
+    .hdr-end nb-user .user-picture.initials {
+        width: 32px;
+        height: 32px;
+        font-size: 0.8rem;
     }
 }
 
@@ -238,11 +259,37 @@ app-header-search {
 
 @media (min-width: 1400px) {
     .hdr {
-        --hs-side: 480px;
+        --hs-side: 520px;
     }
 
     :host ::ng-deep .hdr-end nb-user .user-name,
     :host ::ng-deep .hdr-end nb-user .user-title {
         display: block;
+    }
+}
+
+// the button of the saved messages: a star, gold when there is something saved, with the number
+.star-list-btn {
+    position: relative;
+
+    .star-on {
+        color: #f5a300;
+    }
+
+    .star-badge {
+        position: absolute;
+        top: -4px;
+        inset-inline-start: -4px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 9px;
+        background: #f5a300;
+        color: #1b2140;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 18px;
+        text-align: center;
+        pointer-events: none;
     }
 }
