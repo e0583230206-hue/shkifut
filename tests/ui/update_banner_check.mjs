@@ -74,6 +74,19 @@ try {
   await poke();
   check('... but comes back for an even newer version', await bannerShown());
 
+  // the preview link: the notice at once, and the button leaves the preview
+  fake = '';
+  await send('Page.navigate', { url: `${BASE}/m/${id}?previewUpdate=1` });
+  await sleep(6000);
+  check('?previewUpdate=1 shows the notice at once', await bannerShown());
+  await ev(`document.querySelector('.update-banner .refresh').click()`);
+  await sleep(6000);
+  check('... and the button opens the page without the preview parameter, with no notice', !(await ev('location.search')).includes('previewUpdate') && !(await bannerShown()));
+  await send('Page.navigate', { url: `${BASE}/m/${id}` });
+  await sleep(6000);
+  fake = '123456123456';
+  await poke();
+
   // a phone: the card fits the screen (no sideways scroll, all of it inside the window)
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 800, deviceScaleFactor: 2, mobile: true });
   await send('Page.navigate', { url: `${BASE}/m/${id}` });

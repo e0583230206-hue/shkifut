@@ -15,6 +15,7 @@ export class UpdateService {
   private dismissedFor = '';
   private latest = '';
   private started = false;
+  private preview = false;
 
   get visible(): boolean {
     return this.available && this.latest !== this.dismissedFor;
@@ -22,6 +23,12 @@ export class UpdateService {
 
   init(): void {
     if (this.started || typeof document === 'undefined') return;
+    // "?previewUpdate=1" shows the notice at once, to see how it looks (the button then opens the same page without the parameter)
+    if (new URLSearchParams(window.location.search).get('previewUpdate') === '1') {
+      this.preview = true;
+      this.latest = 'preview';
+      this.available = true;
+    }
     this.loaded = document.querySelector('meta[name="app-version"]')?.getAttribute('content') || '';
     if (!this.loaded) return;
     this.started = true;
@@ -32,6 +39,7 @@ export class UpdateService {
   }
 
   async check(): Promise<void> {
+    if (this.preview) return;
     try {
       const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' });
       if (!res.ok) return;
@@ -50,6 +58,12 @@ export class UpdateService {
   }
 
   refresh(): void {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('previewUpdate')) {
+      url.searchParams.delete('previewUpdate');
+      window.location.assign(url.toString());
+      return;
+    }
     window.location.reload();
   }
 }

@@ -35,7 +35,8 @@ import { UpdateService } from '../../services/update.service';
     }
   `,
   styles: [`
-    :host { --ub-a: #2f4bff; --ub-b: #7a3cff; --ub-c: #19c3ff; }
+    /* blue and violet as in the site, and the red of the logo (--ub-r, --ub-r2) */
+    :host { --ub-a: #2f4bff; --ub-b: #7a3cff; --ub-c: #19c3ff; --ub-r: #e5202e; --ub-r2: #ff5a4d; }
 
     .update-banner {
       position: fixed;
@@ -63,7 +64,7 @@ import { UpdateService } from '../../services/update.service';
       position: absolute;
       inset: 0 0 auto 0;
       height: 3px;
-      background: linear-gradient(90deg, var(--ub-c), var(--ub-a), var(--ub-b), var(--ub-c));
+      background: linear-gradient(90deg, var(--ub-r), var(--ub-r2), var(--ub-b), var(--ub-a), var(--ub-b), var(--ub-r2), var(--ub-r));
       background-size: 200% 100%;
       animation: ub-flow 3s linear infinite;
     }
@@ -77,8 +78,8 @@ import { UpdateService } from '../../services/update.service';
       height: 46px;
       border-radius: 14px;
       color: #fff;
-      background: linear-gradient(135deg, var(--ub-a), var(--ub-b));
-      box-shadow: 0 6px 16px rgba(47, 75, 255, 0.4);
+      background: linear-gradient(135deg, var(--ub-r2), var(--ub-r) 55%, #a5121f);
+      box-shadow: 0 6px 16px rgba(229, 32, 46, 0.42);
       animation: ub-pulse 2.4s ease-in-out infinite;
     }
     .badge svg { transform-origin: 50% 50%; animation: ub-spin 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
@@ -156,8 +157,8 @@ import { UpdateService } from '../../services/update.service';
     @keyframes ub-flow  { to { background-position: -200% 0; } }
     @keyframes ub-spin  { 0%, 55% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
     @keyframes ub-pulse {
-      0%, 100% { box-shadow: 0 6px 16px rgba(47, 75, 255, 0.4), 0 0 0 0 rgba(122, 60, 255, 0.45); }
-      50%      { box-shadow: 0 6px 16px rgba(47, 75, 255, 0.4), 0 0 0 10px rgba(122, 60, 255, 0); }
+      0%, 100% { box-shadow: 0 6px 16px rgba(229, 32, 46, 0.42), 0 0 0 0 rgba(229, 32, 46, 0.5); }
+      50%      { box-shadow: 0 6px 16px rgba(229, 32, 46, 0.42), 0 0 0 10px rgba(229, 32, 46, 0); }
     }
     @keyframes ub-spark {
       0%, 100% { opacity: 0; transform: scale(0.3); }
