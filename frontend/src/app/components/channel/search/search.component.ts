@@ -5,7 +5,7 @@ import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs'
 import { ChatService, SearchResult } from '../../../services/chat.service';
 import { MessageTimePipe } from '../../../pipes/message-time.pipe';
 
-type Part = { text: string; hit: boolean };
+export type Part = { text: string; hit: boolean };
 
 /** Channel search: results with the matched words highlighted; choosing one jumps to the message. */
 @Component({
@@ -68,7 +68,7 @@ export class SearchComponent implements AfterViewInit, OnDestroy {
 }
 
 /** Splits text into plain/highlighted parts (niqqud-insensitive), rendered without innerHTML. */
-function highlight(text: string, terms: string[]): Part[] {
+export function highlight(text: string, terms: string[]): Part[] {
   const strip = (s: string) => s.replace(/[֑-ׇ]/g, '').toLowerCase();
   const chars = [...text];
   const plain = chars.map(c => strip(c));

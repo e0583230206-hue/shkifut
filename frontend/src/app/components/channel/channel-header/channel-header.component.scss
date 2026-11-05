@@ -26,8 +26,60 @@
 
 // a white ring around the logo (the picture of the channel or the lens) on the coloured top bar
 .site-lens,
-.hdr > .rounded-circle {
+.hdr-start > .rounded-circle {
     box-shadow: 0 0 0 3px #fff, 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* The two sides of the top bar. On a computer (from "lg") they are of the same width, so the search field between them is exactly in the middle of the bar;
+   each side keeps at least the width of its content, and when there is not enough room the field gets narrower (down to its own minimum). */
+.hdr-start,
+.hdr-end {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.hdr-start {
+    flex: 1 1 auto;
+}
+
+.hdr-end {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+}
+
+// On a computer (from 1100 px) the search field is always there; below that the small search button is used. The field is as wide as the screen leaves
+// room for after the two sides (--hs-side is a little more than the widest side), 260 to 680 px, so with sides of the same width it is exactly in the middle.
+app-header-search {
+    display: none;
+}
+
+@media (min-width: 1100px) {
+    .hdr-start,
+    .hdr-end {
+        flex: 1 1 0;
+        min-width: max-content;
+    }
+
+    .hdr {
+        --hs-side: 400px;
+    }
+
+    app-header-search {
+        display: block;
+        flex: 0 0 clamp(260px, calc(100vw - 2 * var(--hs-side) - 40px), 680px);
+    }
+
+    .search-mini {
+        display: none !important;
+    }
+
+    // tighter buttons on the end side, so that there is room for the field
+    .hdr-end > button,
+    .hdr-end > .user-wrap {
+        margin: 0 !important;
+    }
 }
 
 .hdr-info {
@@ -113,7 +165,7 @@
         gap: 0.25rem !important;
     }
 
-    .hdr > button {
+    .hdr-end > button {
         width: 34px;
         height: 34px;
         min-width: 0;
@@ -121,8 +173,8 @@
         margin: 0.1rem !important;
     }
 
-    .hdr > nb-user,
-    .hdr > .user-wrap {
+    .hdr-end > nb-user,
+    .hdr-end > .user-wrap {
         margin: 0.1rem !important;
     }
 
@@ -162,4 +214,35 @@
     line-height: 18px;
     text-align: center;
     pointer-events: none;
+}
+
+// A smaller "developed by" button (from 1100 px, where the search field is in the bar), and below 1400 px the name of the signed-in user is left out of the bar
+// (the round picture stays): that is the room for a wide search field. Above 1400 px the name is back and the sides are wider.
+@media (min-width: 1100px) {
+    .dev-credit {
+        gap: 0.45rem !important;
+        padding: 0.15rem 0.8rem 0.15rem 0.2rem;
+        font-size: 0.78rem;
+
+        img {
+            width: 36px;
+            height: 36px;
+        }
+    }
+
+    :host ::ng-deep .hdr-end nb-user .user-name,
+    :host ::ng-deep .hdr-end nb-user .user-title {
+        display: none;
+    }
+}
+
+@media (min-width: 1400px) {
+    .hdr {
+        --hs-side: 480px;
+    }
+
+    :host ::ng-deep .hdr-end nb-user .user-name,
+    :host ::ng-deep .hdr-end nb-user .user-title {
+        display: block;
+    }
 }

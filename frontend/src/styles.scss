@@ -266,7 +266,6 @@ markdown p {
    glowing red line along the bottom edge. The texts on it are white (channel-header.component.scss). The dark theme has the same bar, deeper. */
 nb-layout-header nav {
     position: relative;
-    overflow: hidden;
     background: linear-gradient(to left, #e5202e 0%, #c11a28 24%, #3a1426 58%, #171a2d 100%) !important; // ends in the navy of the side panel (the ad)
     border-bottom: 0 !important;
     box-shadow: 0 6px 22px rgba(20, 23, 31, 0.5) !important;

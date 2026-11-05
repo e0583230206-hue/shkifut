@@ -1,61 +1,70 @@
 <div class="hdr d-flex flex-row gap-2 align-items-center justify-content-between">
-  @if (chatService.channelInfo?.logoUrl?.length) {
-  <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px">
-    <img [src]="chatService.channelInfo?.logoUrl" class="rounded-circle img-circle" (click)="viewLargeImage($event)">
+  <!-- the start side (on the right): the logo and the name. On a computer the two sides are of the same width, so the search field between them is exactly in the middle of the bar -->
+  <div class="hdr-start">
+    @if (chatService.channelInfo?.logoUrl?.length) {
+    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px">
+      <img [src]="chatService.channelInfo?.logoUrl" class="rounded-circle img-circle" (click)="viewLargeImage($event)">
+    </div>
+    } @else {
+    <!-- the logo of the channel: the lens (a round picture, like the profile of a group) -->
+    <img class="site-lens" src="/assets/brand/lens-96.png" srcset="/assets/brand/lens-96.png 1x, /assets/brand/lens-192.png 2x" width="56" height="56" alt="" aria-hidden="true">
+    }
+    <div class="hdr-info d-flex flex-column">
+      <h1 class="site-title">{{ chatService.channelInfo?.name || 'שקיפות' }}</h1>
+      <small class="site-desc">{{ chatService.channelInfo?.description || 'שיתוף התוכן לפי חוק סעיף 27א לזכויות יוצרים' }}</small>
+      <small class="site-count">
+        {{ chatService.channelInfo?.views | number }} משתתפים
+        <span class="legal-links"> · <a routerLink="/privacy">פרטיות</a> · <a routerLink="/terms">תנאי שימוש</a></span>
+      </small>
+    </div>
   </div>
-  } @else {
-  <!-- the logo of the channel: the lens (a round picture, like the profile of a group) -->
-  <img class="site-lens" src="/assets/brand/lens-96.png" srcset="/assets/brand/lens-96.png 1x, /assets/brand/lens-192.png 2x" width="56" height="56" alt="" aria-hidden="true">
-  }
-  <div class="hdr-info d-flex flex-column flex-grow-1">
-    <h1 class="site-title">{{ chatService.channelInfo?.name || 'שקיפות' }}</h1>
-    <small class="site-desc">{{ chatService.channelInfo?.description || 'שיתוף התוכן לפי חוק סעיף 27א לזכויות יוצרים' }}</small>
-    <small class="site-count">
-      {{ chatService.channelInfo?.views | number }} משתתפים
-      <span class="legal-links"> · <a routerLink="/privacy">פרטיות</a> · <a routerLink="/terms">תנאי שימוש</a></span>
-    </small>
+
+  <!-- the search field: on a computer it is always there, exactly in the middle of the bar; on a phone the small button opens the search window -->
+  <app-header-search></app-header-search>
+
+  <!-- the end side (on the left): who develops the site, and the buttons -->
+  <div class="hdr-end">
+    <!-- who develops and maintains the site: the whole animated picture (a GIF, kept as it is), round; a click opens a Gmail compose window to the developer -->
+    <a class="dev-credit d-none d-md-flex align-items-center gap-2" href="https://mail.google.com/mail/?view=cm&fs=1&to=e0583230206%40gmail.com&su=%D7%93%D7%A8%D7%9A%20%D7%90%D7%AA%D7%A8%20%D7%A9%D7%A7%D7%99%D7%A4%D7%95%D7%AA" target="_blank" rel="noopener noreferrer" title="לשליחת הודעה למפתח">
+      <span>מפותח ומתוחזק ע"י</span>
+      <img src="/assets/brand/developer.gif" width="44" height="44" alt="" aria-hidden="true">
+    </a>
+
+    <button nbButton shape="round" class="m-2 search-mini" title="חיפוש" aria-label="חיפוש בערוץ" (click)="openSearch()" status="basic">
+      <nb-icon icon="search-outline"></nb-icon>
+    </button>
+
+    <button nbButton shape="round" class="m-2 theme-switch" title="מצב תצוגה" aria-label="מצב תצוגה: בהיר, כהה או לפי המערכת" status="basic"
+      [nbContextMenu]="themeMenu" nbContextMenuTag="theme-menu">
+      <nb-icon [icon]="themeIcon"></nb-icon>
+    </button>
+
+    <button nbButton shape="round" class="m-2" title="צור קשר" aria-label="צור קשר" (click)="openContactUs()" status="info">
+      <nb-icon icon="email-outline"></nb-icon>
+    </button>
+
+    @if (notificationsService.initialized) {
+      <button nbButton shape="round" class="m-2" title="התראות" aria-label="הפעלת התראות" status="danger"
+        (click)="notificationsService.requestPermission()">
+        <nb-icon icon="bell"></nb-icon>
+      </button>
+    }
+
+    @if (userInfo) {
+      <span class="user-wrap">
+        <nb-user [name]="userInfo.username" shape="round" [nbContextMenu]="userMenu" [nbContextMenuTag]="userMenuTag"
+          [picture]="userInfo.picture || ''" [onlyPicture]="isSmallScreen">
+        </nb-user>
+        @if (inboxTotal > 0) {
+          <span class="inbox-dot" title="פניות ודיווחים פתוחים" aria-label="{{ inboxTotal }} פניות ודיווחים פתוחים">{{ inboxTotal }}</span>
+        }
+      </span>
+    } @else {
+      <button nbButton shape="round" appearance="outline" title="התחבר באמצעות חשבון גוגל"
+        (click)="_authService.loginWithGoogle()">
+        <nb-icon icon="google"></nb-icon>
+        התחבר
+      </button>
+    }
   </div>
-
-  <!-- who develops and maintains the site: the whole animated picture (a GIF, kept as it is), round; a click opens a Gmail compose window to the developer -->
-  <a class="dev-credit d-none d-md-flex align-items-center gap-2" href="https://mail.google.com/mail/?view=cm&fs=1&to=e0583230206%40gmail.com&su=%D7%93%D7%A8%D7%9A%20%D7%90%D7%AA%D7%A8%20%D7%A9%D7%A7%D7%99%D7%A4%D7%95%D7%AA" target="_blank" rel="noopener noreferrer" title="לשליחת הודעה למפתח">
-    <span>מפותח ומתוחזק ע"י</span>
-    <img src="/assets/brand/developer.gif" width="44" height="44" alt="" aria-hidden="true">
-  </a>
-
-  <button nbButton shape="round" class="m-2" title="חיפוש" aria-label="חיפוש בערוץ" (click)="openSearch()" status="basic">
-    <nb-icon icon="search-outline"></nb-icon>
-  </button>
-
-  <button nbButton shape="round" class="m-2 theme-switch" title="מצב תצוגה" aria-label="מצב תצוגה: בהיר, כהה או לפי המערכת" status="basic"
-    [nbContextMenu]="themeMenu" nbContextMenuTag="theme-menu">
-    <nb-icon [icon]="themeIcon"></nb-icon>
-  </button>
-
-  <button nbButton shape="round" class="m-2" title="צור קשר" aria-label="צור קשר" (click)="openContactUs()" status="info">
-    <nb-icon icon="email-outline"></nb-icon>
-  </button>
-
-  @if (notificationsService.initialized) {
-    <button nbButton shape="round" class="m-2" title="התראות" aria-label="הפעלת התראות" status="danger"
-      (click)="notificationsService.requestPermission()">
-      <nb-icon icon="bell"></nb-icon>
-    </button>
-  }
-
-  @if (userInfo) {
-    <span class="user-wrap">
-      <nb-user [name]="userInfo.username" shape="round" [nbContextMenu]="userMenu" [nbContextMenuTag]="userMenuTag"
-        [picture]="userInfo.picture || ''" [onlyPicture]="isSmallScreen">
-      </nb-user>
-      @if (inboxTotal > 0) {
-        <span class="inbox-dot" title="פניות ודיווחים פתוחים" aria-label="{{ inboxTotal }} פניות ודיווחים פתוחים">{{ inboxTotal }}</span>
-      }
-    </span>
-  } @else {
-    <button nbButton shape="round" appearance="outline" title="התחבר באמצעות חשבון גוגל"
-      (click)="_authService.loginWithGoogle()">
-      <nb-icon icon="google"></nb-icon>
-      התחבר
-    </button>
-  }
 </div>

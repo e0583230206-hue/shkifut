@@ -1,0 +1,157 @@
+:host {
+  display: block;
+  min-width: 0; // the width is set by the top bar (channel-header.component.scss)
+}
+
+.hs {
+  position: relative;
+}
+
+/* a round, always-open field on the dark top bar: light glass; white with a red ring when it is used */
+.hs-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 50px;
+  padding: 0 50px 0 48px; // room for the magnifier (left, the end side) and for the clear button
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 1.08rem;
+  outline: none;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  &:focus {
+    background: #fff;
+    color: #1b2140;
+    border-color: #e22d40;
+    box-shadow: 0 0 0 3px rgba(226, 45, 64, 0.35);
+
+    &::placeholder {
+      color: #7a8198;
+    }
+  }
+}
+
+.hs-icon {
+  position: absolute;
+  inset-inline-end: auto;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.45rem;
+  color: rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+  transition: color 0.18s ease;
+}
+
+.hs-input:focus ~ .hs-icon {
+  color: #e22d40;
+}
+
+.hs-clear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+.hs-input:focus ~ .hs-clear {
+  color: #5a6275;
+
+  &:hover {
+    background: rgba(90, 98, 117, 0.15);
+  }
+}
+
+.hs-panel {
+  position: absolute;
+  z-index: 1100;
+  top: calc(100% + 8px);
+  inset-inline: 0;
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  border-radius: 18px;
+  background: var(--tc-surface, #fff);
+  color: var(--tc-text, #1b2140);
+  border: 1px solid var(--tc-border, #dfe3ee);
+  box-shadow: 0 18px 44px rgba(16, 19, 32, 0.35);
+  animation: hs-open 0.16s ease-out both;
+}
+
+@keyframes hs-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.hs-note {
+  padding: 14px 16px;
+  text-align: center;
+  color: var(--tc-muted, #5b6785);
+}
+
+.hs-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.hs-result {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--tc-border, #eef0f6);
+  background: none;
+  color: inherit;
+  text-align: right;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--tc-surface-2, #f3f5fa);
+    outline: none;
+  }
+
+  mark {
+    padding: 0;
+    border-radius: 3px;
+    background: var(--tc-warn-bg, #ffe58a);
+    color: inherit;
+  }
+}
+
+.hs-time {
+  display: block;
+  color: var(--tc-muted, #6b7390);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hs-panel {
+    animation: none;
+  }
+}

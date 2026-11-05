@@ -22,6 +22,7 @@ import { AdminPanelComponent } from "../../admin/admin-panel.component";
 import { User } from '../../../models/user.model';
 import { ContactComponent } from '../contact/contact.component';
 import { SearchComponent } from '../search/search.component';
+import { HeaderSearchComponent } from '../header-search/header-search.component';
 import { ThemeMode, ThemeService } from '../../../services/theme.service';
 
 @Component({
@@ -32,7 +33,8 @@ import { ThemeMode, ThemeService } from '../../../services/theme.service';
     NbUserModule,
     NbContextMenuModule,
     RouterLink,
-    DecimalPipe
+    DecimalPipe,
+    HeaderSearchComponent,
 ],
   templateUrl: './channel-header.component.html',
   styleUrl: './channel-header.component.scss'

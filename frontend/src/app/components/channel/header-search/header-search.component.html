@@ -1,0 +1,32 @@
+<div class="hs" role="search">
+  <input class="hs-input" type="text" [(ngModel)]="query" (ngModelChange)="onInput()" (focus)="onFocus()"
+    placeholder="חיפוש בהודעות..." aria-label="חיפוש בהודעות הערוץ" maxlength="100" autocomplete="off" enterkeyhint="search">
+  @if (query) {
+  <button class="hs-clear" type="button" title="נקה" aria-label="נקה את החיפוש" (click)="clear()">
+    <nb-icon icon="close-outline"></nb-icon>
+  </button>
+  }
+  <nb-icon class="hs-icon" icon="search-outline" aria-hidden="true"></nb-icon>
+
+  @if (open && query.trim().length >= 2) {
+  <div class="hs-panel" role="region" aria-label="תוצאות חיפוש">
+    @if (searching) {
+    <div class="hs-note"><span class="spinner-border spinner-border-sm text-primary"></span></div>
+    } @else if (error) {
+    <div class="hs-note text-danger">שגיאה בחיפוש, נסו שוב.</div>
+    } @else if (searched && !results.length) {
+    <div class="hs-note">לא נמצאו הודעות</div>
+    }
+    <ul class="hs-list">
+      @for (r of results; track r.id) {
+      <li>
+        <button type="button" class="hs-result" (click)="choose(r)">
+          <small class="hs-time">{{ r.timestamp | messageTime }}</small>
+          <span>@for (p of r.parts; track $index) {@if (p.hit) {<mark>{{ p.text }}</mark>} @else {{{ p.text }}}}</span>
+        </button>
+      </li>
+      }
+    </ul>
+  </div>
+  }
+</div>
