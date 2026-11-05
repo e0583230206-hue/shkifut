@@ -80,6 +80,7 @@ func main() {
 	// Protected with api key
 	r.Post("/api/import/post", addNewPost)
 	r.Post("/api/import/upload", importUpload)
+	r.Post("/api/import/delete", importDeleteMessage)
 	r.Post("/api/contact", submitContact)
 
 	if devLoginEnabled {

@@ -45,7 +45,7 @@ var privatePublicPaths = map[string]bool{
 	"/login": true, "/auth/google": true, "/auth/login": true, "/auth/logout": true, "/auth/dev-login": true,
 	"/favicon.ico": true, "/assets/favicon.ico": true, "/apple-touch-icon.png": true, "/robots.txt": true,
 	"/privacy": true, "/terms": true, "/accessibility": true, // Google consent-screen links must be readable without signing in
-	"/api/import/post": true, "/api/import/upload": true, // bridge: X-API-Key
+	"/api/import/post": true, "/api/import/upload": true, "/api/import/delete": true, // bridge: X-API-Key
 }
 
 func privateAccess(next http.Handler) http.Handler {

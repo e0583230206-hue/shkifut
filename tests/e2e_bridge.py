@@ -99,6 +99,32 @@ try:
         time.sleep(1)
     check("bridge media went through moderation", s["status"] in ("open", "regional", "blurred"), s["status"])
 
+    # /api/import/delete: the bridge removes the site message of a WhatsApp message that was deleted there (what the real bridge posts has no author)
+    def gone(mid):
+        return req(f"/api/messages/{mid}")[0]
+    st, out = req("/api/import/post", json.dumps({"text": "bridge-del-" + uuid.uuid4().hex[:8]}).encode(), jh)
+    bm = json.loads(out) if st == 200 else {}
+    st, _ = req("/api/import/delete", json.dumps({"id": bm.get("id")}).encode(), {"Content-Type": "application/json"})
+    check("delete without a key -> 401", st == 401, st)
+    st, _ = req("/api/import/delete", json.dumps({"id": bm.get("id")}).encode(), {"Content-Type": "application/json", "X-API-Key": "wrong"})
+    check("delete with a wrong key -> 401", st == 401, st)
+    check("... and the message is still there", gone(bm.get("id")) == 200)
+    st, _ = req("/api/import/delete", b"not json", jh)
+    check("delete with a bad body -> 400", st == 400, st)
+    st, _ = req("/api/import/delete", json.dumps({"id": 0}).encode(), jh)
+    check("delete with id 0 -> 400", st == 400, st)
+    st, _ = req("/api/import/delete", json.dumps({"id": 987654321}).encode(), jh)
+    check("delete of a message that does not exist -> 404", st == 404, st)
+    admin_msg = json.loads(req("/api/admin/new", json.dumps({"type": "md", "text": "admin-msg-" + uuid.uuid4().hex[:6]}).encode(), {"Content-Type": "application/json"}, opener=admin)[1])
+    st, _ = req("/api/import/delete", json.dumps({"id": admin_msg["id"]}).encode(), jh)
+    check("a message written on the site cannot be deleted with the bridge key -> 403", st == 403 and gone(admin_msg["id"]) == 200, st)
+    st, out = req("/api/import/delete", json.dumps({"id": bm.get("id")}).encode(), jh)
+    check("delete of a bridge message -> 200 deleted", st == 200 and json.loads(out).get("deleted") is True, (st, out))
+    check("... readers no longer get it", gone(bm.get("id")) == 404)
+    st, out = req("/api/import/delete", json.dumps({"id": bm.get("id")}).encode(), jh)
+    check("deleting it again is harmless (200, already)", st == 200 and json.loads(out).get("already") is True, (st, out))
+    req(f"/api/admin/delete-message/{admin_msg['id']}", opener=admin)
+
     # clean up the test message (soft delete, as from the admin panel)
     req(f"/api/admin/delete-message/{msg.get('id')}", opener=admin)
 finally:

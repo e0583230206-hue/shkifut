@@ -182,6 +182,15 @@ func deleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	afterMessageDeleted(ctx, id, &message)
+
+	response := Response{Success: true}
+	json.NewEncoder(w).Encode(response)
+}
+
+// afterMessageDeleted is what follows the deletion of a message, whoever deleted it: it is no longer pinned, its video or image no longer waits for a
+// decision, and the webhook is told.
+func afterMessageDeleted(ctx context.Context, id string, message *Message) {
 	if n, _ := rdb.ZRem(ctx, pinnedKey, id).Result(); n > 0 {
 		publishPinsChanged(ctx) // a deleted message cannot stay pinned
 	}
@@ -189,10 +198,7 @@ func deleteMessage(w http.ResponseWriter, r *http.Request) {
 	waitingInvalidate() // its video or image no longer waits for a decision
 	publishWaitingChanged(ctx)
 
-	go SendWebhook(context.Background(), "delete", &message)
-
-	response := Response{Success: true}
-	json.NewEncoder(w).Encode(response)
+	go SendWebhook(context.Background(), "delete", message)
 }
 
 func getEvents(w http.ResponseWriter, r *http.Request) {

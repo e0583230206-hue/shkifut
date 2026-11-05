@@ -17,6 +17,8 @@ Object.assign(process.env, {
   GCHAT_WEBHOOK: 'https://chat.googleapis.com/v1/spaces/AAAA/messages?key=K&token=T',
 });
 if (SCENARIO === 'notify') process.env.NOTIFY_KEY = 'nk-123';
+if (SCENARIO.startsWith('sync-')) Object.assign(process.env, { SYNC_EVERY_MS: '400', SYNC_DELETE_MODE: SCENARIO === 'sync-dry' ? 'dry' : SCENARIO === 'sync-off' ? 'off' : 'on' });
+let wahaHistory = [];   // what WAHA answers for the history of the group (the sync scenarios change it)
 if (enabled) Object.assign(process.env, { GCHAT_SPACE: 'spaces/AAAA', GCHAT_OAUTH_CLIENT_ID: 'cid', GCHAT_OAUTH_CLIENT_SECRET: 'sec', GCHAT_REFRESH_TOKEN: 'rt' });
 
 const R = (status, obj, headers = {}) => new Response(typeof obj === 'string' || Buffer.isBuffer(obj) ? obj : JSON.stringify(obj), { status, headers });
@@ -24,7 +26,9 @@ globalThis.fetch = async (url, init = {}) => {
   url = String(url);
   const body = init.body;
   calls.push({ method: init.method || 'GET', url, body, headers: init.headers || {} });
+  if (url.startsWith('http://waha:3000/api/default/chats/')) return R(200, wahaHistory);
   if (url.startsWith('http://waha:3000')) return R(200, ORIGINAL, { 'content-type': 'video/mp4' });
+  if (url === 'https://site.test/api/import/delete') return R(200, { deleted: true });
   if (url === 'https://site.test/api/import/upload') return R(200, { url: '/api/files/aabbccddeeff00112233445566778899aabbccdd.mp4', filename: 'x.mp4', filetype: 'video' });
   if (url === 'https://site.test/api/import/post') return R(200, { id: ++siteSeq });   // the real site answers with the message it made
   if (url.startsWith('https://oauth2.googleapis.com/token')) return SCENARIO === 'auth-fails' ? R(400, { error: 'invalid_grant' }) : R(200, { access_token: 'at', expires_in: 3600 });
@@ -96,6 +100,26 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
   if (SCENARIO === 'duplicate') {
     await send(media); await send(media); await sleep(600);
     check('the same WhatsApp message is handled once', byUrl('/attachments:upload').length === 1 && byUrl('site.test/api/import/post').length === 1);
+  }
+  if (SCENARIO.startsWith('sync-')) {
+    // three messages are posted; then WAHA's history lacks the second one (it was deleted in WhatsApp)
+    const wid = (s) => `false_${GROUP}_${s}_972500000000@c.us`;
+    for (const [s, t] of [['S1', 'ראשונה'], ['S2', 'שנייה'], ['S3', 'שלישית']]) { await send({ ...base, id: wid(s), body: t }, 'message.any'); await sleep(150); }
+    await sleep(300);
+    check('the three messages are on the site', byUrl('site.test/api/import/post').length === 3);
+    const present = SCENARIO === 'sync-unproven' ? [{ id: `false_${GROUP}_OTHER_1@c.us` }] : SCENARIO === 'sync-empty' ? [] : [{ id: wid('S1') }, { id: wid('S3') }];
+    wahaHistory = present;
+    await sleep(2400);   // several cycles of 400 ms
+    const dels = byUrl('site.test/api/import/delete').map(c => JSON.parse(c.body).id);
+    const key = byUrl('site.test/api/import/delete').map(c => c.headers['X-API-Key']);
+    if (SCENARIO === 'sync-delete') {
+      check('the site message of the deleted WhatsApp message is removed, once, and only it (site message 2)', dels.length === 1 && dels[0] === 2, JSON.stringify(dels));
+      check('the removal carries the bridge key', key[0] === 'site-key', JSON.stringify(key));
+    }
+    if (SCENARIO === 'sync-dry') check('dry run: nothing is removed', dels.length === 0, JSON.stringify(dels));
+    if (SCENARIO === 'sync-off') check('off: nothing is asked of WAHA and nothing is removed', dels.length === 0 && byUrl('/api/default/chats/').length === 0, JSON.stringify(dels));
+    if (SCENARIO === 'sync-empty') check('an empty history: nothing is removed', dels.length === 0, JSON.stringify(dels));
+    if (SCENARIO === 'sync-unproven') check('a history without the latest messages: nothing is removed', dels.length === 0, JSON.stringify(dels));
   }
   if (SCENARIO === 'edit-events') {
     // A plain WhatsApp edit / delete arrives as message.edited / message.revoked. It must not become a second post.

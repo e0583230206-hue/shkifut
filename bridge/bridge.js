@@ -32,9 +32,15 @@ const { checkNotifyRequest } = require('./notify-guard.js');
 const { skipReason } = require('./message-filter.js');
 const { captureUntil, captureOn, captureLine } = require('./capture.js');
 const { stanzaId, snippetOf, quoteLine, createStore } = require('./reply-quote.js');
+const { findGone } = require('./sync-deleted.js');
 const siteIds = createStore(path.join(MEDIA_DIR, 'wa-site-ids.json')); // WhatsApp message -> site message number (replies are quoted, repeats are not posted twice)
 const CAPTURE_FILE = path.join(MEDIA_DIR, 'capture-until'); // capture mode (capture.js): chats other than the channel's group go to the Chat only
 const CAPTURE_ALL_FILE = path.join(MEDIA_DIR, 'capture-all');   // ... open until this file is removed
+// A message that was deleted in WhatsApp (the sender deleted it and sent it again) is removed from the site too. Every few minutes the bridge asks WAHA for the
+// latest messages of the group; what it posted and is no longer there is removed by POST /api/import/delete (see sync-deleted.js for the safety rules).
+// SYNC_DELETE_MODE: "dry" (the default: only writes to the log what it would remove), "on", or "off".
+const SYNC_MODE = String(E.SYNC_DELETE_MODE || 'dry').toLowerCase();
+const SYNC_EVERY_MS = Number(E.SYNC_EVERY_MS) || 3 * 60 * 1000;
 const NOTIFY_KEY = E.NOTIFY_KEY || ''; // POST /notify from the site; without a key the endpoint is off
 
 function waToMd(t) {
@@ -181,6 +187,39 @@ async function handle(ev) {
   }
 }
 
+let syncPending = new Map();
+const syncLogged = new Set();
+async function syncDeleted() {
+  if (SYNC_MODE === 'off' || !CHANNEL_URL || !GROUP_IDS.length) return;
+  const present = new Set();
+  try {
+    for (const g of GROUP_IDS) {
+      const r = await fetch(`${WAHA}/api/default/chats/${encodeURIComponent(g)}/messages?limit=500&downloadMedia=false`, { headers: { 'X-Api-Key': WAHA_KEY } });
+      if (!r.ok) throw new Error('WAHA ' + r.status);
+      const list = await r.json();
+      if (!Array.isArray(list)) throw new Error('WAHA answered with something that is not a list');
+      for (const m of list) if (m && m.id) present.add(stanzaId(m.id));
+    }
+  } catch (e) { log('sync: no history from WAHA, nothing is judged:', e.message); return; }
+  const { gone, pending, judged } = findGone({ entries: siteIds.entries(), present, pending: syncPending });
+  syncPending = pending;
+  if (!judged) { log('sync: the history of the group does not hold the latest messages, nothing is judged'); return; }
+  const deleteUrl = CHANNEL_URL.replace(/\/post$/, '/delete');
+  for (const [stanza, siteId] of gone) {
+    if (SYNC_MODE !== 'on') {
+      if (!syncLogged.has(stanza)) { syncLogged.add(stanza); log('sync (dry run, nothing is removed): the WhatsApp message of site message', siteId, 'was deleted there'); }
+      continue;
+    }
+    try {
+      const r = await fetch(deleteUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': CHANNEL_KEY }, body: JSON.stringify({ id: siteId }) });
+      if (r.ok || r.status === 404 || r.status === 403) { // done, or not something the bridge may or can remove: do not ask again
+        siteIds.delete(stanza); syncPending.delete(stanza);
+        log('sync: the WhatsApp message was deleted there, the site message', siteId, r.ok ? 'is removed' : 'was not removed (site said ' + r.status + ')');
+      } else log('sync: removing site message', siteId, 'failed, the site said', r.status);
+    } catch (e) { log('sync: removing site message', siteId, 'failed:', e.message); }
+  }
+}
+
 async function health() {
   try {
     const r = await fetch(WAHA + '/api/sessions/default', { headers: { 'X-Api-Key': WAHA_KEY } });
@@ -203,6 +242,10 @@ setInterval(() => { // log when capture mode starts and ends (and once an hour w
   captureWas = on;
 }, 5000);
 setInterval(health, 10 * 60 * 1000); setTimeout(health, 30000);
+if (SYNC_MODE !== 'off') {
+  log('sync of deleted WhatsApp messages: ' + SYNC_MODE + (SYNC_MODE === 'on' ? '' : ' (nothing is removed)') + ', every ' + Math.round(SYNC_EVERY_MS / 1000) + ' s');
+  setInterval(() => syncDeleted().catch(e => log('sync error', e.message)), SYNC_EVERY_MS);
+}
 log('chat: ' + (chat.enabled ? 'ENABLED (original media -> ' + chat.space + ')' : 'disabled (no credentials)'));
 setInterval(() => chat.keepAlive(), 24 * 3600 * 1000); setTimeout(() => chat.keepAlive(), 60000);
 

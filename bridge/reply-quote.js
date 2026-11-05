@@ -54,6 +54,8 @@ function createStore(file, { max = 5000, fsImpl = fs } = {}) {
     has: (stanza) => map.has(stanza),
     get: (stanza) => map.get(stanza),
     size: () => map.size,
+    entries: () => [...map.entries()],
+    delete(stanza) { if (map.delete(stanza)) save(); },
     set(stanza, siteId) {
       if (!stanza || !Number.isInteger(siteId) || siteId <= 0) return;
       map.delete(stanza);                   // a repeated id moves to the newest place
