@@ -271,7 +271,14 @@ export class MessageComponent implements OnInit, OnDestroy {
     if (!message.id) return;
     const now = this.starred.toggle(message);
     this.toastrService.success('', now ? 'ההודעה נשמרה בכוכב' : 'ההודעה הוסרה מהשמורים');
+    if (now) { // the star "pops" for a moment (the animation is in the stylesheet)
+      this.justStarred = message.id;
+      setTimeout(() => { if (this.justStarred === message.id) this.justStarred = undefined; }, 900);
+    }
   }
+
+  /** the message whose star is popping right now */
+  justStarred?: number;
 
   async togglePin(message: ChatMessage) {
     if (message.id == null) return;

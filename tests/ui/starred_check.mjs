@@ -56,11 +56,15 @@ try {
 
   // 2. starring
   check('the star starts empty (not pressed)', (await ev(`${msg}.querySelector('.star-button').getAttribute('aria-pressed')`)) === 'false');
-  await ev(`${msg}.querySelector('.star-button').click()`); await sleep(500);
+  await ev(`${msg}.querySelector('.star-button').click()`); await sleep(250);
+  check('the star pops for a moment (the animation class and the burst of sparks)', (await ev(`${msg}.querySelector('.star-button').classList.contains('pop')`)) && (await ev(`${msg}.querySelectorAll('.star-button .star-burst i').length`)) === 6);
+  await sleep(300);
   check('a click on the star presses it', (await ev(`${msg}.querySelector('.star-button').getAttribute('aria-pressed')`)) === 'true' && (await ev(`${msg}.querySelector('.star-button').classList.contains('on')`)));
   const s1 = await stored();
   check('it is saved in the browser with a short copy of the text', s1.length === 1 && s1[0].id === id && s1[0].snippet.includes(word) && !s1[0].snippet.includes('**'), JSON.stringify(s1));
   check('the star button of the top bar shows the number', (await ev(`document.querySelector('.star-list-btn .star-badge')?.innerText`)) === '1');
+  await sleep(900);
+  check('the pop is over after a moment', !(await ev(`${msg}.querySelector('.star-button').classList.contains('pop')`)));
   await shot('starred-message.png');
 
   // 3. the list

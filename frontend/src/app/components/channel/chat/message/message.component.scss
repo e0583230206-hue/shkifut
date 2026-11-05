@@ -264,7 +264,80 @@ nb-icon {
   align-self: center;
 }
 
-/* the star above a message: gold when the message is saved */
-.star-button.on {
-  color: #f5a300;
+/* The star above a message: a little bigger than the other icons, gold glow when the message is saved, a warm hover, and a "pop" with a burst of sparks
+   for a moment when it is pressed. (With "stop animations" of the accessibility menu, or "less motion" in the system, there is no motion.) */
+.star-button {
+  position: relative;
+  transition: background-color 0.18s ease;
+
+  nb-icon {
+    font-size: 1.3rem;
+    transition: color 0.18s ease, filter 0.18s ease, transform 0.18s ease;
+  }
+
+  &:hover {
+    background-color: rgba(245, 163, 0, 0.14) !important;
+
+    nb-icon {
+      color: #f5a300;
+      transform: scale(1.12);
+    }
+  }
+
+  &.on nb-icon {
+    color: #f5a300;
+    filter: drop-shadow(0 0 5px rgba(245, 163, 0, 0.7));
+  }
+
+  &.pop nb-icon {
+    animation: star-pop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+
+  .star-burst {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+
+    i {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 5px;
+      height: 5px;
+      margin: -2.5px 0 0 -2.5px;
+      border-radius: 50%;
+      background: #f5a300;
+      opacity: 0;
+    }
+
+    i:nth-child(1) { --a: 0deg; }
+    i:nth-child(2) { --a: 60deg; background: #ffd24d; }
+    i:nth-child(3) { --a: 120deg; }
+    i:nth-child(4) { --a: 180deg; background: #ffd24d; }
+    i:nth-child(5) { --a: 240deg; }
+    i:nth-child(6) { --a: 300deg; background: #ffd24d; }
+  }
+
+  &.pop .star-burst i {
+    animation: star-spark 0.6s ease-out both;
+  }
+}
+
+@keyframes star-pop {
+  0% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(1.7) rotate(72deg); }
+  65% { transform: scale(0.88) rotate(-10deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes star-spark {
+  0% { opacity: 1; transform: rotate(var(--a)) translateY(-7px) scale(0.6); }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(-22px) scale(0.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star-button.pop nb-icon,
+  .star-button.pop .star-burst i {
+    animation: none;
+  }
 }

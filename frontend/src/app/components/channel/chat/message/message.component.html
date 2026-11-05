@@ -70,10 +70,11 @@
       }
       <!-- the star: saves the message in the reader's own list (this browser), see StarredService -->
       @if (message.id && !isSchedulingMessage && !message.deleted) {
-      <button class="icon-button star-button" [class.on]="starred.has(message.id)" nbButton ghost shape="round" size="small" type="button"
+      <button class="icon-button star-button" [class.on]="starred.has(message.id)" [class.pop]="justStarred === message.id" nbButton ghost shape="round" size="small" type="button"
         (click)="toggleStar(message)" [attr.aria-pressed]="starred.has(message.id)"
         [title]="starred.has(message.id) ? 'הסר מהשמורים' : 'שמור בכוכב'" [attr.aria-label]="starred.has(message.id) ? 'הסר מהשמורים' : 'שמור את ההודעה בכוכב'">
         <nb-icon [icon]="starred.has(message.id) ? 'star' : 'star-outline'"></nb-icon>
+        <span class="star-burst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
       </button>
       }
     </div>
