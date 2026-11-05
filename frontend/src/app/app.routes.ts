@@ -21,5 +21,6 @@ export const routes: Routes = [
   { path: 'review/:fileId', component: ReviewLinkComponent, canActivate: [AuthGuard] },
   { path: 'privacy', component: StaticPageComponent, data: { page: 'privacy' }, title: 'מדיניות פרטיות' },
   { path: 'terms', component: StaticPageComponent, data: { page: 'terms' }, title: 'תנאי שימוש' },
+  { path: 'accessibility', component: StaticPageComponent, data: { page: 'accessibility' }, title: 'הצהרת נגישות' },
   { path: '**', component: StaticPageComponent, data: { page: 'not-found' }, title: 'הדף לא נמצא' }
 ];

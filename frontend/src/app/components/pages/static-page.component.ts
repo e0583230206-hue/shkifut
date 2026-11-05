@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 /**
- * Static pages: privacy policy, terms of use (drafts - to be reviewed by the channel owner) and "not found".
+ * Static pages: privacy policy, terms of use, accessibility statement (drafts - to be reviewed by the channel owner) and "not found".
  * The page is chosen by the route's data.page.
  */
 @Component({
@@ -12,6 +12,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
   styleUrl: './static-page.component.scss'
 })
 export class StaticPageComponent {
-  readonly page: 'privacy' | 'terms' | 'not-found' = inject(ActivatedRoute).snapshot.data['page'] ?? 'not-found';
+  readonly page: 'privacy' | 'terms' | 'accessibility' | 'not-found' = inject(ActivatedRoute).snapshot.data['page'] ?? 'not-found';
   readonly updated = '11.10.2026';
+  readonly a11yUpdated = '5.11.2026';
 }

@@ -38,7 +38,7 @@ type pageMeta struct {
 }
 
 // SPA routes that exist; anything else gets the app with a real 404 status.
-var spaRoutes = map[string]bool{"/": true, "/login": true, "/privacy": true, "/terms": true, "/index.html": true}
+var spaRoutes = map[string]bool{"/": true, "/login": true, "/privacy": true, "/terms": true, "/accessibility": true, "/index.html": true}
 
 var (
 	embedRe     = regexp.MustCompile(`\[(?:image|video|audio|quote|gallery)-embedded#\]\(([^)]*)\)`)
@@ -169,6 +169,8 @@ func serveSpaFile(w http.ResponseWriter, r *http.Request) {
 		m.Title, m.Description = "מדיניות פרטיות | "+name, "מדיניות הפרטיות של "+name
 	case "/terms":
 		m.Title, m.Description = "תנאי שימוש | "+name, "תנאי השימוש באתר "+name
+	case "/accessibility":
+		m.Title, m.Description = "הצהרת נגישות | "+name, "הצהרת הנגישות של האתר "+name
 	case "/login":
 		m.NoIndex = true
 	}
@@ -265,7 +267,7 @@ func serveSitemap(w http.ResponseWriter, r *http.Request) {
 	base := baseURL(r)
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-	for _, p := range []string{"/", "/privacy", "/terms"} {
+	for _, p := range []string{"/", "/privacy", "/terms", "/accessibility"} {
 		fmt.Fprintf(&b, "  <url><loc>%s%s</loc></url>\n", base, p)
 	}
 	if !settingConfig.RequireAuth {

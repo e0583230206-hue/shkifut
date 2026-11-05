@@ -284,3 +284,74 @@ nb-layout-header nav {
     background: linear-gradient(to left, #b3121f 0%, #8f1523 24%, #2a1020 58%, #101320 100%) !important;
     box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6) !important;
 }
+
+/* ===== Accessibility =====
+   The keyboard: a visible ring where the focus is (a low specificity, so that a component can still set its own), and the "skip to the main content" link. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid #2f4bff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.85);
+}
+
+.skip-link {
+    position: fixed;
+    top: -80px;
+    inset-inline-start: 12px;
+    z-index: 3000;
+    padding: 10px 18px;
+    border-radius: 0 0 12px 12px;
+    background: #2f4bff;
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    transition: top 0.15s ease;
+
+    &:focus {
+        top: 0;
+        color: #fff;
+    }
+}
+
+/* The choices of the accessibility menu (accessibility.service.ts puts the classes on <html>; the text size and the filters are set on <html> itself).
+   When the colours are inverted, pictures and video are inverted back so that they look as they are. */
+html.a11y-invert :is(img, video, picture, canvas, iframe, svg image) {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+html.a11y-links a,
+html.a11y-links a * {
+    text-decoration: underline !important;
+    font-weight: 800 !important;
+    color: #0a2a8a !important;
+    background-color: #fff3a0 !important;
+}
+
+html.a11y-headings :is(h1, h2, h3, h4, h5, h6) {
+    outline: 2px dashed #2f4bff;
+    outline-offset: 4px;
+    background-color: rgba(255, 230, 0, 0.28);
+}
+
+html.a11y-readable,
+html.a11y-readable *:not(svg):not(svg *):not(nb-icon) {
+    font-family: Arial, Tahoma, 'Segoe UI', Helvetica, sans-serif !important;
+}
+
+html.a11y-spacing body * {
+    line-height: 1.75 !important;
+    letter-spacing: 0.03em !important;
+    word-spacing: 0.1em !important;
+}
+
+html.a11y-no-anim *,
+html.a11y-no-anim *::before,
+html.a11y-no-anim *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+}
+
+html.a11y-cursor,
+html.a11y-cursor * {
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 24 24'><path d='M5 3l14 8-6 2 4 7-3 1.4-4-7-4 4z' fill='black' stroke='white' stroke-width='1.4' stroke-linejoin='round'/></svg>") 4 3, auto !important;
+}

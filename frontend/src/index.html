@@ -7,6 +7,7 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script>try{var m=localStorage.getItem('tc-theme');if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.style.background='#151a30';document.documentElement.style.colorScheme='dark'}}catch(e){}</script>
+  <script>try{var a=JSON.parse(localStorage.getItem('tc-a11y')||'null');if(a){var d=document.documentElement,f=[];['contrast','invert','gray','links','headings','readable','spacing','noAnim','cursor'].forEach(function(k){if(a[k]===true)d.classList.add('a11y-'+k.replace(/[A-Z]/g,function(c){return '-'+c.toLowerCase()}))});if(a.contrast)f.push('contrast(1.45)','saturate(1.15)');if(a.invert)f.push('invert(1)','hue-rotate(180deg)');if(a.gray)f.push('grayscale(1)');d.style.filter=f.join(' ');var p=[100,112.5,125,150,175][a.text|0];if(p&&p!==100)d.style.fontSize=p+'%'}}catch(e){}</script>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@200;400;600;700&display=swap" rel="stylesheet">
   <!-- Google shows the favicon in search results: a square PNG, a multiple of 48 px (192), not the uploaded logo behind /favicon.ico (1254 px) -->
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/brand/lens-192.png">

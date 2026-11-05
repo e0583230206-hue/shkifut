@@ -93,7 +93,7 @@ try:
           meta(html, "og:type") == "website", '<link rel="canonical"' in html]))
     check("home: page language is Hebrew / RTL", 'lang="he"' in html and 'dir="rtl"' in html)
 
-    for path, word in (("/privacy", "מדיניות פרטיות"), ("/terms", "תנאי שימוש")):
+    for path, word in (("/privacy", "מדיניות פרטיות"), ("/terms", "תנאי שימוש"), ("/accessibility", "הצהרת נגישות")):
         st, html, _ = get(path)
         check(f"{path}: 200 + title", st == 200 and (title(html) or "").startswith(word), title(html))
 
@@ -136,6 +136,7 @@ try:
     check("message page: injected HTML never reaches the page", "<script>alert" not in html and "&lt;script" not in html)
     check("message page: formatting tags (<u>) do not leak into the title", "u&gt;" not in (title(html) or "") and "מודגש" in (title(html) or ""), title(html))
 
+    check("sitemap lists the accessibility statement", "/accessibility</loc>" in get("/sitemap.xml")[1])
     st, sm, _ = get("/sitemap.xml")
     check("sitemap lists the message under its readable address", st == 200 and re.search(rf"/m/{msg['id']}/[^<]+</loc>", sm) is not None)
 
