@@ -148,6 +148,34 @@ func subscribeNotifications(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// A reader turns notifications off: this device's token is removed, so nothing more is sent to it.
+func unsubscribeNotifications(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	if req.Token == "" || len(req.Token) < 50 || len(req.Token) > 300 {
+		http.Error(w, "Invalid token ", http.StatusBadRequest)
+		return
+	}
+
+	if err := removeSubscription(req.Token); err != nil {
+		http.Error(w, "Failed to unsubscribe from notifications", http.StatusInternalServerError)
+		return
+	}
+
+	var response Response
+	response.Success = true
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 func pushFcmMessage(m *Message) {
 	if !settingConfig.OnNotification {
 
@@ -226,8 +254,11 @@ func pushFcmMessage(m *Message) {
 		}
 		log.Printf("Push notification sent to %d tokens: \n", r.SuccessCount)
 		log.Printf("Failed to send to %d tokens: \n", r.FailureCount)
-		// for _, resp := range r.Responses {
-		// 	log.Printf("Response: %s, Error: %v\n", resp.MessageID, resp.Error)
-		// }
+		// A token the browser no longer accepts (notifications blocked or site data cleared) is dropped.
+		for i, resp := range r.Responses {
+			if resp.Error != nil && i < len(chunk) && messaging.IsUnregistered(resp.Error) {
+				removeSubscription(chunk[i])
+			}
+		}
 	}
 }

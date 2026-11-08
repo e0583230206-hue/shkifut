@@ -111,6 +111,7 @@ func main() {
 			api.Get("/emojis/list", getEmojisList)
 			api.Get("/channel/notifications-config", getNotificationsConfig)
 			api.Post("/channel/notifications-subscribe", subscribeNotifications)
+			api.Post("/channel/notifications-unsubscribe", unsubscribeNotifications)
 
 			api.Get("/channel/info", getChannelInfo)
 			api.Get("/version", getAppVersion) // the page asks it now and then and offers a refresh when the frontend was updated

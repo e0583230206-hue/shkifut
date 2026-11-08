@@ -52,9 +52,13 @@
     </button>
 
     @if (notificationsService.initialized) {
-      <button nbButton shape="round" class="m-2" title="התראות" aria-label="הפעלת התראות" status="danger"
-        (click)="notificationsService.requestPermission()">
-        <nb-icon icon="bell"></nb-icon>
+      <button nbButton shape="round" class="m-2"
+        [title]="notificationsService.enabled ? 'התראות פועלות. לחצו לכיבוי' : 'הפעלת התראות'"
+        [attr.aria-label]="notificationsService.enabled ? 'התראות פועלות, לחצו לכיבוי' : 'הפעלת התראות'"
+        [attr.aria-pressed]="notificationsService.enabled"
+        [status]="notificationsService.enabled ? 'success' : 'basic'"
+        (click)="notificationsService.toggle()">
+        <nb-icon [icon]="notificationsService.enabled ? 'bell' : 'bell-off-outline'"></nb-icon>
       </button>
     }
 
