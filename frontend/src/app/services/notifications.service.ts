@@ -68,9 +68,35 @@ export class NotificationsService {
     } catch { /* storage blocked: the switch still works for this visit */ }
   }
 
-  // Called after init: the bell is "on" only if this browser still allows notifications and has a saved token.
-  refreshState() {
-    this.enabled = typeof Notification !== 'undefined' && Notification.permission === 'granted' && !!this.storedToken();
+  private readonly offKey = 'notifications-off';
+
+  private isOff(): boolean {
+    try { return localStorage.getItem(this.offKey) === '1'; } catch { return false; }
+  }
+
+  private setOff(off: boolean) {
+    try {
+      if (off) localStorage.setItem(this.offKey, '1');
+      else localStorage.removeItem(this.offKey);
+    } catch { /* storage blocked */ }
+  }
+
+  // Called after init: the bell is "on" if this browser allows notifications and the reader did not switch them off.
+  // A reader who allowed notifications before the switch existed has no saved token: the browser's own token is picked up.
+  async refreshState() {
+    this.enabled = false;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || this.isOff()) return;
+    if (this.storedToken()) {
+      this.enabled = true;
+      return;
+    }
+    try {
+      const token = await getToken(this.messaging, { vapidKey: this.config?.vapid });
+      if (token && await this.subscribeNotifications(token)) {
+        this.storeToken(token);
+        this.enabled = true;
+      }
+    } catch { /* stays off: one click turns it on */ }
   }
 
   // One click: on -> off, off -> on.
@@ -97,6 +123,7 @@ export class NotificationsService {
       const token = await getToken(this.messaging, { vapidKey: this.config?.vapid });
       if (!token || !(await this.subscribeNotifications(token))) throw new Error('no token');
       this.storeToken(token);
+      this.setOff(false);
       this.enabled = true;
       this.tostrService.success("", 'התראות הופעלו');
     } catch {
@@ -112,6 +139,7 @@ export class NotificationsService {
       }
       try { await deleteToken(this.messaging); } catch { /* already gone */ }
       this.storeToken('');
+      this.setOff(true);
       this.enabled = false;
       this.tostrService.success("", 'התראות כובו');
     } catch {
