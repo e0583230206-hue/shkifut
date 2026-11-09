@@ -24,6 +24,11 @@ test('the wrong-format answer of the bot (real text of message 1192) is dropped,
   assert.equal(text('שימוש נכון: קראו את ההוראות'), '');
 });
 
+test('the "reply to a message" answer of the bot (seen 5.11.2026) is dropped, but not with real text', () => {
+  assert.equal(text('❌ יש להשיב על הודעה שנשלחה\n\nשימוש:\nהשב על הודעה שנשלחה עם:\n!ערוך **טקסט חדש**'), 'bot status');
+  assert.equal(text('❌ יש להשיב על הודעה שנשלחה\nוגם חדשות אמיתיות'), '');
+});
+
 test('!ערוך and !מחק are dropped, also with direction marks and extra text', () => {
   for (const t of ['!ערוך 123 טקסט חדש', '!מחק 123', '!מחק', '!ערוך', '‏!מחק 123', '  !מחק 7'])
     assert.equal(text(t), 'command', t);
