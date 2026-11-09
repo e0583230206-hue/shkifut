@@ -222,7 +222,7 @@ var getMessageRange = redis.NewScript(`
 						message[key] = 0	
 					end
 				elseif key == 'deleted' then
-					message[key] = value == '1'
+					message[key] = value == '1' or value == 'true' -- some messages were marked "true", the other places already accept both
 				elseif key == 'author' then
 				    if isAdmin then
 				        message[key] = value
