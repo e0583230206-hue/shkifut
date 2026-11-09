@@ -77,6 +77,16 @@ func plainText(md string) string {
 	return strings.TrimSpace(spacesRe.ReplaceAllString(t, " "))
 }
 
+// thinMessage: a message with nothing a search engine could use: no text (only a picture or a video), a few words,
+// or a bot command / bot status line that was posted by mistake. Such a page stays open for readers with a link,
+// but it is marked noindex and left out of the sitemap, so Google does not count it as a duplicate of the home page.
+func thinMessage(plain string) bool {
+	if utf8.RuneCountInString(plain) < 15 {
+		return true
+	}
+	return strings.HasPrefix(plain, "!") || strings.Contains(plain, "פורמט שגוי") || strings.Contains(plain, "שימוש נכון")
+}
+
 func truncate(s string, n int) string {
 	if utf8.RuneCountInString(s) <= n {
 		return s
@@ -228,6 +238,9 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m.Path = msgslug.Path(id, slug)
+	if thinMessage(plain) {
+		m.NoIndex = true
+	}
 	if plain != "" {
 		m.Title = truncate(plain, 70) + " | " + name
 		m.Description = truncate(plain, 200)
@@ -286,6 +299,9 @@ func serveSitemap(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			text, _ := vals[0].(string)
+			if thinMessage(plainText(text)) {
+				continue
+			}
 			lastmod := time.Unix(int64(z.Score), 0).UTC().Format("2006-01-02")
 			fmt.Fprintf(&b, "  <url><loc>%s%s</loc><lastmod>%s</lastmod></url>\n", base, html.EscapeString(msgslug.Path(id, msgslug.Slug(plainText(text)))), lastmod)
 		}
