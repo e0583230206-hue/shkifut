@@ -156,6 +156,11 @@ func currentWaiting() *waitingSummary {
 		if kind == "" || !uploadedSince(meta, waitingSince) {
 			return nil
 		}
+		// A moderator drew a manual blur and readers get that version (it replaces the "needs review" hiding and the full blur).
+		// Only a video that is still held for approval keeps waiting: the approver has to look at it.
+		if !holdActive(meta) && manualActive(meta, id) {
+			return nil
+		}
 		if kind == waitingVideo {
 			sum.Videos++
 		} else {
