@@ -214,9 +214,12 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 		renderIndex(w, r, m, http.StatusOK)
 		return
 	}
-	vals, err := rdb.HMGet(ctx, "messages:"+id, "text", "deleted").Result()
+	vals, err := rdb.HMGet(ctx, "messages:"+id, "text", "deleted", heldField).Result()
 	text, _ := vals[0].(string)
 	deleted, _ := vals[1].(string)
+	if held, _ := vals[2].(string); held == "1" {
+		text = "" // waits for a video to be approved: the same 404 as a message that does not exist
+	}
 	if err != nil || text == "" || deleted == "1" || deleted == "true" {
 		m.Title, m.NoIndex = "ההודעה לא נמצאה | "+name, true
 		status := http.StatusNotFound
@@ -291,9 +294,12 @@ func serveSitemap(w http.ResponseWriter, r *http.Request) {
 			if _, err := strconv.Atoi(id); err != nil {
 				continue
 			}
-			vals, _ := rdb.HMGet(ctx, key, "text", "deleted").Result()
-			if len(vals) < 2 {
+			vals, _ := rdb.HMGet(ctx, key, "text", "deleted", heldField).Result()
+			if len(vals) < 3 {
 				continue
+			}
+			if h, _ := vals[2].(string); h == "1" {
+				continue // waits for a video to be approved
 			}
 			if d, _ := vals[1].(string); d == "1" || d == "true" {
 				continue

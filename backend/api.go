@@ -122,8 +122,7 @@ func addNewPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Same follow-up as a message published from the site.
-	go SendWebhook(context.Background(), "create", &message)
-	go pushFcmMessage(&message)
+	afterMessageCreated(&message)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(message)

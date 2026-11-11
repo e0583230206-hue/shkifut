@@ -227,6 +227,8 @@ export class ChatComponent implements OnInit, OnDestroy {
           if (this.hasNewMessages) break;
           if (this.chatService.selectedTopic && message.message.topic !== this.chatService.selectedTopic) break;
           this.zone.run(() => {
+            // A held message (managers only) that was released arrives again as new: it moves to the top instead of showing twice.
+            this.messages = this.messages.filter(m => m.id !== message.message.id);
             this.messages.unshift(message.message);
             this.thereNewMessages = !(message.message.author === this.userInfo?.username);
             setTimeout(() => this.markVisibleAsRead(), 300); // read only if it is actually on screen

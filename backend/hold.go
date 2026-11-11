@@ -169,6 +169,7 @@ func approveVideo(w http.ResponseWriter, r *http.Request) {
 	}
 	appendYamlLog(moderationLogFile, map[string]any{"action": "approved", "fileId": id, "by": email, "filename": metaString(meta, "filename")})
 	publishFileModeration(r.Context(), id, status) // open pages fetch the new state
+	releaseHeldFor(id)                             // messages that waited only for this video go out now
 	writeJSON(w, map[string]any{"success": true, "approvedBy": email})
 }
 

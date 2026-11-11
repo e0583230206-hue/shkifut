@@ -22,6 +22,8 @@ export interface ChatMessage {
   is_ads?: boolean;
   topic?: string;
   poll?: Poll;
+  /** Only those who may approve videos ever get it: the message waits for a video to be approved and readers do not see it yet. */
+  held?: boolean;
 }
 
 export interface PollOption {

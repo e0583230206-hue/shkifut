@@ -31,7 +31,7 @@ type PinnedMessage struct {
 func getPinnedMessages(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	list, err := dbGetPinned(ctx)
+	list, err := dbGetPinned(ctx, canReviewFigures(r))
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
@@ -40,7 +40,7 @@ func getPinnedMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(list)
 }
 
-func dbGetPinned(ctx context.Context) ([]PinnedMessage, error) {
+func dbGetPinned(ctx context.Context, includeHeld bool) ([]PinnedMessage, error) {
 	pins, err := rdb.ZRevRangeWithScores(ctx, pinnedKey, 0, -1).Result()
 	if err != nil {
 		return nil, err
@@ -48,13 +48,16 @@ func dbGetPinned(ctx context.Context) ([]PinnedMessage, error) {
 	out := []PinnedMessage{}
 	for _, p := range pins {
 		id, _ := strconv.Atoi(fmt.Sprint(p.Member))
-		v, err := rdb.HMGet(ctx, fmt.Sprintf("messages:%d", id), "text", "deleted", "timestamp").Result()
+		v, err := rdb.HMGet(ctx, fmt.Sprintf("messages:%d", id), "text", "deleted", "timestamp", heldField).Result()
 		if err != nil {
 			return nil, err
 		}
 		if v[0] == nil || asString(v[1]) == "1" {
 			rdb.ZRem(ctx, pinnedKey, p.Member) // message gone or deleted: drop the stale pin
 			continue
+		}
+		if asString(v[3]) == "1" && !includeHeld {
+			continue // waits for a video to be approved: the pin stays, it shows when the message is released
 		}
 		text := []rune(plainText(asString(v[0])))
 		if len(text) > pinSnippet {

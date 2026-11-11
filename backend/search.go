@@ -86,7 +86,7 @@ func searchMessages(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	results, err := dbSearchMessages(ctx, terms, topic, limit)
+	results, err := dbSearchMessages(ctx, terms, topic, limit, canReviewFigures(r))
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
 		return
@@ -95,7 +95,7 @@ func searchMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
-func dbSearchMessages(ctx context.Context, terms []string, topic string, limit int) ([]SearchResult, error) {
+func dbSearchMessages(ctx context.Context, terms []string, topic string, limit int, includeHeld bool) ([]SearchResult, error) {
 	keys, err := rdb.ZRevRange(ctx, "m_times:1", 0, -1).Result()
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func dbSearchMessages(ctx context.Context, terms []string, topic string, limit i
 		pipe := rdb.Pipeline()
 		cmds := make([]interface{ Val() []interface{} }, len(chunk))
 		for j, k := range chunk {
-			cmds[j] = pipe.HMGet(ctx, k, "id", "text", "deleted", "timestamp", "topic")
+			cmds[j] = pipe.HMGet(ctx, k, "id", "text", "deleted", "timestamp", "topic", heldField)
 		}
 		if _, err := pipe.Exec(ctx); err != nil {
 			return nil, err
@@ -117,6 +117,9 @@ func dbSearchMessages(ctx context.Context, terms []string, topic string, limit i
 			id, _ := strconv.Atoi(asString(v[0]))
 			if id == 0 || asString(v[2]) == "1" {
 				continue // missing or deleted
+			}
+			if asString(v[5]) == "1" && !includeHeld {
+				continue // waits for a video to be approved
 			}
 			if topic != "" && asString(v[4]) != topic {
 				continue

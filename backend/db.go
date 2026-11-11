@@ -34,6 +34,7 @@ type Message struct {
 	IsAds     bool         `json:"is_ads" redis:"is_ads"`
 	Topic     string       `json:"topic,omitempty" redis:"topic"`
 	Poll      *Poll        `json:"poll,omitempty" redis:"-"` // stored separately (polls.go)
+	Held      bool         `json:"held,omitempty" redis:"-"` // waits for a video to be approved (hold_messages.go); only those who may approve videos get such a message
 }
 
 type User struct {
@@ -45,8 +46,9 @@ type User struct {
 }
 
 type PushMessage struct {
-	Type string  `json:"type"`
-	M    Message `json:"message"`
+	Type          string  `json:"type"`
+	M             Message `json:"message"`
+	ApproversOnly bool    `json:"approversOnly,omitempty"` // a held message: the live stream (getEvents) sends it only to those who may approve videos
 }
 
 func init() {
@@ -109,15 +111,11 @@ func setMessage(ctx context.Context, m *Message, isUpdate bool) error {
 	pushType := "new-message"
 	if isUpdate {
 		pushType = "edit-message"
+		m.Held = messageIsHeld(ctx, m.ID)
+	} else {
+		holdNewMessage(ctx, m)
 	}
-
-	pushMessage := PushMessage{
-		Type: pushType,
-		M:    *m,
-	}
-
-	pushMessageData, _ := json.Marshal(pushMessage)
-	rdb.Publish(ctx, "events", pushMessageData)
+	publishMessageEvent(ctx, pushType, m) // a held message goes to the approvers only
 
 	return nil
 }
@@ -176,6 +174,7 @@ var getMessageRange = redis.NewScript(`
 	local isAdmin = ARGV[2] == 'true'
 	local countViews = ARGV[3] == 'true'
 	local direction = ARGV[4] or 'desc'
+	local seeHeld = ARGV[5] == 'true' -- those who may approve videos (not the same as isAdmin: that one also shows the author)
 
 
 	local start_index
@@ -244,12 +243,14 @@ var getMessageRange = redis.NewScript(`
 					end
 				elseif key == 'is_ads' then
 				    message[key] = value == '1'
+				elseif key == 'held' then
+				    message[key] = value == '1'
 				else
 					message[key] = value
 				end
 			end
 	
-			if not message['deleted'] or isAdmin then
+			if (not message['deleted'] or isAdmin) and (not message['held'] or seeHeld) then
 				table.insert(messages, message)
 			end
 		end
@@ -262,13 +263,13 @@ var getMessageRange = redis.NewScript(`
 `)
 
 // funcGetMessageRange pages through the channel, or through one topic when topic is set.
-func funcGetMessageRange(ctx context.Context, start, stop int64, isAdmin, countViews bool, direction, topic string) ([]Message, error) {
+func funcGetMessageRange(ctx context.Context, start, stop int64, isAdmin, countViews bool, direction, topic string, seeHeld bool) ([]Message, error) {
 	offsetKeyName := fmt.Sprintf("messages:%d", start)
 	timeSet := "m_times:1"
 	if topic != "" {
 		timeSet = topicIndexKey(topic)
 	}
-	res, err := getMessageRange.Run(ctx, rdb, []string{timeSet, offsetKeyName}, []string{strconv.FormatInt(stop, 10), strconv.FormatBool(isAdmin), strconv.FormatBool(countViews), direction}).Result()
+	res, err := getMessageRange.Run(ctx, rdb, []string{timeSet, offsetKeyName}, []string{strconv.FormatInt(stop, 10), strconv.FormatBool(isAdmin), strconv.FormatBool(countViews), direction, strconv.FormatBool(seeHeld)}).Result()
 	if err != nil {
 		return []Message{}, err
 	}
@@ -367,6 +368,9 @@ func addViewsToMessages(ctx context.Context, messages []Message) {
 		return
 	}
 	for _, m := range messages {
+		if m.Held {
+			continue
+		}
 		rdb.HIncrBy(ctx, fmt.Sprintf("messages:%d", m.ID), "views", 1)
 	}
 }

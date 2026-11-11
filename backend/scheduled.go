@@ -37,8 +37,7 @@ func init() {
 							m.Poll = nil // an invalid poll is dropped, the message is still published
 						}
 						setMessage(ctx, m, false)
-						go SendWebhook(context.Background(), "create", m)
-						go pushFcmMessage(m)
+						afterMessageCreated(m)
 					}(&msg)
 					//*list = slices.Delete(*list, i, i+1)
 				} else {

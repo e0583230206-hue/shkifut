@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -34,7 +35,7 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 	if topic != "" && !topicIDRe.MatchString(topic) {
 		topic = ""
 	}
-	messages, err := funcGetMessageRange(ctx, int64(offset), int64(limit), checkPrivilege(r, Writer), settingConfig.CountViews, direction, topic)
+	messages, err := funcGetMessageRange(ctx, int64(offset), int64(limit), checkPrivilege(r, Writer), settingConfig.CountViews, direction, topic, canReviewFigures(r))
 	if err != nil {
 		log.Printf("Failed to get messages: %v\n", err)
 		http.Error(w, "error", http.StatusInternalServerError)
@@ -69,8 +70,12 @@ func getMessage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if h[heldField] == "1" && !canReviewFigures(r) {
+		http.NotFound(w, r) // waits for a video to be approved: only those who may approve it see it (the same check as the approval)
+		return
+	}
 
-	m := Message{ID: id, Type: h["type"], Text: h["text"], Topic: h["topic"], IsAds: h["is_ads"] == "1"}
+	m := Message{ID: id, Type: h["type"], Text: h["text"], Topic: h["topic"], IsAds: h["is_ads"] == "1", Held: h[heldField] == "1"}
 	m.Timestamp, _ = time.Parse(time.RFC3339Nano, h["timestamp"])
 	m.LastEdit, _ = time.Parse(time.RFC3339Nano, h["last_edit"])
 	if raw := h["reactions"]; raw != "" {
@@ -131,8 +136,7 @@ func addMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go SendWebhook(context.Background(), "create", &message)
-	go pushFcmMessage(&message)
+	afterMessageCreated(&message)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(message)
@@ -239,6 +243,7 @@ func getEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ch := pubsub.Channel()
+	approver := canReviewFigures(r) // held messages (HOLD_VIDEOS_UNTIL_APPROVED) go only to those who may approve videos
 	for {
 		select {
 		case <-clientCtx.Done():
@@ -254,6 +259,14 @@ func getEvents(w http.ResponseWriter, r *http.Request) {
 		case msg, ok := <-ch:
 			if !ok {
 				return
+			}
+			if !approver && strings.Contains(msg.Payload, "approversOnly") {
+				var p struct {
+					ApproversOnly bool `json:"approversOnly"`
+				}
+				if json.Unmarshal([]byte(msg.Payload), &p) == nil && p.ApproversOnly {
+					continue // a held message: not for readers
+				}
 			}
 			_, err := fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
 			if err != nil {

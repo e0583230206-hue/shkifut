@@ -230,6 +230,28 @@ try:
     mine = [x for x in received if fid in x["body"].get("text", "")]
     check("notification: still exactly one after all the re-checks", len(mine) == 1, len(mine))
 
+    # the whole message of a held video is hidden from readers (text too) until the video is approved; managers see it
+    tag = uuid.uuid4().hex[:8]
+    mvurl, mvid = new_video(admin)
+    wait_status(admin, mvid)
+    st, _, posted = call(admin, "/api/admin/new", {"type": "md", "text": f"hold-msg-{tag} ![v]({mvurl})"})
+    mid = posted.get("id") if st == 200 and isinstance(posted, dict) else None
+    check("message with a held video: created", mid is not None, st)
+    _, _, new_plain = call(admin, "/api/admin/new", {"type": "md", "text": f"plain-msg-{tag}"})
+    ids = lambda op: [m["id"] for m in (call(op, "/api/messages?limit=30")[2] or [])]
+    check("message: readers do not get it in the list, the plain one yes", mid not in ids(reader) and new_plain["id"] in ids(reader))
+    check("message: managers see it, marked held", mid in ids(admin) and next(m for m in call(admin, "/api/messages?limit=30")[2] if m["id"] == mid).get("held") is True)
+    check("message: its own page is a 404 for readers and works for managers", call(reader, f"/api/messages/{mid}")[0] == 404 and call(admin, f"/api/messages/{mid}")[0] == 200)
+    check("message: not in the search for readers, found by managers", not call(reader, f"/api/messages/search?q=hold-msg-{tag}")[2] and len(call(admin, f"/api/messages/search?q=hold-msg-{tag}")[2] or []) == 1)
+    check("message: the shared page /m/<id> is a 404 for anonymous", call(anon, f"/m/{mid}")[0] == 404)
+    time.sleep(1)
+    check("message: no notification went out for the text", all(tag not in x["body"].get("text", "") for x in received))
+    call(approver, mvurl.split("?")[0] + "?view=public")
+    check("message: approve the video", call(approver, f"/api/admin/files/{mvid}/approve", {})[0] == 200)
+    time.sleep(1)
+    check("message: readers get it now, on top (above the plain message posted later)", ids(reader)[0] == mid, ids(reader)[:3])
+    check("message: its own page works for readers", call(reader, f"/api/messages/{mid}")[0] == 200)
+
     # the review page is served by the app, junk is a real 404
     check("/review/<id> is a real page", call(anon, f"/review/{fid}")[0] == 200)
     check("/review/<junk> is a 404", call(anon, "/review/not-a-file")[0] == 404)
