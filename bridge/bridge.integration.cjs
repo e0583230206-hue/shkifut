@@ -10,13 +10,14 @@ let siteSeq = 0;
 const results = [];
 const check = (name, ok, detail = '') => { results.push(ok); console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  ' + detail)); };
 
-const enabled = ['media-enabled', 'chat-fails', 'auth-fails', 'text-only', 'duplicate', 'edit-events', 'command-noise', 'capture', 'capture-all', 'capture-media-fails'].includes(SCENARIO);
+const enabled = ['media-enabled', 'chat-fails', 'auth-fails', 'text-only', 'duplicate', 'pair', 'pair-other', 'pair-caption', 'pair-off', 'edit-events', 'command-noise', 'capture', 'capture-all', 'capture-media-fails'].includes(SCENARIO);
 Object.assign(process.env, {
   WAHA_URL: 'http://waha:3000', WAHA_API_KEY: 'waha-key', CHANNEL_API_KEY: 'site-key', GROUP_IDS: GROUP, MEDIA_DIR: '/tmp/media-test',
   CHANNEL_IMPORT_URL: 'https://site.test/api/import/post', CHANNEL_UPLOAD_URL: 'https://site.test/api/import/upload',
   GCHAT_WEBHOOK: 'https://chat.googleapis.com/v1/spaces/AAAA/messages?key=K&token=T',
 });
 if (SCENARIO === 'notify') process.env.NOTIFY_KEY = 'nk-123';
+if (SCENARIO.startsWith('pair') && SCENARIO !== 'pair-off') Object.assign(process.env, { PAIR_SENDERS: '972500000000', PAIR_WINDOW_MS: '700' });
 if (SCENARIO.startsWith('sync-')) Object.assign(process.env, { SYNC_EVERY_MS: '400', SYNC_DELETE_MODE: SCENARIO === 'sync-dry' ? 'dry' : SCENARIO === 'sync-off' ? 'off' : 'on' });
 let wahaHistory = [];   // what WAHA answers for the history of the group (the sync scenarios change it)
 if (enabled) Object.assign(process.env, { GCHAT_SPACE: 'spaces/AAAA', GCHAT_OAUTH_CLIENT_ID: 'cid', GCHAT_OAUTH_CLIENT_SECRET: 'sec', GCHAT_REFRESH_TOKEN: 'rt' });
@@ -100,6 +101,32 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
   if (SCENARIO === 'duplicate') {
     await send(media); await send(media); await sleep(600);
     check('the same WhatsApp message is handled once', byUrl('/attachments:upload').length === 1 && byUrl('site.test/api/import/post').length === 1);
+  }
+  if (SCENARIO.startsWith('pair')) {
+    // the bot's pair: the same caption, a lower and then a higher quality, different WhatsApp ids
+    const size = (w, h) => ({ _data: { Message: { videoMessage: { width: w, height: h } } } });
+    const lo = { ...media, id: 'P-lo', media: { url: 'http://localhost:3000/api/files/default/lo.mp4', mimetype: 'video/mp4' }, ...size(854, 480) };
+    const hi = { ...media, id: 'P-hi', media: { url: 'http://localhost:3000/api/files/default/hi.mp4', mimetype: 'video/mp4' }, ...size(1280, 720) };
+    const fetched = (n) => calls.some(c => c.url.includes('/' + n + '.mp4'));
+    if (SCENARIO === 'pair') {
+      await send(lo); await sleep(100); await send(hi); await sleep(1800);
+      check('the same media in two qualities is published once', byUrl('site.test/api/import/post').length === 1, String(byUrl('site.test/api/import/post').length));
+      check('the better (larger) version is the one that is fetched and uploaded', fetched('hi') && !fetched('lo') && byUrl('site.test/api/import/upload').length === 1);
+      await send({ ...hi, id: 'P-hi' }); await sleep(300);
+      check('and the winner is not published again if WhatsApp delivers it again', byUrl('site.test/api/import/post').length === 1);
+    }
+    if (SCENARIO === 'pair-other') { // another sender: nothing is paired
+      await send({ ...lo, participant: '972511111111@c.us' }); await send({ ...hi, participant: '972511111111@c.us' }); await sleep(1500);
+      check('a sender that is not named is not paired: both are published', byUrl('site.test/api/import/post').length === 2, String(byUrl('site.test/api/import/post').length));
+    }
+    if (SCENARIO === 'pair-caption') { // same sender, different captions: two different items
+      await send(lo); await send({ ...hi, body: 'כיתוב אחר לגמרי' }); await sleep(1800);
+      check('different captions are different items: both are published', byUrl('site.test/api/import/post').length === 2, String(byUrl('site.test/api/import/post').length));
+    }
+    if (SCENARIO === 'pair-off') { // the default: PAIR_SENDERS is empty
+      await send(lo); await send(hi); await sleep(1200);
+      check('off by default: both are published', byUrl('site.test/api/import/post').length === 2, String(byUrl('site.test/api/import/post').length));
+    }
   }
   if (SCENARIO.startsWith('sync-')) {
     // three messages are posted; then WAHA's history lacks the second one (it was deleted in WhatsApp)
