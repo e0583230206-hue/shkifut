@@ -9,12 +9,12 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BRIDGE_DIR="${BRIDGE_DIR:-/opt/bridge}"
 DEST="${BACKUP_DIR:-/var/backups/thechannel}"
-KEEP_DAYS="${KEEP_DAYS:-7}"
+KEEP_DAYS="${KEEP_DAYS:-14}"
 TS="$(date +%Y-%m-%d_%H%M)"
 COMPOSE=(docker compose -f "$APP_DIR/docker-compose.prod.yml")
 
 mkdir -p "$DEST"
-chmod 700 "$DEST"   # the settings contain secrets
+chmod 750 "$DEST"; chgrp shkifut-backup "$DEST"   # config files stay 600 root; only the db dump is group-readable (the read-only backup account)
 cd "$APP_DIR"
 
 # 1. The database: ask kvrocks for a snapshot, wait until it is written, then archive it.
@@ -37,7 +37,7 @@ for f in "$APP_DIR/.env" "$APP_DIR"/docker-compose*.yml "$APP_DIR/kvrocks.conf" 
 done
 tar czf "$DEST/config-$TS.tgz.part" -C / "${files[@]}"
 mv "$DEST/config-$TS.tgz.part" "$DEST/config-$TS.tgz"
-chmod 600 "$DEST"/db-"$TS".tgz "$DEST"/config-"$TS".tgz
+chmod 600 "$DEST"/config-"$TS".tgz; chgrp shkifut-backup "$DEST"/db-"$TS".tgz; chmod 640 "$DEST"/db-"$TS".tgz
 
 # 3. Rotation
 find "$DEST" \( -name 'db-*.tgz' -o -name 'config-*.tgz' -o -name '*.part' \) -mtime +"$KEEP_DAYS" -delete
