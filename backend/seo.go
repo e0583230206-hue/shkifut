@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
@@ -35,6 +36,29 @@ type pageMeta struct {
 	Type        string // og:type
 	Body        string // plain-text content for crawlers without JavaScript
 	NoIndex     bool
+	JSONLD      string // structured data (NewsArticle) for a message page; empty elsewhere
+}
+
+// newsArticleJSON is the structured data of one published message, so a search engine sees a dated article with a headline
+// and a publisher instead of only a block of text. Only the fields that are already public in the page are used.
+func newsArticleJSON(headline, description, canonical, siteName string, published time.Time) string {
+	doc := map[string]any{
+		"@context":         "https://schema.org",
+		"@type":            "NewsArticle",
+		"headline":         truncate(headline, 110),
+		"description":      description,
+		"inLanguage":       "he",
+		"mainEntityOfPage": canonical,
+		"publisher":        map[string]any{"@type": "Organization", "name": siteName},
+	}
+	if !published.IsZero() {
+		doc["datePublished"] = published.UTC().Format(time.RFC3339)
+	}
+	b, err := json.Marshal(doc) // escapes < > & as < etc., so the text cannot close the script tag
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // SPA routes that exist; anything else gets the app with a real 404 status.
@@ -146,6 +170,9 @@ func renderIndex(w http.ResponseWriter, r *http.Request, m pageMeta, status int)
 		card = "summary_large_image"
 	}
 	fmt.Fprintf(&head, "  <meta name=\"twitter:card\" content=\"%s\">\n", card)
+	if m.JSONLD != "" && !noindexSite && !m.NoIndex {
+		fmt.Fprintf(&head, "  <script type=\"application/ld+json\">%s</script>\n", m.JSONLD)
+	}
 
 	// The original index.html has an empty <title></title> placeholder.
 	content = bytes.Replace(content, []byte("<title></title>"), []byte(head.String()), 1)
@@ -214,7 +241,7 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 		renderIndex(w, r, m, http.StatusOK)
 		return
 	}
-	vals, err := rdb.HMGet(ctx, "messages:"+id, "text", "deleted", heldField).Result()
+	vals, err := rdb.HMGet(ctx, "messages:"+id, "text", "deleted", heldField, "timestamp").Result()
 	text, _ := vals[0].(string)
 	deleted, _ := vals[1].(string)
 	if held, _ := vals[2].(string); held == "1" {
@@ -248,6 +275,13 @@ func serveMessagePage(w http.ResponseWriter, r *http.Request) {
 		m.Title = truncate(plain, 70) + " | " + name
 		m.Description = truncate(plain, 200)
 		m.Body = plain
+		var published time.Time
+		if ts, _ := vals[3].(string); ts != "" {
+			if sec, err := strconv.ParseInt(ts, 10, 64); err == nil && sec > 0 {
+				published = time.Unix(sec, 0)
+			}
+		}
+		m.JSONLD = newsArticleJSON(plain, m.Description, baseURL(r)+m.Path, name, published)
 	}
 	// Preview image: the first image of the message. /api/files serves readers (and crawlers) only the
 	// version they may see - blurred or regionally blurred when needed - so this never leaks an original.
