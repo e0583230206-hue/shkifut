@@ -13,6 +13,12 @@ import (
 	"github.com/go-chi/chi"
 )
 
+// isBackgroundPoll: the browser extension checks for new messages once a minute in the background with ?poll=1.
+// Such a check is nobody looking at the page, so it counts neither as a view nor as "online" (see addViewsToMessages and withPresence).
+func isBackgroundPoll(r *http.Request) bool {
+	return r.URL.Query().Get("poll") == "1"
+}
+
 func getMessages(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -46,7 +52,9 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(messages)
 
-	addViewsToMessages(ctx, messages)
+	if !isBackgroundPoll(r) {
+		addViewsToMessages(ctx, messages)
+	}
 }
 
 // getMessage: GET /api/messages/<id> - one message, for its own page (/m/<id>). A missing or deleted message is a 404.

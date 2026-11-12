@@ -71,7 +71,7 @@ func touchPresence(s Session, force bool) {
 // withPresence wraps a page-load style handler: the visit counts as "seen now".
 func withPresence(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s, ok := sessionUser(r); ok {
+		if s, ok := sessionUser(r); ok && !isBackgroundPoll(r) { // a background check is not a visit
 			go touchPresence(s, false)
 		}
 		h(w, r)
