@@ -1,0 +1,41 @@
+/* an item in Gmail's narrow rail: icon on top, name under it */
+.skifut-item {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  margin: 6px auto; padding: 4px 0; width: 100%; box-sizing: border-box; cursor: pointer; user-select: none;
+  font-family: var(--sk-family, "Google Sans", Roboto, Arial, sans-serif); font-size: var(--sk-size, 11px);
+  font-weight: var(--sk-weight, 500); line-height: 14px; color: var(--sk-label, inherit); text-align: center;
+}
+.skifut-icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  position: relative; width: 56px; height: 32px; border-radius: 16px; color: var(--sk-icon, var(--sk-label, #444746));
+}
+.skifut-item:hover .skifut-icon { background: rgba(60, 64, 67, .1); }
+.skifut-label { white-space: nowrap; }
+.skifut-item .skifut-badge { position: absolute; top: -6px; left: calc(50% - 22px); }
+.skifut-badge {
+  min-width: 18px; padding: 1px 6px; border-radius: 10px; background: #d93025; color: #fff;
+  font: 700 11px/16px Arial, sans-serif; text-align: center; box-sizing: border-box;
+}
+.skifut-fab {
+  position: fixed; bottom: 20px; left: 20px; z-index: 999998; width: 48px; height: 48px;
+  border: 0; border-radius: 50%; background: #0b57d0; color: #fff; cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .3); display: flex; align-items: center; justify-content: center;
+}
+.skifut-fab .skifut-icon { width: auto; height: auto; color: #fff; }
+.skifut-fab:hover .skifut-icon { background: none; }
+.skifut-fab .skifut-badge { position: absolute; top: -4px; right: -4px; }
+/* the two windows only frame the extension page; all their buttons and the header are in the page itself */
+.skifut-hover {
+  position: fixed; z-index: 999999; width: 400px; max-width: calc(100vw - 16px);
+  border-radius: 18px; overflow: hidden; background: #fff; border: 1px solid #d6dce6;
+  box-shadow: 0 10px 32px rgba(10, 25, 60, .22), 0 2px 8px rgba(10, 25, 60, .1);
+}
+.skifut-hover iframe, .skifut-dock iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+/* docked window in the bottom corner (like a chat window) */
+.skifut-dock {
+  position: fixed; bottom: 0; left: 24px; z-index: 999999; width: 380px; max-width: calc(100vw - 16px);
+  height: min(560px, calc(100vh - 80px)); border-radius: 16px 16px 0 0; overflow: hidden; background: #fff;
+  border: 1px solid #d6dce6; border-bottom: 0; box-shadow: 0 -4px 24px rgba(10, 25, 60, .25);
+}
+.skifut-dock.min { height: 60px; } /* only the header of the page shows */

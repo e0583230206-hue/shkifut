@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "שקיפות - ערוץ חדשות",
+  "description": "חלונית צד, כפתור בתוך Gmail והתראות טקסט להודעות חדשות בערוץ שקיפות",
+  "version": "0.3.0",
+  "permissions": ["storage", "alarms", "notifications", "sidePanel", "offscreen"],
+  "host_permissions": ["https://hashkifut.co.il/*", "http://localhost/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["gmail-inject.js"],
+      "css": ["gmail-inject.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidepanel.html", "sidepanel.js", "common.js", "settings.js", "sounds.js"],
+      "matches": ["https://mail.google.com/*"]
+    }
+  ],
+  "action": { "default_title": "שקיפות", "default_icon": { "128": "icon128.png" } },
+  "icons": { "128": "icon128.png" },
+  "commands": {
+    "_execute_action": { "suggested_key": { "default": "Ctrl+Shift+S" } }
+  }
+}
