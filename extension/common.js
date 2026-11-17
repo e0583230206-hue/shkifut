@@ -8,21 +8,23 @@ export async function getBase() {
 }
 
 // Returns { ok, status, messages }. 401 = not signed in on the site.
-// `raw` is how many messages the server returned before our filtering: the next page starts at offset + raw.
+// `raw` is how many messages the server returned before our filtering. `offset` is a bookmark, not a count:
+// the id of the last message of the previous page (`last`), and the server pages after it (0 = from the newest).
 // `poll` marks a background check (nobody is looking): the site then counts no view and no "online" for it.
 export async function fetchMessages(limit = 20, offset = 0, poll = false) {
   const base = await getBase();
   try {
     const res = await fetch(`${base}/api/messages?limit=${limit}&offset=${offset}${poll ? '&poll=1' : ''}&t=${Date.now()}`, { credentials: 'include' });
-    if (!res.ok) return { ok: false, status: res.status, messages: [], raw: 0 };
+    if (!res.ok) return { ok: false, status: res.status, messages: [], raw: 0, last: 0 };
     const data = await res.json();
     const all = Array.isArray(data) ? data : [];
     const messages = all
       .filter((m) => m && !m.deleted && !m.held && !m.is_ads)
       .sort((a, b) => b.id - a.id);
-    return { ok: true, status: 200, messages, raw: all.length };
+    const last = all.length ? all[all.length - 1].id : 0; // the server sends newest first, by time
+    return { ok: true, status: 200, messages, raw: all.length, last };
   } catch (e) {
-    return { ok: false, status: 0, messages: [], raw: 0 };
+    return { ok: false, status: 0, messages: [], raw: 0, last: 0 };
   }
 }
 

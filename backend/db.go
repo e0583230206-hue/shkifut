@@ -177,15 +177,20 @@ var getMessageRange = redis.NewScript(`
 	local seeHeld = ARGV[5] == 'true' -- those who may approve videos (not the same as isAdmin: that one also shows the author)
 
 
-	local start_index
+	local rank
 	if direction == 'asc' then
-	    start_index = redis.call('ZRANK', time_set_key, offset_key) or 0
+	    rank = redis.call('ZRANK', time_set_key, offset_key)
 	else
-	    start_index = redis.call('ZREVRANK', time_set_key, offset_key) or 0
+	    rank = redis.call('ZREVRANK', time_set_key, offset_key)
 	end
 
-	if start_index > 0 then
-		start_index = start_index + 1
+	-- offset 0 means "from the start". Any other offset is a bookmark: page after it, and if it is not
+	-- in the list, there is nothing after it (falling back to the start sent readers old news again).
+	local start_index = 0
+	if rank then
+		start_index = rank + 1
+	elseif offset_key ~= 'messages:0' then
+		return '{}'
 	end
 
 	local messages = {}

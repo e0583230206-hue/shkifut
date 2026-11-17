@@ -362,7 +362,9 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     opt.resetList && (this.offset = 0);
 
-    const maxId = Math.max(...this.messages.map(m => m.id!));
+    // The list is kept in display (time) order, newest first. A message released after being held keeps its
+    // low id but shows on top, so "lowest id" is not "oldest shown": the ends of the list are the bookmarks.
+    const maxId = this.messages[0]?.id ?? 0;
     if (opt.scrollDown) {
       direction = "asc";
       startId = maxId;
@@ -397,15 +399,30 @@ export class ChatComponent implements OnInit, OnDestroy {
     try {
       this.isLoading = true;
       const response = await firstValueFrom(this.chatService.getMessages(startId, this.limit, direction))
+      if (response && resetList && response.length === 0 && startId !== 0) {
+        // Jumped to a spot that is not there (e.g. "id + 10" past the newest message): show the newest instead.
+        this.hasOldMessages = true;
+        this.hasNewMessages = false;
+        this.isLoading = false;
+        await this.loadMessages({ resetList: true }); // startId 0: cannot come back here
+        setTimeout(() => {
+          const el = opt.messageId && document.getElementById(String(opt.messageId));
+          el ? el.scrollIntoView({ behavior: 'instant', block: 'center' }) : this.scrollToBottom(false);
+        }, 300);
+        return;
+      }
       if (response) {
+        // never show the same message twice, even if the server sends one again
+        const shown = new Set(this.messages.map(m => m.id));
+        const fresh = resetList ? response : response.filter(m => !shown.has(m.id));
         if (opt.scrollDown) {
-          resetList ? this.messages = response.reverse() : this.messages.unshift(...response.reverse());
+          resetList ? this.messages = fresh.reverse() : this.messages.unshift(...fresh.reverse());
           this.hasNewMessages = response.length >= this.limit;
         } else {
-          resetList ? this.messages = response : this.messages.push(...response);
+          resetList ? this.messages = fresh : this.messages.push(...fresh);
           this.hasOldMessages = response.length >= this.limit;
         }
-        this.offset = Math.min(...this.messages.map(m => m.id!));
+        this.offset = this.messages[this.messages.length - 1]?.id ?? 0;
         setTimeout(() => {
           opt.messageId && this.scrollToId({ messageId: opt.messageId, smooth: false, mark: opt.mark });
         }, 300);

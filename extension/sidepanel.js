@@ -351,6 +351,7 @@ async function render() {
 
   for (const m of [...r.messages].reverse()) { S.ids.add(m.id); list.append(messageCard(m)); } // oldest first
   S.loaded = r.raw;
+  S.cursor = r.last; // "load older" continues after this message
   S.topId = r.messages.length ? r.messages[0].id : 0; // r.messages is newest first
   S.hasMore = r.raw >= PAGE;
   $('more').hidden = !S.hasMore;
@@ -376,12 +377,14 @@ async function loadOlder() {
   if (S.busy || !S.hasMore) return;
   S.busy = true; $('more').disabled = true;
   const prevH = document.documentElement.scrollHeight, prevY = window.scrollY;
-  const r = await fetchMessages(PAGE, S.loaded);
+  if (!S.cursor) { S.busy = false; $('more').disabled = false; return; } // 0 would mean "from the newest" again
+  const r = await fetchMessages(PAGE, S.cursor);
   if (!r.ok) { S.busy = false; $('more').disabled = false; toast('לא הצלחתי לטעון הודעות ישנות.'); return; }
   const frag = document.createDocumentFragment();
   let added = 0;
   for (const m of [...r.messages].reverse()) { if (S.ids.has(m.id)) continue; S.ids.add(m.id); frag.append(messageCard(m)); added++; }
   S.loaded += r.raw;
+  if (r.last) S.cursor = r.last;
   S.hasMore = r.raw >= PAGE;
   $('more').hidden = !S.hasMore;
   $('list').prepend(frag);

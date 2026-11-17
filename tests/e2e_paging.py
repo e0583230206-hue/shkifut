@@ -65,6 +65,12 @@ try:
     asc = [m["id"] for m in get(anon, f"/api/messages?offset={live[-1]}&limit=6&direction=asc")]
     check("ascending page has no duplicates and skips deleted", asc == sorted(live)[1:7], (asc, sorted(live)[1:7]))
 
+    # A bookmark that is not in the list means "nothing after it". It used to restart from the beginning,
+    # so readers got the newest (desc) or the very first messages of the channel (asc) again.
+    for d in ("desc", "asc"):
+        gone = get(anon, f"/api/messages?offset=99999999&limit=5&direction={d}")
+        check(f"a bookmark that does not exist returns nothing ({d})", gone == [], [m["id"] for m in gone])
+
     adm = [m["id"] for m in get(admin, "/api/messages?offset=0&limit=8&direction=desc")]
     check("writers see deleted messages too, without duplicates", len(adm) == 8 and len(set(adm)) == 8, adm)
 finally:
