@@ -28,11 +28,12 @@ def run(cmd):
     subprocess.run(cmd, check=True, capture_output=True)
 
 
-def make_video(path, secs=6, w=W, h=H, fps=FPS, audio="aac", sine=True):
+def make_video(path, secs=6, w=W, h=H, fps=FPS, audio="aac", sine=True, audio_secs=None):
+    """audio_secs: a sound of another length than the picture (both are kept whole)."""
     cmd = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={w}x{h}:rate={fps}:duration={secs}"]
     if audio:
-        cmd += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={secs}", "-c:a", audio]
-    cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-shortest", path]
+        cmd += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={audio_secs or secs}", "-c:a", audio]
+    cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"] + ([] if audio_secs else ["-shortest"]) + [path]
     run(cmd)
 
 
@@ -222,6 +223,20 @@ class Rendering(Base):
         self.assertEqual(a["codec_name"], "aac")
         self.assertAlmostEqual(float(a["duration"]), float(v["duration"]), delta=0.15)
         self.assertAlmostEqual(float(a["duration"]), 6.0, delta=0.15)
+
+    def test_a_sound_shorter_than_the_picture(self):
+        # 17.11.2026 (message 3446): picture 61.77 s, sound 60.91 s. The render stopped at the end of the sound and failed every time.
+        make_video(self.src, secs=6, audio_secs=5)
+        res = self.render([rect([(1, 0.1, 0.1, 0.3, 0.4)])])
+        self.assertAlmostEqual(res["duration"], 6.0, delta=0.1)
+        self.assertAlmostEqual(float(streams(self.out)["video"]["duration"]), 6.0, delta=0.15)
+        self.assertIn("audio", streams(self.out))
+
+    def test_a_sound_longer_than_the_picture_is_cut(self):
+        make_video(self.src, secs=5, audio_secs=6)
+        res = self.render([rect([(1, 0.1, 0.1, 0.3, 0.4)])])
+        self.assertAlmostEqual(res["duration"], 5.0, delta=0.1)
+        self.assertAlmostEqual(float(streams(self.out)["audio"]["duration"]), 5.0, delta=0.15)
 
     def test_audio_that_is_not_aac_becomes_aac(self):
         make_video(self.src, audio="libmp3lame")

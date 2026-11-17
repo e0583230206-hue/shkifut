@@ -369,7 +369,11 @@ def render(base_path, out_path, tracks_raw, job, pad_frames=2, max_frames=None):
     part = out_path + ".part"
     enc = ["ffmpeg", "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{rw}x{rh}", "-r", f"{fps:.5f}", "-i", "pipe:0"]
     if info["audio"]:
-        enc += ["-i", base_path, "-map", "0:v:0", "-map", "1:a:0", "-c:a", "copy" if info["audio"] == "aac" else "aac", "-b:a", "128k", "-shortest"]
+        # The length is the picture's. In many WhatsApp videos the sound ends a little before the picture: with a plain "-shortest" the
+        # encoder stopped at the end of the sound (a result too short for the self-check, or the encoder closed while frames were still
+        # sent). So the sound goes on in silence (apad, which needs encoding: no copy) and "-shortest" ends it with the picture; a longer
+        # sound is cut there.
+        enc += ["-i", base_path, "-map", "0:v:0", "-map", "1:a:0", "-af", "apad", "-c:a", "aac", "-b:a", "128k", "-shortest"]
     enc += ["-c:v", "libx264", "-preset", "veryfast", "-crf", CRF, "-pix_fmt", "yuv420p", "-threads", FFMPEG_THREADS, "-movflags", "+faststart", "-f", "mp4", part]
     proc = subprocess.Popen(_low(enc), stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
     kept = {}
