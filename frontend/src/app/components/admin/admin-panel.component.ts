@@ -1,4 +1,7 @@
 import { Component, OnDestroy, OnInit } from "@angular/core";
+import { RouterLink, ActivatedRoute } from '@angular/router';
+import { WorkNotificationsService } from '../../services/work-notifications.service';
+import { StaffChatService } from '../../services/staff-chat.service';
 import { Subscription } from "rxjs";
 import { NbCardModule, NbLayoutModule, NbMenuItem, NbMenuModule, NbMenuService, NbSidebarModule } from "@nebular/theme";
 import { EmojisComponent } from "./emojis/emojis.component";
@@ -17,7 +20,7 @@ import { AuthService } from "../../services/auth.service";
 @Component({
   selector: 'admin-dashboard',
   imports: [
-    NbLayoutModule,
+    NbLayoutModule, RouterLink,
     NbSidebarModule,
     NbMenuModule,
     NbCardModule,
@@ -38,6 +41,15 @@ import { AuthService } from "../../services/auth.service";
 export class AdminPanelComponent implements OnInit, OnDestroy {
 
   private inboxSub?: Subscription;
+  private menuSub?: Subscription;
+  private authSub?: Subscription;
+  counts={contact:0,reports:0};
+  get moderator(){return !!this.authService.userInfo?.privileges?.['moderator'];}
+  get owner(){return !!this.authService.userInfo?.privileges?.['admin'];}
+  get reviewer(){return this.moderator||!!this.authService.userInfo?.privileges?.['reviewer'];}
+  private allowed(icon:any){return icon==='grid-outline'||(['settings-2-outline','shield-outline','pricetags-outline'].includes(icon)?this.owner:this.moderator);}
+  private allMenu:NbMenuItem[]=[];
+  private roleKey="";
 
   readonly info = "info";
   readonly settings = "settings";
@@ -52,13 +64,13 @@ export class AdminPanelComponent implements OnInit, OnDestroy {
   readonly topics = "topics";
   readonly online = "online";
 
-  selectedMenuItem = this.info;
+  selectedMenuItem = 'summary';
 
-  navigationMenu: NbMenuItem[] = [
+  navigationMenu: NbMenuItem[] = [{title:'סקירה כללית',icon:'grid-outline'},
     {
       title: 'פרטי ערוץ',
       icon: 'info-outline',
-      selected: true
+      selected: false
     },
     {
       title: 'הגדרות',
@@ -115,26 +127,32 @@ export class AdminPanelComponent implements OnInit, OnDestroy {
   constructor(
     private menuService: NbMenuService,
     private authService: AuthService,
-    private adminService: AdminService
+    private adminService: AdminService,
+    public work:WorkNotificationsService,
+    public staff:StaffChatService,
+    private route:ActivatedRoute
   ) { }
 
   ngOnInit(): void {
-    // "Who is online" is for the owner and "מנהל 1" (the server enforces it too)
-    if (!this.authService.userInfo?.privileges?.['admin'] && !this.authService.userInfo?.privileges?.['moderator']) {
-      this.navigationMenu = this.navigationMenu.filter(i => i.icon !== 'activity-outline');
-    }
-    this.handleMenuItemClick()
-
-    // A number next to "פניות" and "דיווחים" = how many are still open (the owner and "מנהל 1" only; the server enforces it too)
-    this.adminService.refreshInbox();
+    this.allMenu=this.navigationMenu;
+    this.authSub=this.authService.userChanges.subscribe(()=>{
+      const key=JSON.stringify(this.authService.userInfo?.privileges||{});
+      if(this.roleKey===key)return;this.roleKey=key;
+      this.navigationMenu=this.allMenu.filter(i=>this.allowed(i.icon));
+      this.selectedMenuItem='summary';
+      this.navigationMenu.forEach(i=>i.selected=i.icon==='grid-outline');
+    });
+    this.handleMenuItemClick();
+    if(this.moderator)this.adminService.refreshInbox();
     this.inboxSub = this.adminService.inboxObservable.subscribe(c => {
+      this.counts=c;
       this.setBadge('email-outline', c.contact);
       this.setBadge('alert-triangle-outline', c.reports);
     });
   }
 
   ngOnDestroy(): void {
-    this.inboxSub?.unsubscribe();
+    this.inboxSub?.unsubscribe();this.menuSub?.unsubscribe();this.authSub?.unsubscribe();
   }
 
   private setBadge(icon: string, count: number) {
@@ -143,13 +161,15 @@ export class AdminPanelComponent implements OnInit, OnDestroy {
   }
 
   handleMenuItemClick() {
-    this.menuService.onItemClick().subscribe((event) => {
+    this.menuSub=this.menuService.onItemClick().subscribe((event) => {
+      if(event.tag!=='admin-panel'||!this.allowed(event.item.icon))return;
       this.navigationMenu.forEach((item) => item.selected = false);
       event.item.selected = true;
 
       switch (event.item.icon) {
+        case 'grid-outline':this.selectedMenuItem='summary';break;
         case 'info-outline':
-          this.selectedMenuItem = this.info;
+          this.selectedMenuItem = 'summary';
           break;
         case 'settings-2-outline':
           this.selectedMenuItem = this.settings;

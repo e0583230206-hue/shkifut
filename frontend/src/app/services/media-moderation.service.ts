@@ -12,6 +12,7 @@ export type ModerationStatus = 'pending' | 'open' | 'regional' | 'blurred';
 export type ModerationChoice = 'open' | 'regional' | 'blurred';
 
 export interface FileModeration {
+  releasedBy?:string;releasedAt?:string;
   id: string;
   status: ModerationStatus;
   kind: string;
@@ -252,6 +253,7 @@ export class MediaModerationService {
       frame.appendChild(this.chip('בבדיקה'));
     }
 
+    if(info.releasedBy){const audit=document.createElement('div');audit.className='media-release-audit';audit.textContent='אושר לפרסום על ידי '+info.releasedBy+(info.releasedAt?' · '+new Date(info.releasedAt).toLocaleString('he-IL'):'');wrap.appendChild(audit);}
     if (!isModerator) return;
 
     const bar = document.createElement('div');

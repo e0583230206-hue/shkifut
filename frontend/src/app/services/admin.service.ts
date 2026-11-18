@@ -37,6 +37,7 @@ export class AdminService {
   /** Open (not handled) reports and contact messages, for the numbers next to the admin tabs; only the owner and "מנהל 1" can read them. */
   private inbox = new BehaviorSubject<{ reports: number; contact: number }>({ reports: 0, contact: 0 });
   inboxObservable = this.inbox.asObservable();
+  private inboxEpoch=0;
   private inboxTimer?: ReturnType<typeof setInterval>;
 
   constructor(
@@ -44,8 +45,10 @@ export class AdminService {
   ) { }
 
   async refreshInbox() {
+    const epoch=this.inboxEpoch;
     try {
       const c = await firstValueFrom(this.http.get<{ reports: number; contact: number }>('/api/admin/inbox-counts'));
+      if(epoch!==this.inboxEpoch)return;
       this.inbox.next({ reports: c.reports || 0, contact: c.contact || 0 });
     } catch { /* not allowed or offline: keep the last numbers */ }
   }
@@ -58,6 +61,7 @@ export class AdminService {
   }
 
   stopInboxWatch() {
+    this.inboxEpoch++;
     clearInterval(this.inboxTimer);
     this.inboxTimer = undefined;
     this.inbox.next({ reports: 0, contact: 0 });

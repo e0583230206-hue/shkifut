@@ -37,10 +37,16 @@ nb-list-item:first-child {
   padding-bottom: 1rem;
 }
 
+// light theme: a deeper blue so the text is readable on the light page (4.9:1; #6a6fff was 3.2:1). The dark theme keeps the bright one.
 .last-read-indicator-text {
-  color: #6a6fff !important;
+  color: #4a50e0 !important;
+  font-weight: 600;
   text-align: center;
   white-space: nowrap;
+}
+
+:host-context(.nb-theme-custom-dark) .last-read-indicator-text {
+  color: #8b8fff !important;
 }
 
 .line {

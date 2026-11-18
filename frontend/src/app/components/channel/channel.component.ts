@@ -1,3 +1,5 @@
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DestroyRef, inject } from '@angular/core';
 import { Component, ElementRef, OnInit, Renderer2, RendererStyleFlags2, ViewChild } from '@angular/core';
 import { AdvertisingComponent } from "./advertising/advertising.component";
 
@@ -54,7 +56,9 @@ export class ChannelComponent implements OnInit {
   ad: Ad = { enabled: false, src: '', width: 0, embedCode: '', feedEvery: 0, feedHeight: 250 };
   userInfo?: User;
 
+  private destroyRef=inject(DestroyRef);
   ngOnInit(): void {
+    this._authService.userChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(u=>this.userInfo=u);
     this.adsService.getAds().then(ad => {
       this.ad = ad;
     });

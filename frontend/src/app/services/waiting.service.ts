@@ -28,6 +28,7 @@ export class WaitingService {
   private readonly _summary = new BehaviorSubject<WaitingSummary | null>(null);
   readonly summary$ = this._summary.asObservable();
   private enabled = false;
+  private epoch=0;
   private timer?: ReturnType<typeof setInterval>;
   private debounce?: ReturnType<typeof setTimeout>;
 
@@ -39,7 +40,8 @@ export class WaitingService {
 
   /** Call once the user is known. Safe to call again. */
   init(user?: User) {
-    if (this.enabled || !WaitingService.canSee(user)) return;
+    if (!WaitingService.canSee(user)) {this.enabled=false;this.epoch++;clearInterval(this.timer);clearTimeout(this.debounce);this._summary.next(null);return;}
+    if(this.enabled)return;
     this.enabled = true;
     this.load();
     this.timer = setInterval(() => this.load(), REFRESH_MS);
@@ -53,9 +55,11 @@ export class WaitingService {
   }
 
   private async load() {
+    if(!this.enabled)return;const epoch=this.epoch;
     try {
-      this._summary.next(await firstValueFrom(this.http.get<WaitingSummary>('/api/admin/hold/waiting')));
-    } catch {
+      const s=await firstValueFrom(this.http.get<WaitingSummary>('/api/admin/hold/waiting'));if(epoch===this.epoch)this._summary.next(s);
+    } catch (e:any) {
+      if(epoch===this.epoch && (e.status===401||e.status===403))this.init(undefined);
       // not allowed any more, or offline: keep what is shown, the next round tries again
     }
   }

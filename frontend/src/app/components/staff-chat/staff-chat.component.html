@@ -1,0 +1,21 @@
+@if(chat.enabled){
+  @if(!chat.open){<button class="chat-launch" (click)="chat.toggle()" aria-label="פתיחת צ׳אט הצוות">צ׳אט צוות @if(chat.unread){<b>{{chat.unread}}</b>}</button>}
+  @if(chat.open){
+    <aside class="staff-panel" dir="rtl" aria-label="צ׳אט הצוות">
+      <header><div><strong>צ׳אט הצוות</strong><small>החדר המשותף · לצוות בלבד</small></div><button (click)="chat.toggle()" aria-label="סגירת צ׳אט הצוות">✕</button></header>
+      <div class="history" #history (scroll)="scroll()" role="log" aria-label="הודעות הצוות">
+        @if(olderAvailable&&chat.messages.length>=50){<button (click)="older()">הודעות קודמות</button>}
+        @if(!chat.messages.length&&!chat.loading){<p class="empty">כאן מתעדכנים ומתייעצים עם כל הצוות.</p>}
+        @for(m of chat.messages;track m.id){<article [class.mine]="m.mine"><strong>{{m.name}}</strong><p>{{m.text}}</p>
+          @for(f of m.files;track f.id){<a [href]="'/api/staff/files/'+f.id" target="_blank" rel="noopener">📎 {{f.name}}</a>}
+          <time>{{m.at|date:'dd/MM HH:mm'}}</time></article>}
+      </div>
+      @if(chat.error){<p class="error" role="alert">{{chat.error}} <button (click)="chat.refresh()">ניסיון נוסף</button></p>}
+      <form (ngSubmit)="send()"><label for="staff-text">הודעה לצוות</label><textarea id="staff-text" name="text" [(ngModel)]="text" maxlength="2000" rows="3" placeholder="כתבו הודעה…"></textarea>
+        @for(f of files;track f.id){<div class="attachment">{{f.name}} <button type="button" [disabled]="busy" (click)="files.splice($index,1)" aria-label="הסרת קובץ">✕</button></div>}
+        @if(error){<p class="error" role="alert">{{error}}</p>}
+        <footer><label class="file-button">צירוף קובץ<input type="file" multiple [disabled]="busy" (change)="attach($event)"></label><small>עד 25MB לקובץ</small><button class="send" type="submit" [disabled]="busy||(!text.trim()&&!files.length)">{{busy?'ממתינים…':'שליחה'}}</button></footer>
+      </form>
+    </aside>
+  }
+}

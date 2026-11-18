@@ -1,3 +1,6 @@
+import { WaitingService } from '../../../services/waiting.service';
+import { StaffChatService } from '../../../services/staff-chat.service';
+import { WorkNotificationsService } from '../../../services/work-notifications.service';
 import { Component, EventEmitter, HostListener, Input, OnInit, Output, inject } from '@angular/core';
 
 import {
@@ -28,6 +31,9 @@ import { HeaderSearchComponent } from '../header-search/header-search.component'
 import { StarredListComponent } from '../starred/starred-list.component';
 import { StarredService } from '../../../services/starred.service';
 import { ThemeMode, ThemeService } from '../../../services/theme.service';
+import { PersonalService } from '../../../services/personal.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DestroyRef } from '@angular/core';
 
 @Component({
   selector: 'app-channel-header',
@@ -54,7 +60,7 @@ export class ChannelHeaderComponent implements OnInit {
   }
 
   private get isManager() {
-    return !!(this._userInfo?.privileges?.['admin'] || this._userInfo?.privileges?.['moderator']);
+    return !!this._userInfo?.privileges?.['moderator'];
   }
 
   /** Open reports + open contact messages (0 for everyone who is not a manager). */
@@ -65,16 +71,17 @@ export class ChannelHeaderComponent implements OnInit {
 
   private buildUserMenu() {
     this.userMenu = [
-      ...(this.isManager ? [{
+      ...(this._userInfo && ['admin','moderator','reviewer','writer'].some(p=>this._userInfo?.privileges?.[p]) ? [{
         title: 'ניהול ערוץ',
         icon: 'people-outline',
         ...(this.inboxTotal > 0 ? { badge: { text: String(this.inboxTotal), status: 'danger' as const } } : {}),
       }] : []),
       {
-        title: 'ההודעות שלי',
+        title: 'האזור האישי',
         icon: 'message-square-outline',
         ...(this.myTotal > 0 ? { badge: { text: this.myTotal > 9 ? '9+' : String(this.myTotal), status: 'success' as const } } : {}),
       },
+      ...(this.work.waitingCount>0 ? [{title:'מדיה ממתינה לאישור ('+this.work.waitingCount+')',icon:'clock-outline'}] : []),
       ...(this._userInfo?.privileges?.['admin'] ? [{ title: 'הודעה לכל המשתמשים', icon: 'megaphone-outline' }] : []),
       {
         title: 'התנתק',
@@ -114,6 +121,8 @@ export class ChannelHeaderComponent implements OnInit {
   ];
 
   private myMessages = inject(MyMessagesService);
+  private personal = inject(PersonalService);
+  private destroyRef = inject(DestroyRef);
 
   constructor(
     public chatService: ChatService,
@@ -127,6 +136,9 @@ export class ChannelHeaderComponent implements OnInit {
     public themeService: ThemeService,
     private adminService: AdminService,
     public starred: StarredService,
+    public staff:StaffChatService,
+    public work:WorkNotificationsService,
+    private waiting:WaitingService,
   ) {
   }
 
@@ -140,7 +152,11 @@ export class ChannelHeaderComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.adminService.inboxObservable.subscribe(c => {
+    this.waiting.summary$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(()=>this.buildUserMenu());
+    this.personal.summary$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(s => {
+      this.myTotal = s.total; this.buildUserMenu();
+    });
+    this.adminService.inboxObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(c => {
       this.inboxTotal = c.reports + c.contact;
       this.buildUserMenu();
     });
@@ -149,7 +165,7 @@ export class ChannelHeaderComponent implements OnInit {
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => this.loadMyReplies());
 
     this.contextMenuService.onItemClick()
-      .pipe(filter(({ tag }) => tag === 'theme-menu'))
+      .pipe(takeUntilDestroyed(this.destroyRef), filter(({ tag }) => tag === 'theme-menu'))
       .subscribe(({ item }) => this.themeService.set(item.data as ThemeMode));
 
     // The server already put the right title in the page (channel name / custom title / "שקיפות - חדשות ועדכונים"; the text of a message on /m/<id>).
@@ -162,14 +178,15 @@ export class ChannelHeaderComponent implements OnInit {
       });
 
     this.contextMenuService.onItemClick()
-      .pipe(filter(({ tag }) => tag === this.userMenuTag))
+      .pipe(takeUntilDestroyed(this.destroyRef), filter(({ tag }) => tag === this.userMenuTag))
       .subscribe(value => {
         switch (value.item.icon) {
           case 'log-out':
             this.logout();
             break;
+          case 'clock-outline':
           case 'people-outline':
-            this.dialogService.open(AdminPanelComponent, { closeOnBackdropClick: true });
+            this.router.navigateByUrl('/admin');
             break;
           case 'message-square-outline':
             this.router.navigateByUrl('/my-messages');
@@ -229,7 +246,8 @@ export class ChannelHeaderComponent implements OnInit {
   /** Built-in contact form; an external link can still be set with the "contact_us" setting. */
   /** The saved messages (the stars), in a window. */
   openStarred() {
-    this.dialogService.open(StarredListComponent, { closeOnBackdropClick: true, autoFocus: false });
+    if (this.userInfo) this.router.navigate(['/my-messages'], {queryParams:{tab:'saved'}});
+    else this.dialogService.open(StarredListComponent, { closeOnBackdropClick: true, autoFocus: false });
   }
 
   openSearch() {

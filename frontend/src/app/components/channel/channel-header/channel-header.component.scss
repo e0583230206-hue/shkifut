@@ -1,3 +1,15 @@
+// The bar and (on a phone) the strip under it. min-width 0: without it the header grew wider than a phone screen and pushed the buttons
+// out of it (the name was cut at the top and the left buttons were half outside).
+:host {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.hdr-strip {
+    display: none;
+}
+
 .img-circle {
     height: 60px;
     width: 60px;
@@ -192,20 +204,62 @@ app-header-search {
         margin: 0.1rem !important;
     }
 
-    .site-lens {
-        width: 44px;
-        height: 44px;
+    .site-lens,
+    .hdr-start > .rounded-circle,
+    .hdr-start > .rounded-circle .img-circle {
+        width: 48px !important; // (the channel's own picture has its size in the template)
+        height: 48px !important;
     }
 
     .site-title {
-        font-size: 1.15rem;
+        font-size: 1.4rem;
+    }
+}
+
+/* Phone and tablet (below 1100 px, where the bar has no search field): the line and the participants move to a strip under the bar.
+   Next to the logo they had only a narrow column and were cut. The bar is taller by the strip (styles.scss). */
+@media (max-width: 1099.98px) {
+    // the name alone stays next to the logo, never cut (on a tablet the "developed by" capsule squeezed it)
+    .site-title {
+        white-space: nowrap;
     }
 
-    .site-desc,
-    .site-count {
-        font-size: 0.64rem;
+    .hdr-info {
+        flex: none;
     }
 
+    .hdr-info .site-desc,
+    .hdr-info .site-count {
+        display: none;
+    }
+
+    .hdr-strip {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        margin-top: 0.4rem;
+        padding-top: 0.3rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.18);
+        font-size: 0.75rem;
+        line-height: 1.35;
+        color: rgba(255, 255, 255, 0.9); // on the coloured top bar
+
+        small {
+            font-size: inherit;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .legal-links a {
+            color: #fff;
+            opacity: 1;
+            text-decoration: underline;
+        }
+    }
+}
+
+@media (max-width: 576px) {
     .hdr-end nb-user .user-picture,
     .hdr-end nb-user .user-picture.initials {
         width: 32px;

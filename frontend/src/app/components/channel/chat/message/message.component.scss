@@ -17,7 +17,7 @@
 
 .msg-col {
   flex: 0 1 auto;
-  width: 570px;
+  width: 790px;
   max-width: 100%;
   min-width: 0;
 }
@@ -29,8 +29,8 @@
 
 .msg-avatar {
   display: block;
-  width: 72px;
-  height: 72px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   object-fit: contain;
   box-shadow: 0 0 0 1px var(--tc-border, #d5dbe8);
@@ -54,8 +54,8 @@
   }
 
   .msg-avatar {
-    width: 52px;
-    height: 52px;
+    width: 34px;
+    height: 34px;
   }
 }
 
@@ -341,3 +341,5 @@ nb-icon {
     animation: none;
   }
 }
+
+.message-card{border-radius:18px 4px 18px 18px;box-shadow:0 3px 12px #18253608;border:1px solid var(--tc-border,#dce0e7)}

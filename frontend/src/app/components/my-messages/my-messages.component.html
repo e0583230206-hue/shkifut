@@ -1,30 +1,26 @@
-<div class="my-page">
+<nb-layout><nb-layout-column>
+<main class="my-page" id="main-content">
   <header class="hero">
     <div class="hero-text">
       <h1>שלום{{ name ? ' ' + name : '' }}</h1>
-      <p>כאן תמצאו הודעות מהערוץ, וגם את הפניות והדיווחים שלכם ואת התשובות אליהם.</p>
+      <p>ההודעות, השמורים וההעדפות שלכם — במקום אחד.</p>
     </div>
     <button nbButton size="small" class="back-btn" (click)="home()">חזרה לערוץ</button>
   </header>
 
-  @if (loading) {
-    <div class="state">טוען...</div>
-  } @else if (error) {
-    <div class="state">שגיאה בטעינת ההודעות. נסו שוב מאוחר יותר.</div>
-  } @else {
-
-    <nav class="tabs" role="tablist">
-      <button role="tab" class="tab" [class.active]="tab === 'news'" [attr.aria-selected]="tab === 'news'" (click)="tab = 'news'; selected = undefined">
-        הודעות מהערוץ
-        @if (newNews > 0) { <span class="pill">{{ newNews }}</span> }
-      </button>
-      <button role="tab" class="tab" [class.active]="tab === 'mine'" [attr.aria-selected]="tab === 'mine'" (click)="tab = 'mine'">
-        ההודעות שלי
-        @if (newMineCount > 0) { <span class="pill">{{ newMineCount }}</span> }
-      </button>
-    </nav>
-
-    @if (tab === 'news') {
+  <div class="personal-layout">
+    <nav class="tabs" aria-label="האזור האישי">
+      <span class="nav-label">החשבון שלי</span>
+      <button class="tab" [class.active]="tab === 'mine'" (click)="selectTab('mine')">הפניות שלי @if(newMineCount){<span class="pill">{{newMineCount}}</span>}</button>
+      <button class="tab" [class.active]="tab === 'news'" (click)="selectTab('news')">הודעות מהערוץ @if(newNews){<span class="pill">{{newNews}}</span>}</button>
+      <button class="tab" [class.active]="tab === 'saved'" (click)="selectTab('saved')">הודעות שמורות <span class="count">{{starred.count}}</span></button>
+      <button class="tab" [class.active]="tab === 'settings'" (click)="selectTab('settings')">הגדרות אישיות</button>
+    @if(isStaff){<button class="tab" (click)="openAdmin()">ניהול הערוץ</button>}
+  </nav>
+    <section class="personal-content" aria-live="polite">
+    @if ((tab === 'news' || tab === 'mine') && loading) { <div class="state">טוען הודעות...</div> }
+    @if ((tab === 'news' || tab === 'mine') && error) { <div class="state">שגיאה בטעינת ההודעות. <button nbButton size="small" (click)="ngOnInit()">ניסיון נוסף</button></div> }
+    @if (tab === 'news' && !loading && !error) {
       @if (!broadcasts.length) {
         <div class="state">עדיין אין הודעות מהערוץ.</div>
       }
@@ -42,7 +38,8 @@
       </div>
     }
 
-    @if (tab === 'mine') {
+    @if (tab === 'mine' && !loading && !error) {
+      <div class="section-heading"><h2>הפניות שלי</h2><button nbButton size="small" (click)="newContact()">פנייה חדשה לצוות</button></div>
       @if (selected; as s) {
         <section class="thread-view">
           <button nbButton ghost size="small" class="back-link" (click)="back()">חזרה לרשימה</button>
@@ -69,7 +66,7 @@
               }
             </div>
             <div class="composer">
-              <textarea nbInput fullWidth rows="3" [(ngModel)]="reply" maxlength="2000" placeholder="כתבו הודעה..."></textarea>
+              <textarea nbInput fullWidth rows="3" [(ngModel)]="reply" maxlength="2000" aria-label="תשובה לפנייה" placeholder="כתבו הודעה..."></textarea>
               <button nbButton status="primary" (click)="send(s)" [disabled]="!reply.trim() || sending">שלח</button>
             </div>
           </article>
@@ -80,7 +77,7 @@
         }
         <div class="stack">
           @for (i of items; track i.kind + i.id) {
-            <article class="card item-card" (click)="open(i)" [class.has-new]="i.unread > 0">
+            <article tabindex="0" role="button" (keydown.enter)="open(i)" (keydown.space)="$event.preventDefault(); open(i)" class="card item-card" (click)="open(i)" [class.has-new]="i.unread > 0">
               <div class="card-top">
                 <h2>{{ i.kind === 'report' ? 'דיווח' : (i.subject || 'פנייה') }}</h2>
                 <div class="chips">
@@ -95,5 +92,40 @@
         </div>
       }
     }
-  }
-</div>
+
+    @if(tab === 'saved') {
+      <div class="section-heading"><h2>ההודעות השמורות שלי</h2><button nbButton size="small" [disabled]="starred.busy" (click)="starred.refresh()">רענון</button></div>
+      <p class="muted">השמורים משויכים לחשבון וזמינים גם במכשירים אחרים. הודעה שנמחקה או אינה זמינה לכם לא תוצג כאן.</p>
+      @if(starred.localCount > 0) {
+        <div class="import-box"><b>יש {{starred.localCount}} הודעות שמורות בדפדפן הזה</b><p>אם אלו השמורים שלכם, אפשר להוסיף אותם לחשבון. הגיבוי בדפדפן לא יימחק.</p><button nbButton size="small" [disabled]="starred.busy" (click)="starred.importLocal()">הוספת שמורי הדפדפן לחשבון שלי</button></div>
+      }
+      @if(starred.error){<p class="error" role="alert">{{starred.error}}</p>}
+      @if(starred.busy){<p class="muted">מסנכרן עם החשבון...</p>}
+      @if(!starred.count && !starred.busy && !starred.error){<div class="state">עדיין אין הודעות שמורות בחשבון. לחצו על הכוכב של הודעה בערוץ כדי לשמור אותה.</div>}
+      <div class="stack">@for(s of starred.items; track s.id){<article class="card saved-row"><button class="saved-open" (click)="openSaved(s)"><span>{{s.snippet}}</span>@if(s.time){<small class="muted">{{s.time | messageTime}}</small>}</button><button nbButton ghost size="small" [disabled]="starred.busy" (click)="starred.remove(s.id)" aria-label="הסרה מהשמורים">הסרה</button></article>}</div>
+    }
+    @if(tab === 'settings') {
+      <section class="card settings-card"><h2>תצוגה ונגישות</h2><p class="muted">העדפות התצוגה נשמרות בדפדפן הזה, כדי להתאים לכל מכשיר.</p>
+        <label class="setting-row"><span>מראה האתר</span><select [ngModel]="theme.mode" (ngModelChange)="setTheme($event)"><option value="light">בהיר</option><option value="dark">כהה</option><option value="system">לפי המערכת</option></select></label>
+        <div class="setting-row"><span>גודל הטקסט · {{a11y.textPercent}}%</span><div><button nbButton size="small" aria-label="הקטנת טקסט" [disabled]="a11y.state.text === 0" (click)="a11y.changeText(-1)">−</button> <button nbButton size="small" aria-label="הגדלת טקסט" [disabled]="a11y.state.text === 4" (click)="a11y.changeText(1)">+</button></div></div>
+        @for(option of accessibilityOptions; track option.key){<label class="setting-row"><span>{{option.label}}</span><input type="checkbox" [checked]="a11y.state[option.key]" (change)="a11y.toggle(option.key)"></label>}
+        <button nbButton ghost size="small" (click)="a11y.reset()">איפוס הגדרות נגישות</button>
+      </section>
+      <section class="card settings-card"><h2>התראות אישיות</h2><p class="muted">התראות ללא צליל. המונה על סמל המשתמש נשאר גם כאשר החלונית כבויה.</p>
+        @if(personal.ready){<label class="setting-row"><span>חלונית כשמתקבלת תשובה מהצוות<small class="muted">העדפה זו נשמרת בחשבון</small></span><input type="checkbox" [checked]="personal.preferences.replyToast" [disabled]="preferenceSaving" (change)="saveReplyToast($any($event.target).checked)"></label>}
+        @if(personal.ready){
+          <label class="setting-row"><span>חלונית להודעות מהנהלת הערוץ</span><input type="checkbox" [checked]="personal.preferences.broadcastToast" [disabled]="preferenceSaving" (change)="saveReplyToast($any($event.target).checked,'broadcastToast')"></label>
+          @if(isStaff){<label class="setting-row"><span>חלונית להודעות בצ׳אט הצוות</span><input type="checkbox" [checked]="personal.preferences.chatToast" [disabled]="preferenceSaving" (change)="saveReplyToast($any($event.target).checked,'chatToast')"></label>}
+          @if(auth.userInfo?.privileges?.['moderator']){<label class="setting-row"><span>חלונית לפניות ולדיווחים חדשים</span><input type="checkbox" [checked]="personal.preferences.inboxToast" [disabled]="preferenceSaving" (change)="saveReplyToast($any($event.target).checked,'inboxToast')"></label>}
+          @if(auth.userInfo?.privileges?.['moderator']||auth.userInfo?.privileges?.['reviewer']){<label class="setting-row"><span>חלונית למדיה חדשה שממתינה לאישור</span><input type="checkbox" [checked]="personal.preferences.mediaToast" [disabled]="preferenceSaving" (change)="saveReplyToast($any($event.target).checked,'mediaToast')"></label>}
+        }
+        @if(!personal.ready){<p class="muted">לא נטענו העדפות ההתראות.</p><button nbButton size="small" (click)="personal.loadPreferences()">טעינה מחדש</button>}
+        <p class="muted">התראות על פרסום חדש בערוץ ממשיכות לפעול כפי שפעלו עד היום. ההרשמה היא למכשיר הזה.</p>
+        @if(notifications.initialized){<button nbButton size="small" (click)="notifications.toggle()">{{notifications.enabled?'כיבוי התראות על פרסומים חדשים':'הפעלת התראות על פרסומים חדשים'}}</button>}
+        @else{<small class="muted">התראות מכשיר אינן זמינות כרגע בסביבה הזו.</small>}
+      </section>
+    }
+    </section>
+  </div>
+</main>
+</nb-layout-column></nb-layout>

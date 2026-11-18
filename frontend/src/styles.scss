@@ -293,6 +293,17 @@ nb-layout-header nav {
     }
 }
 
+/* Phone and tablet (below 1100 px): the bar is taller by the strip under it (channel-header), and the page starts lower by the same amount. */
+@media (max-width: 1099.98px) {
+    nb-layout-header nav {
+        height: 7.25rem !important;
+    }
+
+    nb-layout-header.fixed ~ .layout-container {
+        padding-top: 7.25rem !important;
+    }
+}
+
 .nb-theme-custom-dark nb-layout-header nav {
     background: linear-gradient(to left, #b3121f 0%, #8f1523 24%, #2a1020 58%, #101320 100%) !important;
     box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6) !important;
@@ -368,3 +379,15 @@ html.a11y-cursor,
 html.a11y-cursor * {
     cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 24 24'><path d='M5 3l14 8-6 2 4 7-3 1.4-4-7-4 4z' fill='black' stroke='white' stroke-width='1.4' stroke-linejoin='round'/></svg>") 4 3, auto !important;
 }
+
+/* The staff drawer reserves its own space on desktop. */
+@media(min-width:1100px){
+ body.staff-chat-open app-channel nb-layout .layout,body.staff-chat-open app-my-messages nb-layout .layout,body.staff-chat-open admin-dashboard nb-layout .layout{margin-left:380px}
+ body.staff-chat-open app-channel nb-layout-header nav{left:380px!important;width:calc(100% - 380px)!important}
+ body.staff-chat-open app-channel .fixed-footer{left:380px!important}
+ body.staff-chat-open app-channel .ad-column{display:none!important}
+}
+.media-release-audit{padding:8px 12px;font-size:12px;background:var(--background-basic-color-2,#f1f3f7);color:var(--text-hint-color,#657184)}
+
+body:has(app-channel) app-staff-chat .chat-launch{display:none}
+@media(max-width:700px){body.staff-chat-open{overflow:hidden}body.staff-chat-open .a11y-trigger{bottom:auto!important;top:100px!important;right:12px!important;width:36px!important;height:36px!important}}

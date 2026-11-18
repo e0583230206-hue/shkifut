@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, BehaviorSubject } from 'rxjs';
 import { ResponseResult } from '../models/response-result.model';
 import { User } from '../models/user.model';
 interface GoogleAuthValues {
@@ -14,10 +14,17 @@ interface GoogleAuthValues {
 })
 export class AuthService {
   public userInfo?: User;
+  private requestVersion=0;
+  readonly userChanges = new BehaviorSubject<User | undefined>(undefined);
 
   constructor(
     private _http: HttpClient,
-  ) { }
+  ) {
+    setInterval(()=>{if(this.userInfo&&!document.hidden)void this.loadUserInfo(true).catch(()=>undefined);},30000);
+    window.addEventListener('focus', () => {
+      if (this.userInfo) void this.loadUserInfo(true).catch(() => undefined);
+    });
+  }
 
   async loginWithGoogle() {
     try {
@@ -52,16 +59,23 @@ export class AuthService {
   async logout() {
     let res = await firstValueFrom(this._http.post<ResponseResult>('/auth/logout', {}));
     if (res.success) {
+      this.requestVersion++;
       this.userInfo = undefined;
+      this.userChanges.next(undefined);
     }
     return res.success;
   }
 
-  async loadUserInfo() {
+  async loadUserInfo(force = false) {
+    if(!force&&this.userInfo)return this.userInfo;
+    const version=++this.requestVersion;
     try {
-      this.userInfo = this.userInfo || await firstValueFrom(this._http.get<User>('/api/user-info'))
-    } catch (err: any) {
-      this.userInfo = undefined;
+      const user=await firstValueFrom(this._http.get<User>('/api/user-info'));
+      if(version===this.requestVersion){this.userInfo=user;this.userChanges.next(user);}
+    } catch(err:any){
+      if(version===this.requestVersion&&(err.status===401||err.status===403||err.status===404)){
+        this.userInfo=undefined;this.userChanges.next(undefined);
+      }
       throw err;
     }
     return this.userInfo;

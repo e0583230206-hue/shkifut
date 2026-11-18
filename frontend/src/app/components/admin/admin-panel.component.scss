@@ -1,7 +1,7 @@
-.admin-panel-card {
-  width: 60vw;
-
-  @media (max-width: 768px) {
-    width: 100vw;
-  }
+@use '../../../themes' as *;
+@include nb-install-component(){
+:host{display:block}main{max-width:1440px;margin:auto}.work-header{background:#243448;color:#fff;border-bottom:4px solid #c6a35d;border-radius:18px;padding:28px 32px;display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}.work-header h1{color:white;margin:8px 0}.work-header p{color:#cbd3df}.work-header nav{display:flex;gap:12px;flex-wrap:wrap}.work-header a,.work-header button{color:white;border:1px solid #ffffff55;border-radius:8px;padding:10px;text-decoration:none;background:transparent}.admin-panel-card{width:100%;min-height:65vh}nb-menu{min-width:185px}.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin:24px 0}.metric{display:flex;flex-direction:column;gap:12px;border:1px solid nb-theme(border-basic-color-3);border-radius:14px;background:nb-theme(background-basic-color-2);color:nb-theme(text-basic-color);padding:24px;text-align:right;text-decoration:none}.metric b{font-size:32px;color:#b19657}.work-note{border-top:1px solid nb-theme(border-basic-color-3);padding:22px 0}.waiting-link{display:block;padding:10px 0}.intro{color:nb-theme(text-hint-color)}button{cursor:pointer}.flex-grow-1{min-width:0}
+@media(max-width:760px){.work-header{display:block;padding:20px}.work-header nav{margin-top:18px}nb-card-body{flex-direction:column!important;padding:12px}nb-menu{min-width:0;margin-bottom:20px}.vr{display:none}.summary-grid{grid-template-columns:1fr 1fr}}
 }
+
+@media(max-width:760px){:host ::ng-deep nb-menu>.menu-items{display:flex;overflow-x:auto;gap:4px;border-bottom:1px solid #aaa4}:host ::ng-deep nb-menu>.menu-items>.menu-item{flex:0 0 auto;border:none}:host ::ng-deep nb-menu .menu-item a{white-space:nowrap;padding:12px}:host ::ng-deep nb-menu .menu-item>.menu-items{position:relative}}

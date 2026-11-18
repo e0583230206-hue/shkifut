@@ -62,16 +62,14 @@
       </button>
     }
 
+    @if(staff.enabled){<button nbButton shape="round" class="m-2" (click)="staff.toggle()" aria-label="צ׳אט הצוות"><nb-icon icon="message-circle-outline"></nb-icon>@if(staff.unread){<span>{{staff.unread}}</span>}</button>}
     @if (userInfo) {
       <span class="user-wrap">
         <nb-user [name]="userInfo.username" shape="round" [nbContextMenu]="userMenu" [nbContextMenuTag]="userMenuTag"
           [picture]="userInfo.picture || ''" [onlyPicture]="isSmallScreen">
         </nb-user>
-        @if (myTotal > 0 && inboxTotal === 0) {
-          <span class="inbox-dot" title="תשובות והודעות חדשות" aria-label="{{ myTotal }} תשובות והודעות חדשות">{{ myTotal > 9 ? '9+' : myTotal }}</span>
-        }
-        @if (inboxTotal > 0) {
-          <span class="inbox-dot" title="פניות ודיווחים פתוחים" aria-label="{{ inboxTotal }} פניות ודיווחים פתוחים">{{ inboxTotal }}</span>
+        @if (myTotal + inboxTotal + work.waitingCount > 0) {
+          <span class="inbox-dot" title="עדכונים אישיים ופניות לטיפול" aria-label="{{ myTotal + inboxTotal + work.waitingCount }} עדכונים ופניות לטיפול">{{ myTotal + inboxTotal + work.waitingCount > 99 ? '99+' : myTotal + inboxTotal + work.waitingCount }}</span>
         }
       </span>
     } @else {
@@ -82,4 +80,13 @@
       </button>
     }
   </div>
+</div>
+
+<!-- Phone only: the line and the participants / privacy / terms go to a thin full-width strip under the bar (next to the logo they were cut) -->
+<div class="hdr-strip">
+  <small class="strip-desc">{{ chatService.channelInfo?.description || 'שיתוף התוכן לפי חוק סעיף 27א לזכויות יוצרים' }}</small>
+  <small class="strip-count">
+    {{ chatService.channelInfo?.views | number }} משתתפים
+    <span class="legal-links"> · <a routerLink="/privacy">פרטיות</a> · <a routerLink="/terms">תנאי שימוש</a> · <a routerLink="/accessibility">נגישות</a></span>
+  </small>
 </div>

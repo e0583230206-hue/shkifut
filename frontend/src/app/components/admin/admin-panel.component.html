@@ -1,4 +1,6 @@
-<nb-card class="admin-panel-card" [size]="'giant'">
+<nb-layout><nb-layout-column><main id="main-content" dir="rtl">
+<header class="work-header"><div><small>שקיפות · צוות הערוץ</small><h1>ניהול הערוץ</h1><p>הכלים והמשימות שלך, לפי ההרשאות שלך</p></div><nav><a routerLink="/">חזרה לערוץ</a><a routerLink="/my-messages">האזור האישי</a><button (click)="staff.toggle()">צ׳אט צוות @if(staff.unread){({{staff.unread}})}</button></nav></header>
+<nb-card class="admin-panel-card">
     <nb-card-body class="d-flex flex-row">
         <nb-menu [items]="navigationMenu" tag="admin-panel"></nb-menu>
 
@@ -7,6 +9,18 @@
 
         <div class="flex-grow-1 overflow-auto">
             @switch (selectedMenuItem) {
+            @case ('summary') {
+              <h2>סקירה כללית</h2><p class="intro">כל משימה נשארת כאן עד שמטפלים בה. פתיחת המסך אינה מסמנת טיפול.</p>
+              <div class="summary-grid">
+                @if(moderator){<button class="metric" (click)="selectedMenuItem=contact"><b>{{counts.contact}}</b><span>פניות פתוחות</span></button><button class="metric" (click)="selectedMenuItem=openReports"><b>{{counts.reports}}</b><span>דיווחים פתוחים</span></button>}
+                @if(reviewer){<a class="metric" routerLink="/"><b>{{work.waitingCount}}</b><span>תמונות וסרטונים לבדיקה בערוץ</span></a>}
+                <button class="metric" (click)="staff.toggle()"><b>{{staff.unread}}</b><span>הודעות חדשות בצוות</span></button>
+              </div>
+              @if(reviewer){<section class="work-note"><h3>בדיקת מדיה</h3><p>האישור והטשטוש הידני נשארים על המדיה בערוץ, בדיוק במקום שבו בודקים אותה.</p>
+              @for(item of work.waiting?.items?.slice(0,10)||[];track item.id){<a class="waiting-link" [routerLink]="['/review',item.id]">{{item.kind==='video'?'סרטון':'תמונה'}} · {{item.filename||'מדיה לבדיקה'}} ←</a>}
+              </section>}
+              @if(owner){<section class="work-note"><h3>ניהול הצוות</h3><p>בעמוד ההרשאות ניתן להגדיר לכל איש צוות את השם שיופיע בפעולות ובצ׳אט.</p><button (click)="selectedMenuItem=users">הרשאות ושמות הצוות</button></section>}
+            }
             @case (info) {
             <app-channel-info-form></app-channel-info-form>
             }
@@ -47,3 +61,4 @@
         </div>
     </nb-card-body>
 </nb-card>
+</main></nb-layout-column></nb-layout>

@@ -57,7 +57,7 @@ app-advertising {
   }
 }
 
-::ng-deep {
+:host ::ng-deep {
   .columns {
     position: relative !important;
     bottom: var(--input-height, 0px) !important;

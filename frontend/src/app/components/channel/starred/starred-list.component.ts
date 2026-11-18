@@ -21,11 +21,12 @@ import { MessageTimePipe } from '../../../pipes/message-time.pipe';
         </button>
       </nb-card-header>
       <nb-card-body class="starred-body">
+        @if(starred.error){<p role="alert">{{starred.error}}</p>}
         @if (!starred.count) {
         <div class="empty">
           <span class="empty-star"><nb-icon icon="star-outline"></nb-icon></span>
           <strong>עדיין אין הודעות שמורות</strong>
-          <p>כדי לשמור הודעה, לחצו על הכוכב שמעליה.<br>ההודעות השמורות נשמרות בדפדפן הזה בלבד.</p>
+          <p>כדי לשמור הודעה, לחצו על הכוכב שמעליה.<br>{{ starred.account ? "השמורים מסונכרנים לחשבון שלכם." : "השמורים נשמרים בדפדפן הזה. לאחר התחברות אפשר לייבא אותם לחשבון." }}</p>
         </div>
         }
         <ul class="list-unstyled m-0">

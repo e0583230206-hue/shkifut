@@ -1,3 +1,5 @@
+import { StaffChatComponent } from './components/staff-chat/staff-chat.component';
+import { WorkNotificationsService } from './services/work-notifications.service';
 import { Component, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { NbCardModule, NbLayoutModule } from "@nebular/theme";
@@ -6,11 +8,13 @@ import { UpdateService } from './services/update.service';
 import { UpdateBannerComponent } from './components/update-banner/update-banner.component';
 import { AccessibilityService } from './services/accessibility.service';
 import { AccessibilityWidgetComponent } from './components/accessibility/accessibility-widget.component';
+import { PersonalService } from './services/personal.service';
+import { StarredService } from './services/starred.service';
 
 @Component({
   selector: 'app-root',
   imports: [
-    RouterOutlet,
+    RouterOutlet, StaffChatComponent,
     NbLayoutModule,
     NbCardModule,
     UpdateBannerComponent,
@@ -25,6 +29,9 @@ export class AppComponent implements OnInit {
     private notificationsService: NotificationsService,
     private updateService: UpdateService,
     private accessibilityService: AccessibilityService,
+    private personalService: PersonalService,
+    private starredService: StarredService,
+    private workNotifications: WorkNotificationsService,
   ) { }
 
   ngOnInit(): void {
