@@ -6,41 +6,61 @@
     @if (!reports) {
       <div>{{status === 'open' ? 'אין דיווחים פתוחים' : 'אין דיווחים מטופלים'}}</div>
     }
-    @for (report of reports; track report) {
-      <div class="d-flex flex-column gap-2 mb-2 border border-secondary rounded p-2">
+    @for (report of reports; track report.id) {
+      <div class="d-flex flex-column gap-2 mb-3 border border-secondary rounded p-3">
         <div>
-          <strong>
-            התקבל - {{report.createdAt | messageTime}}
-          </strong>
+          <strong>התקבל - {{report.createdAt | messageTime}}</strong>
           <br>
-            <strong>דווח על ידי:</strong> {{report.reporterName}}
-            <br>
-              <strong>דוא"ל:</strong> {{report.reportedEmail}}
-              <br>
-                <strong>סיבת דיווח:</strong><br> {{report.reason}}
-                <br>
-                  @if (report.closed) {
-                    <strong>טופל {{report.updatedAt | messageTime}}</strong>
-                    @if (report.closedBy) { <small class="text-muted"> · נסגר על ידי {{report.closedBy}} · {{report.closedAt | messageTime}}</small> }
-                  }
+          <strong>דווח על ידי:</strong> {{report.reporterName}}
+          <br>
+          <strong>דוא"ל:</strong> {{report.reportedEmail}}
+          <br>
+          <strong>סיבת דיווח:</strong><br> {{report.reason}}
+          <br>
+          @if (report.closed) {
+            <strong>טופל {{report.updatedAt | messageTime}}</strong>
+            @if (report.closedBy) { <small class="text-muted"> · נסגר על ידי {{report.closedBy}} · {{report.closedAt | messageTime}}</small> }
+          }
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button nbButton size="small" status="info" (click)="toggleThread(report)">
+            {{ expanded[report.id] ? 'הסתר שיחה' : 'הצג שיחה ותשובה' }}
+          </button>
+          <button nbButton size="small" status="success" (click)="toggleReport(report)">{{ report.closed ? 'פתח דיווח מחדש' : 'סגור דיווח' }}</button>
+          <button nbButton size="small" status="basic" (click)="viewReport(report.messageId)">צפה בהודעה</button>
+        </div>
+
+        @if (expanded[report.id]) {
+          <div class="thread border-top pt-2 d-flex flex-column gap-2">
+            @for (t of threads[report.id] || []; track $index) {
+              <div class="bubble" [class.from-admin]="t.from === 'admin'">
+                <div class="who">
+                  {{ t.from === 'user' ? report.reporterName : (t.by || 'צוות') }}
+                  · <small class="text-muted">{{ t.at | messageTime }}</small>
                 </div>
-                <div class="border-top pt-2">
-                  @if (report.reply) {
-                    <small class="text-muted">תשובה נשלחה {{report.repliedAt | messageTime}}:</small>
-                    <div style="white-space: pre-wrap">{{report.reply}}</div>
-                  }
-                  <textarea nbInput fullWidth rows="2" #replyBox [placeholder]="report.reply ? 'עדכון התשובה' : 'כתבו תשובה למדווח (תופיע בחשבונו)'"></textarea>
-                  <button nbButton size="small" status="primary" class="mt-1" (click)="sendReply(report, replyBox.value)">שלח תשובה</button>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                  <button nbButton size="small" status="success" (click)="toggleReport(report)">{{ report.closed ?
-                  'פתח דיווח מחדש' : 'סגור דיווח' }}</button>
-                  <button nbButton size="small" status="info" (click)="viewReport(report.messageId)">צפה בהודעה</button>
-                </div>
+                <div style="white-space: pre-wrap">{{ t.text }}</div>
               </div>
             }
-          </nb-card-body>
-          <!-- <nb-card-footer>
-          <button nbButton status="primary" status="danger">איפוס כל הדיווחים</button>
-        </nb-card-footer> -->
-      </nb-card>
+            @if (threads[report.id] && !threads[report.id]!.length) {
+              <small class="text-muted">אין עדיין הודעות בשיחה.</small>
+            }
+            <textarea nbInput fullWidth rows="2" [(ngModel)]="drafts[report.id]" placeholder="כתבו תשובה למדווח (תופיע בחשבונו)"></textarea>
+            <div>
+              <button nbButton size="small" status="primary" (click)="sendReply(report)">שלח תשובה</button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </nb-card-body>
+  <!-- <nb-card-footer>
+  <button nbButton status="primary" status="danger">איפוס כל הדיווחים</button>
+</nb-card-footer> -->
+</nb-card>
+
+<style>
+  .bubble { max-width: 85%; padding: .5rem .75rem; border-radius: 12px; background: var(--background-basic-color-2, #f4f6fa); align-self: flex-start; }
+  .bubble.from-admin { align-self: flex-end; background: rgba(0, 214, 143, .12); }
+  .bubble .who { font-size: .8rem; font-weight: 700; margin-bottom: .15rem; }
+</style>

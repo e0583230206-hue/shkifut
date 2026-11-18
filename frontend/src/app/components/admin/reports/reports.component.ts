@@ -1,27 +1,26 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NbButtonModule, NbCardModule, NbInputModule, NbToastrService } from "@nebular/theme";
+import { NbButtonModule, NbCardModule, NbInputModule, NbToastrService } from '@nebular/theme';
 import { AdminService } from '../../../services/admin.service';
 import { Reports, Report } from '../../../models/report.model';
+import { ThreadMessage } from '../../../services/my-messages.service';
+import { MessageTimePipe } from '../../../pipes/message-time.pipe';
 
-import { MessageTimePipe } from "../../../pipes/message-time.pipe";
+type AdminThreadMessage = ThreadMessage & { by?: string };
 
 @Component({
   selector: 'app-reports',
-  imports: [
-    NbCardModule,
-    NbButtonModule,
-    NbInputModule,
-    FormsModule,
-    MessageTimePipe
-],
+  imports: [NbCardModule, NbButtonModule, NbInputModule, FormsModule, MessageTimePipe],
   templateUrl: './reports.component.html',
   styleUrl: './reports.component.scss'
 })
 export class ReportsComponent implements OnInit {
-
   reports: Reports = [];
   @Input() status: 'open' | 'closed' | 'all' = 'open';
+
+  threads: Record<number, AdminThreadMessage[] | undefined> = {};
+  expanded: Record<number, boolean> = {};
+  drafts: Record<number, string> = {};
 
   constructor(
     private adminService: AdminService,
@@ -45,15 +44,32 @@ export class ReportsComponent implements OnInit {
     }).catch(() => this.toastrService.danger('', ''));
   }
 
+  async toggleThread(report: Report) {
+    this.expanded[report.id] = !this.expanded[report.id];
+    if (this.expanded[report.id] && !this.threads[report.id]) {
+      try {
+        const res = await this.adminService.getThread('report', report.id);
+        this.threads[report.id] = res.thread;
+      } catch {
+        this.toastrService.danger('', 'שגיאה בטעינת השיחה');
+      }
+    }
+  }
+
   // the reply goes to the reporter's personal area (reporters are always logged in)
-  sendReply(report: Report, text: string) {
-    const reply = (text || '').trim();
+  async sendReply(report: Report) {
+    const reply = (this.drafts[report.id] || '').trim();
     if (!reply) return;
-    this.adminService.setReportReply(report.id, reply).then(() => {
+    try {
+      await this.adminService.setReportReply(report.id, reply);
+      this.drafts[report.id] = '';
+      this.threads[report.id] = [...(this.threads[report.id] || []), { from: 'admin', text: reply, at: new Date().toISOString() }];
       report.reply = reply;
       report.repliedAt = new Date().toISOString();
       this.toastrService.success('', 'התשובה נשמרה ותופיע אצל המדווח');
-    }).catch(() => this.toastrService.danger('', 'שגיאה בשמירת התשובה'));
+    } catch {
+      this.toastrService.danger('', 'שגיאה בשמירת התשובה');
+    }
   }
 
   viewReport(messageId: number) {

@@ -6,6 +6,7 @@ import { ResponseResult } from '../models/response-result.model';
 import { Setting } from '../models/setting.model';
 import { Reports, Report } from '../models/report.model';
 import { Statistics } from '../models/statistics.model';
+import { ThreadMessage } from './my-messages.service';
 
 export interface PrivilegeUser {
   id?: string;
@@ -136,6 +137,16 @@ export class AdminService {
 
   setReportReply(id: number, reply: string): Promise<ResponseResult> {
     return firstValueFrom(this.http.post<ResponseResult>('/api/admin/reports/reply', { id, reply }));
+  }
+
+  // The whole conversation of a report or contact message (the moderators' names are included here).
+  getThread(kind: 'report' | 'contact', id: number): Promise<{ thread: (ThreadMessage & { by?: string })[] }> {
+    return firstValueFrom(this.http.get<{ thread: (ThreadMessage & { by?: string })[] }>('/api/admin/thread', { params: { kind, id } }));
+  }
+
+  // A general message to every user (the owner only).
+  sendBroadcast(title: string, text: string): Promise<ResponseResult> {
+    return firstValueFrom(this.http.post<ResponseResult>('/api/admin/broadcast', { title, text }));
   }
 
   async getScheduledMessages(reload?: boolean): Promise<ChatMessage[]> {

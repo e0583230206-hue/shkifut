@@ -11,7 +11,7 @@ import {
 } from "@nebular/theme";
 import { filter } from "rxjs";
 import Viewer from 'viewerjs';
-import { Router, RouterLink } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { Title } from '@angular/platform-browser';
 import { AuthService } from '../../../services/auth.service';
@@ -22,6 +22,7 @@ import { NotificationsService } from '../../../services/notifications.service';
 import { AdminPanelComponent } from "../../admin/admin-panel.component";
 import { User } from '../../../models/user.model';
 import { ContactComponent } from '../contact/contact.component';
+import { BroadcastDialogComponent } from '../../broadcast-dialog/broadcast-dialog.component';
 import { SearchComponent } from '../search/search.component';
 import { HeaderSearchComponent } from '../header-search/header-search.component';
 import { StarredListComponent } from '../starred/starred-list.component';
@@ -59,8 +60,8 @@ export class ChannelHeaderComponent implements OnInit {
   /** Open reports + open contact messages (0 for everyone who is not a manager). */
   inboxTotal = 0;
 
-  /** Replies in "הפניות שלי" that the user has not opened yet. */
-  myRepliesNew = 0;
+  /** New replies on his items + general messages he has not opened yet (the counter of the user). */
+  myTotal = 0;
 
   private buildUserMenu() {
     this.userMenu = [
@@ -70,10 +71,11 @@ export class ChannelHeaderComponent implements OnInit {
         ...(this.inboxTotal > 0 ? { badge: { text: String(this.inboxTotal), status: 'danger' as const } } : {}),
       }] : []),
       {
-        title: 'הפניות שלי',
+        title: 'ההודעות שלי',
         icon: 'message-square-outline',
-        ...(this.myRepliesNew > 0 ? { badge: { text: String(this.myRepliesNew), status: 'success' as const } } : {}),
+        ...(this.myTotal > 0 ? { badge: { text: this.myTotal > 9 ? '9+' : String(this.myTotal), status: 'success' as const } } : {}),
       },
+      ...(this._userInfo?.privileges?.['admin'] ? [{ title: 'הודעה לכל המשתמשים', icon: 'megaphone-outline' }] : []),
       {
         title: 'התנתק',
         icon: 'log-out',
@@ -84,10 +86,9 @@ export class ChannelHeaderComponent implements OnInit {
   /** Counts the replies the user has not opened yet (anonymous visitors get an error and see no badge). */
   private async loadMyReplies() {
     try {
-      const items = await this.myMessages.list();
-      this.myRepliesNew = items.filter(i => i.unread).length;
+      this.myTotal = (await this.myMessages.summary()).total;
     } catch {
-      this.myRepliesNew = 0;
+      this.myTotal = 0; // anonymous visitors get an error and see no counter
     }
     this.buildUserMenu();
   }
@@ -144,6 +145,8 @@ export class ChannelHeaderComponent implements OnInit {
       this.buildUserMenu();
     });
     this.loadMyReplies();
+    // the counter is refreshed after every page change (reading a reply lowers it)
+    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => this.loadMyReplies());
 
     this.contextMenuService.onItemClick()
       .pipe(filter(({ tag }) => tag === 'theme-menu'))
@@ -170,6 +173,9 @@ export class ChannelHeaderComponent implements OnInit {
             break;
           case 'message-square-outline':
             this.router.navigateByUrl('/my-messages');
+            break;
+          case 'megaphone-outline':
+            this.dialogService.open(BroadcastDialogComponent, { closeOnBackdropClick: false });
             break;
         }
       });

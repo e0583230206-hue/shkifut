@@ -1,38 +1,99 @@
-<nb-card>
-  <nb-card-header class="d-flex justify-content-between align-items-center">
-    <span>הפניות והדיווחים שלי</span>
-    <button nbButton size="small" (click)="back()">חזרה לערוץ</button>
-  </nb-card-header>
-  <nb-card-body>
-    @if (loading) {
-    <div>טוען...</div>
-    }
-    @if (error) {
-    <div>שגיאה בטעינת ההודעות. נסו שוב מאוחר יותר.</div>
-    }
-    @if (!loading && !error && !items.length) {
-    <div>עדיין לא שלחתם פניות או דיווחים.</div>
-    }
-    @for (m of items; track m.kind + m.id) {
-    <div class="d-flex flex-column gap-1 mb-3 border rounded p-2" (click)="open(m)">
-      <div class="d-flex justify-content-between">
-        <strong>
-          {{ m.kind === 'report' ? 'דיווח' : (m.subject || 'פנייה') }}
-          @if (m.unread) { <span class="badge bg-danger ms-1">תשובה חדשה</span> }
-        </strong>
-        <small class="text-muted">{{ m.createdAt | messageTime }}</small>
-      </div>
-      <div style="white-space: pre-wrap">{{ m.text }}</div>
-      @if (m.reply) {
-      <div class="border-top pt-2 mt-1">
-        <strong>תשובה:</strong>
-        <div style="white-space: pre-wrap">{{ m.reply }}</div>
-        <small class="text-muted">{{ m.repliedAt | messageTime }}</small>
-      </div>
-      } @else {
-      <small class="text-muted">ממתין לתשובה</small>
-      }
+<div class="my-page">
+  <header class="hero">
+    <div class="hero-text">
+      <h1>שלום{{ name ? ' ' + name : '' }}</h1>
+      <p>כאן תמצאו הודעות מהערוץ, וגם את הפניות והדיווחים שלכם ואת התשובות אליהם.</p>
     </div>
+    <button nbButton size="small" class="back-btn" (click)="home()">חזרה לערוץ</button>
+  </header>
+
+  @if (loading) {
+    <div class="state">טוען...</div>
+  } @else if (error) {
+    <div class="state">שגיאה בטעינת ההודעות. נסו שוב מאוחר יותר.</div>
+  } @else {
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" class="tab" [class.active]="tab === 'news'" [attr.aria-selected]="tab === 'news'" (click)="tab = 'news'; selected = undefined">
+        הודעות מהערוץ
+        @if (newNews > 0) { <span class="pill">{{ newNews }}</span> }
+      </button>
+      <button role="tab" class="tab" [class.active]="tab === 'mine'" [attr.aria-selected]="tab === 'mine'" (click)="tab = 'mine'">
+        ההודעות שלי
+        @if (newMineCount > 0) { <span class="pill">{{ newMineCount }}</span> }
+      </button>
+    </nav>
+
+    @if (tab === 'news') {
+      @if (!broadcasts.length) {
+        <div class="state">עדיין אין הודעות מהערוץ.</div>
+      }
+      <div class="stack">
+        @for (b of broadcasts; track b.id; let i = $index) {
+          <article class="card news-card" [class.is-new]="isNew(i)">
+            <div class="card-top">
+              <h2>{{ b.title }}</h2>
+              @if (isNew(i)) { <span class="chip new">חדש</span> }
+            </div>
+            <div class="body">{{ b.text }}</div>
+            <small class="muted">{{ b.at | messageTime }}</small>
+          </article>
+        }
+      </div>
     }
-  </nb-card-body>
-</nb-card>
+
+    @if (tab === 'mine') {
+      @if (selected; as s) {
+        <section class="thread-view">
+          <button nbButton ghost size="small" class="back-link" (click)="back()">חזרה לרשימה</button>
+          <article class="card">
+            <div class="card-top">
+              <h2>{{ s.kind === 'report' ? 'דיווח' : (s.subject || 'פנייה') }}</h2>
+              <span class="chip" [class.done]="s.status !== 'open'">{{ statusLabel(s) }}</span>
+            </div>
+            <div class="muted">{{ s.createdAt | messageTime }}</div>
+            <div class="bubbles">
+              <div class="bubble user first">
+                <div class="who">אתם</div>
+                <div class="text">{{ s.text }}</div>
+              </div>
+              @for (m of s.thread; track $index) {
+                <div class="bubble" [class.user]="m.from === 'user'" [class.admin]="m.from === 'admin'">
+                  <div class="who">{{ m.from === 'admin' ? 'צוות שקיפות' : 'אתם' }}</div>
+                  <div class="text">{{ m.text }}</div>
+                  <small class="muted">{{ m.at | messageTime }}</small>
+                </div>
+              }
+              @if (!s.thread.length) {
+                <div class="muted waiting">ממתין לתשובה מהצוות.</div>
+              }
+            </div>
+            <div class="composer">
+              <textarea nbInput fullWidth rows="3" [(ngModel)]="reply" maxlength="2000" placeholder="כתבו הודעה..."></textarea>
+              <button nbButton status="primary" (click)="send(s)" [disabled]="!reply.trim() || sending">שלח</button>
+            </div>
+          </article>
+        </section>
+      } @else {
+        @if (!items.length) {
+          <div class="state">עדיין לא שלחתם פניות או דיווחים.</div>
+        }
+        <div class="stack">
+          @for (i of items; track i.kind + i.id) {
+            <article class="card item-card" (click)="open(i)" [class.has-new]="i.unread > 0">
+              <div class="card-top">
+                <h2>{{ i.kind === 'report' ? 'דיווח' : (i.subject || 'פנייה') }}</h2>
+                <div class="chips">
+                  @if (i.unread > 0) { <span class="pill">{{ i.unread }} חדש</span> }
+                  <span class="chip" [class.done]="i.status !== 'open'">{{ statusLabel(i) }}</span>
+                </div>
+              </div>
+              <div class="snippet">{{ i.text }}</div>
+              <small class="muted">{{ i.createdAt | messageTime }}</small>
+            </article>
+          }
+        </div>
+      }
+    }
+  }
+</div>

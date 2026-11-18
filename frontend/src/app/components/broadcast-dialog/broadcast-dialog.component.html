@@ -1,0 +1,17 @@
+<nb-card class="broadcast-card">
+  <nb-card-header>הודעה לכל המשתמשים</nb-card-header>
+  <nb-card-body class="d-flex flex-column gap-2">
+    <p class="hint mb-1">ההודעה תופיע ב"הודעות מהערוץ" של כל מי שהתחבר לאתר, והם יראו עליה מונה.</p>
+
+    <label for="bc-title">כותרת</label>
+    <input id="bc-title" nbInput fullWidth [(ngModel)]="title" maxlength="100" placeholder="למשל: עדכון חשוב">
+
+    <label for="bc-text">תוכן</label>
+    <textarea id="bc-text" nbInput fullWidth rows="6" [(ngModel)]="text" maxlength="2000"></textarea>
+    <small class="text-muted">{{ text.length }} / 2000</small>
+  </nb-card-body>
+  <nb-card-footer class="d-flex justify-content-end gap-2">
+    <button nbButton (click)="dialogRef.close()">ביטול</button>
+    <button nbButton status="primary" (click)="send()" [disabled]="!valid || sending">שלח לכולם</button>
+  </nb-card-footer>
+</nb-card>

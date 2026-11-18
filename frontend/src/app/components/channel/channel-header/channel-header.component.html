@@ -67,6 +67,9 @@
         <nb-user [name]="userInfo.username" shape="round" [nbContextMenu]="userMenu" [nbContextMenuTag]="userMenuTag"
           [picture]="userInfo.picture || ''" [onlyPicture]="isSmallScreen">
         </nb-user>
+        @if (myTotal > 0 && inboxTotal === 0) {
+          <span class="inbox-dot" title="תשובות והודעות חדשות" aria-label="{{ myTotal }} תשובות והודעות חדשות">{{ myTotal > 9 ? '9+' : myTotal }}</span>
+        }
         @if (inboxTotal > 0) {
           <span class="inbox-dot" title="פניות ודיווחים פתוחים" aria-label="{{ inboxTotal }} פניות ודיווחים פתוחים">{{ inboxTotal }}</span>
         }

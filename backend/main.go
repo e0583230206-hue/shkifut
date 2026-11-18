@@ -103,6 +103,10 @@ func main() {
 		r.Post("/api/messages/report", reportMessage)
 		r.Get("/api/my/messages", getMyMessages)            // the personal area: only his own reports and contact messages
 		r.Post("/api/my/messages/seen", markMyReplySeen)
+		r.Post("/api/my/messages/reply", postMyReply)
+		r.Get("/api/my/summary", getMySummary)
+		r.Get("/api/my/broadcasts", getMyBroadcasts)
+		r.Post("/api/my/broadcasts/seen", markBroadcastsSeen)
 		r.Post("/api/polls/vote", votePoll)
 		r.Get("/api/polls/mine", myVotes)
 	})
@@ -161,6 +165,8 @@ func main() {
 				protected.Post("/contact/set", protectedWithPrivilege(Moderator, setContactHandled))
 				protected.Post("/contact/reply", protectedWithPrivilege(Moderator, setContactReply))
 				protected.Post("/reports/reply", protectedWithPrivilege(Moderator, setReportReply))
+				protected.Get("/thread", protectedWithPrivilege(Moderator, getAdminThread))
+				protected.Post("/broadcast", protectedWithPrivilege(Admin, createBroadcast)) // general message to every user: the owner only
 
 				protected.Post("/statistics/reset", protectedWithPrivilege(Admin, resetStatistics))
 				protected.Get("/privilegs-users/get-list", protectedWithPrivilege(Admin, getPrivilegeUsersList))

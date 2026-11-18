@@ -11,7 +11,7 @@
     <div>{{ status === 'open' ? 'אין פניות פתוחות' : 'אין פניות' }}</div>
     }
     @for (m of messages; track m.id) {
-    <div class="d-flex flex-column gap-1 mb-2 border rounded p-2" [class.opacity-50]="m.handled">
+    <div class="d-flex flex-column gap-2 mb-3 border rounded p-3" [class.opacity-50]="m.handled">
       <div class="d-flex justify-content-between">
         <strong>{{ m.subject || 'ללא נושא' }}</strong>
         <small class="text-muted">{{ m.createdAt | messageTime }}</small>
@@ -26,24 +26,48 @@
       @if (m.handled && m.handledBy) {
         <small class="text-muted">טופל על ידי {{ m.handledBy }} · {{ m.handledAt | messageTime }}</small>
       }
-      @if (m.userEmail) {
-        <div class="border-top pt-2">
-          @if (m.reply) {
-            <small class="text-muted">תשובה נשלחה {{ m.repliedAt | messageTime }}:</small>
-            <div style="white-space: pre-wrap">{{ m.reply }}</div>
-          }
-          <textarea nbInput fullWidth rows="2" #replyBox [placeholder]="m.reply ? 'עדכון התשובה' : 'כתבו תשובה (תופיע בחשבון הפונה)'"></textarea>
-          <button nbButton size="small" status="primary" class="mt-1" (click)="sendReply(m, replyBox.value)">שלח תשובה</button>
-        </div>
-      } @else {
-        <small class="text-muted">הפונה לא היה מחובר, ולכן אין אפשרות להשיב באתר.</small>
-      }
-      <div>
+
+      <div class="d-flex gap-2 flex-wrap">
+        <button nbButton size="small" status="info" (click)="toggleThread(m)">
+          {{ expanded[m.id] ? 'הסתר שיחה' : (m.userEmail ? 'הצג שיחה ותשובה' : 'הצג פרטים') }}
+        </button>
         <button nbButton size="small" [status]="m.handled ? 'basic' : 'success'" (click)="toggle(m)">
           {{ m.handled ? 'פתח מחדש' : 'סמן כטופל' }}
         </button>
       </div>
+
+      @if (expanded[m.id]) {
+      <div class="thread border-top pt-2 d-flex flex-column gap-2">
+        @for (t of threads[m.id] || []; track $index) {
+        <div class="bubble" [class.from-user]="t.from === 'user'" [class.from-admin]="t.from === 'admin'">
+          <div class="who">
+            {{ t.from === 'user' ? (m.name || 'הפונה') : (t.by || 'צוות') }}
+            · <small class="text-muted">{{ t.at | messageTime }}</small>
+          </div>
+          <div style="white-space: pre-wrap">{{ t.text }}</div>
+        </div>
+        }
+        @if (threads[m.id] && !threads[m.id]!.length) {
+        <small class="text-muted">אין עדיין הודעות בשיחה.</small>
+        }
+
+        @if (m.userEmail) {
+        <textarea nbInput fullWidth rows="2" [(ngModel)]="drafts[m.id]" placeholder="כתבו תשובה (תופיע בחשבון הפונה)"></textarea>
+        <div>
+          <button nbButton size="small" status="primary" (click)="sendReply(m)">שלח תשובה</button>
+        </div>
+        } @else {
+        <small class="text-muted">הפונה לא היה מחובר, ולכן אין אפשרות להשיב באתר.</small>
+        }
+      </div>
+      }
     </div>
     }
   </nb-card-body>
 </nb-card>
+
+<style>
+  .bubble { max-width: 85%; padding: .5rem .75rem; border-radius: 12px; background: var(--background-basic-color-2, #f4f6fa); align-self: flex-start; }
+  .bubble.from-admin { align-self: flex-end; background: rgba(0, 214, 143, .12); }
+  .bubble .who { font-size: .8rem; font-weight: 700; margin-bottom: .15rem; }
+</style>
