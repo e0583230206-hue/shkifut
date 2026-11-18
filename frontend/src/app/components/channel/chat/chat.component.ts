@@ -26,7 +26,7 @@ import { PinnedBarComponent } from './pinned-bar/pinned-bar.component';
 import { TopicBarComponent } from './topic-bar/topic-bar.component';
 import { WaitingBarComponent } from './waiting-bar/waiting-bar.component';
 import { WaitingService } from '../../../services/waiting.service';
-import { firstUnreadId, newestVisibleId, unreadCount } from '../../../read-position';
+import { advanceMarker, firstUnreadByTime, isAfterMarker, newestVisibleByTime, readMarker, ReadMarker, TimedItem, unreadCountByTime, writeMarker } from '../../../read-position';
 
 type LoadMsgOpt = {
   scrollDown?: boolean;
@@ -78,17 +78,24 @@ export class ChatComponent implements OnInit, OnDestroy {
   showScrollToBottom: boolean = false;
   private lastHeartbeat: number = Date.now();
   private subLastHeartbeat: any;
-  /** Last message read when the channel was opened (fixed for this visit: where the "unread" divider goes). */
-  lastReadMessageId: number = 0;
-  /** Newest message actually seen on screen (persisted). */
-  private storedLastRead: number = Number(localStorage.getItem('lastReadMessage')) || 0;
+  /** Read position when the channel was opened (fixed for this visit: where the "unread" divider goes). */
+  private openMarker: ReadMarker = { id: 0 };
+  /** Newest message actually seen on screen, by time then id (persisted; see read-position.ts). */
+  private storedMarker: ReadMarker = readMarker((k) => localStorage.getItem(k));
+
+  /** A loaded message as the read position sees it: its id and its time in ms. */
+  private timed(m: ChatMessage): TimedItem | undefined {
+    if (m.id == null) return undefined;
+    const at = m.timestamp ? new Date(m.timestamp).getTime() : NaN;
+    return { id: m.id, at: Number.isNaN(at) ? undefined : at };
+  }
 
   get firstUnreadId(): number | undefined {
-    return firstUnreadId(this.messages.map(m => m.id!), this.lastReadMessageId);
+    return firstUnreadByTime(this.messages.map(m => this.timed(m)).filter((t): t is TimedItem => !!t), this.openMarker);
   }
 
   get unreadCount(): number {
-    return unreadCount(this.messages.filter(m => !m.deleted).map(m => m.id!), this.storedLastRead);
+    return unreadCountByTime(this.messages.filter(m => !m.deleted).map(m => this.timed(m)).filter((t): t is TimedItem => !!t), this.storedMarker);
   }
 
   constructor(
@@ -174,34 +181,46 @@ export class ChatComponent implements OnInit, OnDestroy {
     this._authService.loadUserInfo().then((res) => {
       this.userInfo = res;
       this.waiting.init(res);
-      this.userInfo.privileges?.['writer'] && this.loadScheduledMessages();
+      this.userInfo?.privileges?.['writer'] && this.loadScheduledMessages();
       this.notificationService.init();
     });
 
     // Open where the reader left off: at the first unread message (with a divider), or at the bottom.
     this.loadMessages().then(() => {
-      const lastRead = this.storedLastRead;
-      const newest = this.messages[0]?.id ?? 0;
-      if (lastRead && lastRead < newest) {
-        this.lastReadMessageId = lastRead;
+      // A marker saved before the time was stored: fill the time in now, from the message if it is loaded (no loss of place).
+      if (this.storedMarker.id && this.storedMarker.at === undefined) {
+        const loaded = this.messages.find(m => m.id === this.storedMarker.id);
+        const t = loaded && this.timed(loaded);
+        if (t && t.at !== undefined) {
+          this.storedMarker = { id: t.id, at: t.at }; // same message: the id rule would not move it, so set it directly
+          writeMarker((k, v) => localStorage.setItem(k, v), this.storedMarker);
+        }
+      }
+      const marker = this.storedMarker;
+      const timed = this.messages.map(m => this.timed(m)).filter((t): t is TimedItem => !!t);
+      const hasUnread = !!marker.id && timed.some(t => isAfterMarker(t, marker));
+      if (hasUnread) {
+        this.openMarker = { ...marker };
         setTimeout(() => {
           const first = this.firstUnreadId;
           // not loaded yet (left off long ago): load around the last read message
-          this.scrollToId({ messageId: first ?? lastRead, smooth: false, mark: false, block: first ? 'start' : 'center' });
+          this.scrollToId({ messageId: first ?? marker.id, smooth: false, mark: false, block: first ? 'start' : 'center' });
           setTimeout(() => this.markVisibleAsRead(), 300);
         }, 200);
       } else {
         this.scrollToBottom(false);
-        if (!lastRead && newest) this.setLastReadMessage(newest); // first visit: start from now
+        const newest = this.timed(this.messages[0] ?? {});
+        if (!marker.id && newest) this.setReadTo(newest); // first visit: start from now
       }
     });
   }
 
-  setLastReadMessage(id: number) {
-    if (id > this.storedLastRead) {
-      this.storedLastRead = id;
-      localStorage.setItem('lastReadMessage', String(id));
-    }
+  /** Moves the read position forward to `item` (never back). Persists the id and the time. */
+  setReadTo(item: TimedItem) {
+    const next = advanceMarker(this.storedMarker, item);
+    if (next === this.storedMarker || (next.id === this.storedMarker.id && next.at === this.storedMarker.at)) return;
+    this.storedMarker = next;
+    writeMarker((k, v) => localStorage.setItem(k, v), next);
   }
 
   /** A message counts as read once it has been on screen. */
@@ -209,10 +228,10 @@ export class ChatComponent implements OnInit, OnDestroy {
     const headerBottom = document.querySelector('nb-layout-header')?.getBoundingClientRect().bottom ?? 0;
     const items = this.messages.map(m => {
       const r = document.getElementById(String(m.id))?.getBoundingClientRect();
-      return { id: m.id!, top: r?.top ?? -1, bottom: r?.bottom ?? -1 };
+      return { ...(this.timed(m) ?? { id: m.id!, at: undefined }), top: r?.top ?? -1, bottom: r?.bottom ?? -1 };
     });
-    const seen = newestVisibleId(items, headerBottom, window.innerHeight);
-    if (seen) this.setLastReadMessage(seen);
+    const seen = newestVisibleByTime(items, headerBottom, window.innerHeight);
+    if (seen) this.setReadTo(seen);
   }
 
   private async initializeMessageListener() {
@@ -303,7 +322,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.offset = 0;
     this.hasOldMessages = true;
     this.hasNewMessages = false;
-    this.lastReadMessageId = 0;
+    this.openMarker = { id: 0 };
     await this.loadMessages({ resetList: true });
     this.scrollToBottom(false);
   }
@@ -353,7 +372,39 @@ export class ChatComponent implements OnInit, OnDestroy {
       }).catch(() => this.toastrService.danger('', "הייתה בעיה בטעינת ההודעות המתוזמנות."));
   }
 
+  /**
+   * A jump to a message that is not on the page (a link, a quote, a jump from the search). The window is built around it by
+   * TIME, the order the server keeps: the server places the message by its key, so the message's id is never compared with
+   * other ids. (An id can be lower than the ids around it when the message was released from waiting; see read-position.ts.)
+   */
+  private async loadAround(targetId: number, mark: boolean) {
+    if (this.isLoading) return;
+    this.isLoading = true;
+    try {
+      const target = await this.chatService.getMessage(targetId).catch(() => null);
+      if (!target || target.deleted || target.id == null) return; // missing, deleted or not visible to this reader
+      if (this.chatService.selectedTopic && target.topic !== this.chatService.selectedTopic) return; // other topic
+      const newer = await firstValueFrom(this.chatService.getMessages(targetId, this.limit, 'asc'));
+      const older = await firstValueFrom(this.chatService.getMessages(targetId, this.limit, 'desc'));
+      // the list is kept newest first: newer (asc returns oldest first, so reverse), the target, then older
+      this.messages = [...[...newer].reverse(), target, ...older];
+      this.hasNewMessages = newer.length >= this.limit;
+      this.hasOldMessages = older.length >= this.limit;
+      this.offset = this.messages[this.messages.length - 1]?.id ?? 0;
+    } catch (error) {
+      console.error('שגיאה בטעינת הודעה לקפיצה:', error);
+      return;
+    } finally {
+      this.isLoading = false;
+    }
+    setTimeout(() => this.scrollToId({ messageId: targetId, smooth: false, mark }), 300);
+  }
+
   async loadMessages(opt: LoadMsgOpt = {}) {
+    // a jump to a message that is not loaded: by time, not by id (see loadAround)
+    if (opt.messageId && !opt.scrollDown && !this.isLoading && !document.getElementById(String(opt.messageId))) {
+      return this.loadAround(opt.messageId, !!opt.mark);
+    }
     if (this.isLoading || (opt.scrollDown && !this.hasNewMessages) || (!opt.scrollDown && !this.hasOldMessages)) return;
 
     let startId: number;
