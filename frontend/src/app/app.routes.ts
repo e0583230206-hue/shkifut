@@ -5,6 +5,7 @@ import { AuthGuard } from "./services/chat-guard.guard";
 import { StaticPageComponent } from './components/pages/static-page.component';
 import { MessagePageComponent } from './components/pages/message-page.component';
 import { ReviewLinkComponent } from './components/pages/review-link.component';
+import { MyMessagesComponent } from './components/my-messages/my-messages.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -15,6 +16,7 @@ export const routes: Routes = [
   },
   // Shareable message address (the server adds preview tags): the page shows the message itself, with a button to open it in the channel.
   // It must not redirect to the channel by itself: a search engine that runs the page would see the home page and drop the address.
+  { path: 'my-messages', component: MyMessagesComponent, canActivate: [AuthGuard] }, // the personal area: own reports, contact messages and replies
   { path: 'm/:id', component: MessagePageComponent },
   { path: 'm/:id/:slug', component: MessagePageComponent }, // the readable address: the server redirects /m/<id> to it
   // The link in the "video waits for approval" notification: the video with the moderator's bar and the review grid.

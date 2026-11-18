@@ -8,6 +8,11 @@ export interface Report {
     reporterName: string;
     reportedEmail: string;
     closed: boolean;
+    closedBy?: string;   // admin only; shown while closed
+    closedAt?: string;
+    reply?: string;      // shown to the reporter in his personal area
+    repliedAt?: string;
+    replyBy?: string;    // admin only
 }
 
 export type Reports = Report[];

@@ -631,6 +631,11 @@ func dbSetReports(ctx context.Context, report *Report) error {
 	if err := rdb.HSet(ctx, reportKey, "closed", report.Closed, "updatedAt", report.UpdatedAt).Err(); err != nil {
 		return err
 	}
+	if report.Closed {
+		if err := rdb.HSet(ctx, reportKey, "closedBy", report.ClosedBy, "closedAt", report.ClosedAt).Err(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

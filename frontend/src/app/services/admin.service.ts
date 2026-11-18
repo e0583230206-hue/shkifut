@@ -134,6 +134,10 @@ export class AdminService {
     return firstValueFrom(this.http.post<ResponseResult>('/api/admin/reports/set', report));
   }
 
+  setReportReply(id: number, reply: string): Promise<ResponseResult> {
+    return firstValueFrom(this.http.post<ResponseResult>('/api/admin/reports/reply', { id, reply }));
+  }
+
   async getScheduledMessages(reload?: boolean): Promise<ChatMessage[]> {
     if (this.schedulingMessages && !reload) {
       return this.schedulingMessages;

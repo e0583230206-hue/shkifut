@@ -28,6 +28,12 @@ type ContactMessage struct {
 	CreatedAt time.Time `json:"createdAt" redis:"createdAt"`
 	Handled   bool      `json:"handled" redis:"handled"`
 	UserEmail string    `json:"userEmail,omitempty" redis:"userEmail"` // logged-in sender, if any
+	HandledBy string    `json:"handledBy,omitempty" redis:"handledBy"` // moderator who marked it handled (set only while handled)
+	HandledAt string    `json:"handledAt,omitempty" redis:"handledAt"` // RFC3339
+	Reply     string    `json:"reply,omitempty" redis:"reply"`         // shown to the sender in his personal area
+	RepliedAt string    `json:"repliedAt,omitempty" redis:"repliedAt"`
+	ReplyBy   string    `json:"replyBy,omitempty" redis:"replyBy"` // admin only
+	SeenReplyAt string  `json:"seenReplyAt,omitempty" redis:"seenReplyAt"`
 }
 
 const (
@@ -50,6 +56,10 @@ func clientIP(r *http.Request) string {
 func submitContact(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	if _, ok := myUser(r); !ok { // login is required: the reply goes to the sender's personal area
+		http.Error(w, "login required", http.StatusUnauthorized)
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, contactBodyMax)
 	// Every try counts loosely, even an invalid one (cheap junk), before anything is read.
 	if ok, broken, err := formLimiter.Allow("contact:try:"+clientIP(r), contactTryRules...); err != nil {
@@ -122,10 +132,8 @@ func submitContact(w http.ResponseWriter, r *http.Request) {
 	}
 	msg := ContactMessage{ID: id, Name: req.Name, Email: req.Email, Phone: req.Phone, Subject: req.Subject,
 		Message: req.Message, CreatedAt: time.Now()}
-	session, _ := store.Get(r, cookieName)
-	if s, ok := session.Values["user"].(Session); ok {
-		msg.UserEmail = s.Email
-	}
+	s, _ := myUser(r) // the form is for logged-in users only (see submitContact), so the reply can reach his personal area
+	msg.UserEmail = s.Email
 	k := fmt.Sprintf("contact:%d", id)
 	if err := rdb.HSet(ctx, k, msg).Err(); err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
@@ -176,10 +184,17 @@ func setContactHandled(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
+	by := ""
+	if s, ok := myUser(r); ok {
+		by = s.Email
+	}
 	rdb.HSet(ctx, k, "handled", req.Handled)
 	if req.Handled {
+		rdb.HSet(ctx, k, "handledBy", by, "handledAt", nowText())
+		rdb.RPush(ctx, k+":log", "handled|"+by+"|"+nowText())
 		rdb.ZRem(ctx, "contact:open", k)
 	} else {
+		rdb.RPush(ctx, k+":log", "reopened|"+by+"|"+nowText())
 		created, _ := rdb.ZScore(ctx, "contact:list", k).Result()
 		rdb.ZAdd(ctx, "contact:open", redis.Z{Score: created, Member: k})
 	}

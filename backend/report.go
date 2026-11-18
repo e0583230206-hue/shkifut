@@ -23,6 +23,12 @@ type Report struct {
 	ReportedEmail string    `json:"reportedEmail" redis:"reportedEmail"`
 	ReporterName  string    `json:"reporterName" redis:"reporterName"`
 	Closed        bool      `json:"closed" redis:"closed"`
+	ClosedBy      string    `json:"closedBy,omitempty" redis:"closedBy"` // the moderator who closed it (set only while closed)
+	ClosedAt      string    `json:"closedAt,omitempty" redis:"closedAt"` // RFC3339
+	Reply         string    `json:"reply,omitempty" redis:"reply"`       // shown to the reporter in his personal area
+	RepliedAt     string    `json:"repliedAt,omitempty" redis:"repliedAt"`
+	ReplyBy       string    `json:"replyBy,omitempty" redis:"replyBy"` // admin only
+	SeenReplyAt   string    `json:"seenReplyAt,omitempty" redis:"seenReplyAt"`
 }
 
 type Reports []*Report
@@ -149,10 +155,26 @@ func setReports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	report.UpdatedAt = time.Now()
-
+	// who closed it: taken from the login, never from the request
+	by := ""
+	if s, ok := myUser(r); ok {
+		by = s.Email
+	}
+	if report.Closed {
+		report.ClosedBy, report.ClosedAt = by, nowText()
+	} else {
+		report.ClosedBy, report.ClosedAt = "", ""
+	}
 	if err := dbSetReports(ctx, &report); err != nil {
 		http.Error(w, "Error saving reports", http.StatusInternalServerError)
 		return
+	}
+	if report.Id > 0 { // every close / reopen is kept in the report's log (the admin sees the last one)
+		action := "reopened"
+		if report.Closed {
+			action = "closed"
+		}
+		rdb.RPush(ctx, fmt.Sprintf("report:%d:log", report.Id), action+"|"+by+"|"+nowText())
 	}
 
 	var response Response

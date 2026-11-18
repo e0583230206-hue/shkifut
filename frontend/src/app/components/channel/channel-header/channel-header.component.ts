@@ -1,4 +1,4 @@
-import { Component, EventEmitter, HostListener, Input, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, OnInit, Output, inject } from '@angular/core';
 
 import {
   NbButtonModule,
@@ -16,6 +16,7 @@ import { DecimalPipe } from '@angular/common';
 import { Title } from '@angular/platform-browser';
 import { AuthService } from '../../../services/auth.service';
 import { AdminService } from '../../../services/admin.service';
+import { MyMessagesService } from '../../../services/my-messages.service';
 import { ChatService } from '../../../services/chat.service';
 import { NotificationsService } from '../../../services/notifications.service';
 import { AdminPanelComponent } from "../../admin/admin-panel.component";
@@ -58,6 +59,9 @@ export class ChannelHeaderComponent implements OnInit {
   /** Open reports + open contact messages (0 for everyone who is not a manager). */
   inboxTotal = 0;
 
+  /** Replies in "הפניות שלי" that the user has not opened yet. */
+  myRepliesNew = 0;
+
   private buildUserMenu() {
     this.userMenu = [
       ...(this.isManager ? [{
@@ -66,10 +70,26 @@ export class ChannelHeaderComponent implements OnInit {
         ...(this.inboxTotal > 0 ? { badge: { text: String(this.inboxTotal), status: 'danger' as const } } : {}),
       }] : []),
       {
+        title: 'הפניות שלי',
+        icon: 'message-square-outline',
+        ...(this.myRepliesNew > 0 ? { badge: { text: String(this.myRepliesNew), status: 'success' as const } } : {}),
+      },
+      {
         title: 'התנתק',
         icon: 'log-out',
       }
     ];
+  }
+
+  /** Counts the replies the user has not opened yet (anonymous visitors get an error and see no badge). */
+  private async loadMyReplies() {
+    try {
+      const items = await this.myMessages.list();
+      this.myRepliesNew = items.filter(i => i.unread).length;
+    } catch {
+      this.myRepliesNew = 0;
+    }
+    this.buildUserMenu();
   }
 
   get userInfo() {
@@ -91,6 +111,8 @@ export class ChannelHeaderComponent implements OnInit {
     { title: 'כהה', icon: 'moon-outline', data: 'dark' },
     { title: 'לפי המערכת', icon: 'monitor-outline', data: 'system' },
   ];
+
+  private myMessages = inject(MyMessagesService);
 
   constructor(
     public chatService: ChatService,
@@ -121,6 +143,7 @@ export class ChannelHeaderComponent implements OnInit {
       this.inboxTotal = c.reports + c.contact;
       this.buildUserMenu();
     });
+    this.loadMyReplies();
 
     this.contextMenuService.onItemClick()
       .pipe(filter(({ tag }) => tag === 'theme-menu'))
@@ -144,6 +167,9 @@ export class ChannelHeaderComponent implements OnInit {
             break;
           case 'people-outline':
             this.dialogService.open(AdminPanelComponent, { closeOnBackdropClick: true });
+            break;
+          case 'message-square-outline':
+            this.router.navigateByUrl('/my-messages');
             break;
         }
       });

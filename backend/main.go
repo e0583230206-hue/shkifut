@@ -100,6 +100,8 @@ func main() {
 		r.Use(checkLogin)
 		r.Post("/api/reactions/set-reactions", setReactions)
 		r.Post("/api/messages/report", reportMessage)
+		r.Get("/api/my/messages", getMyMessages)            // the personal area: only his own reports and contact messages
+		r.Post("/api/my/messages/seen", markMyReplySeen)
 		r.Post("/api/polls/vote", votePoll)
 		r.Get("/api/polls/mine", myVotes)
 	})
@@ -156,6 +158,8 @@ func main() {
 				protected.Get("/presence", protectedWithPrivilege(Moderator, getPresence)) // "מנהל 1" and the owner (not "מנהל 2")
 				protected.Get("/contact", protectedWithPrivilege(Moderator, getContactMessages))
 				protected.Post("/contact/set", protectedWithPrivilege(Moderator, setContactHandled))
+				protected.Post("/contact/reply", protectedWithPrivilege(Moderator, setContactReply))
+				protected.Post("/reports/reply", protectedWithPrivilege(Moderator, setReportReply))
 
 				protected.Post("/statistics/reset", protectedWithPrivilege(Admin, resetStatistics))
 				protected.Get("/privilegs-users/get-list", protectedWithPrivilege(Admin, getPrivilegeUsersList))

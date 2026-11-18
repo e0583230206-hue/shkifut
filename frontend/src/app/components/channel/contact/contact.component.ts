@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NbButtonModule, NbCardModule, NbDialogRef, NbInputModule, NbToastrService } from '@nebular/theme';
 import { ContactForm, ContactService } from '../../../services/contact.service';
+import { AuthService } from '../../../services/auth.service';
 
 @Component({
   selector: 'app-contact',
@@ -14,15 +15,21 @@ export class ContactComponent {
   sending = false;
   private readonly openedAt = Date.now();
 
+  loggedIn = false;
+
   constructor(
     public dialogRef: NbDialogRef<ContactComponent>,
     private contactService: ContactService,
     private toastrService: NbToastrService,
-  ) { }
+    private auth: AuthService,
+  ) {
+    // the reply comes back to the sender's personal area, so only logged-in people can send
+    this.auth.loadUserInfo().then(u => this.loggedIn = !!u).catch(() => this.loggedIn = false);
+  }
 
   get valid(): boolean {
     const f = this.form;
-    return f.message.trim().length >= 5 && (f.email.trim().length > 0 || f.phone.trim().length > 0);
+    return this.loggedIn && f.message.trim().length >= 5 && (f.email.trim().length > 0 || f.phone.trim().length > 0);
   }
 
   async send() {

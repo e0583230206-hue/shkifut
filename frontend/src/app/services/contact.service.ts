@@ -23,6 +23,11 @@ export interface ContactMessage {
   createdAt: string;
   handled: boolean;
   userEmail?: string;
+  handledBy?: string;   // admin only
+  handledAt?: string;
+  reply?: string;
+  repliedAt?: string;
+  replyBy?: string;     // admin only
 }
 
 @Injectable({
@@ -41,5 +46,9 @@ export class ContactService {
 
   setHandled(id: number, handled: boolean) {
     return firstValueFrom(this.http.post<ResponseResult>('/api/admin/contact/set', { id, handled }));
+  }
+
+  setReply(id: number, reply: string) {
+    return firstValueFrom(this.http.post<ResponseResult>('/api/admin/contact/reply', { id, reply }));
   }
 }

@@ -33,10 +33,10 @@ const { skipReason } = require('./message-filter.js');
 const { captureUntil, captureOn, captureLine } = require('./capture.js');
 const { stanzaId, snippetOf, quoteLine, createStore } = require('./reply-quote.js');
 const { findGone } = require('./sync-deleted.js');
-// The same media in two qualities (standard, then HD seconds later) is published once - only for the senders named here (see media-pair.js).
-// PAIR_SENDERS empty (the default) = off. PAIR_WINDOW_MS = how long a media message with a caption waits for its other version.
+// The same media in two qualities (standard, then HD seconds later) is published once - for the senders named here, '*' = everyone (see media-pair.js).
+// PAIR_SENDERS empty (the default) = off. PAIR_WINDOW_MS = how long (default 60 min) a published media message is remembered to catch its other version.
 const { createPairer, parseSenders } = require('./media-pair.js');
-const pairer = createPairer({ senders: parseSenders(E.PAIR_SENDERS), windowMs: Number(E.PAIR_WINDOW_MS) || 30000 });
+const pairer = createPairer({ senders: parseSenders(E.PAIR_SENDERS), windowMs: Number(E.PAIR_WINDOW_MS) || 3600000 });
 const siteIds = createStore(path.join(MEDIA_DIR, 'wa-site-ids.json')); // WhatsApp message -> site message number (replies are quoted, repeats are not posted twice)
 const CAPTURE_FILE = path.join(MEDIA_DIR, 'capture-until'); // capture mode (capture.js): chats other than the channel's group go to the Chat only
 const CAPTURE_ALL_FILE = path.join(MEDIA_DIR, 'capture-all');   // ... open until this file is removed
@@ -163,11 +163,11 @@ async function handle(ev) {
     log('skipped sender', sender); return;
   }
   if (p.id && siteIds.has(stanzaId(p.id))) return; // posted before (WhatsApp delivered it again, or the bridge was restarted)
-  if (p.hasMedia) { // the same media in two qualities: only the better one goes on (off unless PAIR_SENDERS names this sender)
+  if (p.hasMedia) { // the same media in two qualities: only the first one goes on (off unless PAIR_SENDERS names this sender or '*')
     const pairKey = pairer.keyOf(p, sender);
     if (pairKey) {
       const winner = await pairer.hold(pairKey, p);
-      if (winner !== p) { log('pair: the same media came in two qualities; the better one is published, this one is skipped', p.id); return; }
+      if (winner !== p) { log('pair: the same media came in two qualities; the first one was published, this one is skipped', p.id); return; }
     }
   }
   // A reply to a message that is on the site gets the site's quote line in front (only text, see reply-quote.js).

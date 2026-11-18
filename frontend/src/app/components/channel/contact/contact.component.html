@@ -1,6 +1,9 @@
 <nb-card class="contact-card">
   <nb-card-header>צור קשר</nb-card-header>
   <nb-card-body class="d-flex flex-column gap-2">
+    @if (!loggedIn) {
+    <div class="alert alert-warning mb-0">כדי לשלוח פנייה יש להתחבר עם חשבון גוגל. התשובה תגיע לאזור האישי "הפניות שלי".</div>
+    }
     <label for="contact-name">שם</label>
     <input id="contact-name" nbInput fullWidth [(ngModel)]="form.name" maxlength="100" autocomplete="name">
 

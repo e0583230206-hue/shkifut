@@ -17,7 +17,7 @@ Object.assign(process.env, {
   GCHAT_WEBHOOK: 'https://chat.googleapis.com/v1/spaces/AAAA/messages?key=K&token=T',
 });
 if (SCENARIO === 'notify') process.env.NOTIFY_KEY = 'nk-123';
-if (SCENARIO.startsWith('pair') && SCENARIO !== 'pair-off') Object.assign(process.env, { PAIR_SENDERS: '972500000000', PAIR_WINDOW_MS: '700' });
+if (SCENARIO.startsWith('pair') && SCENARIO !== 'pair-off') Object.assign(process.env, { PAIR_SENDERS: '972500000000', PAIR_WINDOW_MS: '60000' });
 if (SCENARIO.startsWith('sync-')) Object.assign(process.env, { SYNC_EVERY_MS: '400', SYNC_DELETE_MODE: SCENARIO === 'sync-dry' ? 'dry' : SCENARIO === 'sync-off' ? 'off' : 'on' });
 let wahaHistory = [];   // what WAHA answers for the history of the group (the sync scenarios change it)
 if (enabled) Object.assign(process.env, { GCHAT_SPACE: 'spaces/AAAA', GCHAT_OAUTH_CLIENT_ID: 'cid', GCHAT_OAUTH_CLIENT_SECRET: 'sec', GCHAT_REFRESH_TOKEN: 'rt' });
@@ -109,11 +109,11 @@ const asBuf = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(b instanceof Uint8Arr
     const hi = { ...media, id: 'P-hi', media: { url: 'http://localhost:3000/api/files/default/hi.mp4', mimetype: 'video/mp4' }, ...size(1280, 720) };
     const fetched = (n) => calls.some(c => c.url.includes('/' + n + '.mp4'));
     if (SCENARIO === 'pair') {
-      await send(lo); await sleep(100); await send(hi); await sleep(1800);
+      await send(lo); await sleep(100); await send(hi); await sleep(800);
       check('the same media in two qualities is published once', byUrl('site.test/api/import/post').length === 1, String(byUrl('site.test/api/import/post').length));
-      check('the better (larger) version is the one that is fetched and uploaded', fetched('hi') && !fetched('lo') && byUrl('site.test/api/import/upload').length === 1);
-      await send({ ...hi, id: 'P-hi' }); await sleep(300);
-      check('and the winner is not published again if WhatsApp delivers it again', byUrl('site.test/api/import/post').length === 1);
+      check('the first version is the one that is fetched and uploaded', fetched('lo') && !fetched('hi') && byUrl('site.test/api/import/upload').length === 1);
+      await send({ ...lo, id: 'P-lo' }); await sleep(300);
+      check('and the first one is not published again if WhatsApp delivers it again', byUrl('site.test/api/import/post').length === 1);
     }
     if (SCENARIO === 'pair-other') { // another sender: nothing is paired
       await send({ ...lo, participant: '972511111111@c.us' }); await send({ ...hi, participant: '972511111111@c.us' }); await sleep(1500);

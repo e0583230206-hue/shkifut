@@ -21,7 +21,16 @@
                 <br>
                   @if (report.closed) {
                     <strong>טופל {{report.updatedAt | messageTime}}</strong>
+                    @if (report.closedBy) { <small class="text-muted"> · נסגר על ידי {{report.closedBy}} · {{report.closedAt | messageTime}}</small> }
                   }
+                </div>
+                <div class="border-top pt-2">
+                  @if (report.reply) {
+                    <small class="text-muted">תשובה נשלחה {{report.repliedAt | messageTime}}:</small>
+                    <div style="white-space: pre-wrap">{{report.reply}}</div>
+                  }
+                  <textarea nbInput fullWidth rows="2" #replyBox [placeholder]="report.reply ? 'עדכון התשובה' : 'כתבו תשובה למדווח (תופיע בחשבונו)'"></textarea>
+                  <button nbButton size="small" status="primary" class="mt-1" (click)="sendReply(report, replyBox.value)">שלח תשובה</button>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <button nbButton size="small" status="success" (click)="toggleReport(report)">{{ report.closed ?

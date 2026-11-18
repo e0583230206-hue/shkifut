@@ -23,6 +23,21 @@
         @if (m.userEmail) { <small class="text-muted"> (מחובר: {{ m.userEmail }})</small> }
       </div>
       <div style="white-space: pre-wrap">{{ m.message }}</div>
+      @if (m.handled && m.handledBy) {
+        <small class="text-muted">טופל על ידי {{ m.handledBy }} · {{ m.handledAt | messageTime }}</small>
+      }
+      @if (m.userEmail) {
+        <div class="border-top pt-2">
+          @if (m.reply) {
+            <small class="text-muted">תשובה נשלחה {{ m.repliedAt | messageTime }}:</small>
+            <div style="white-space: pre-wrap">{{ m.reply }}</div>
+          }
+          <textarea nbInput fullWidth rows="2" #replyBox [placeholder]="m.reply ? 'עדכון התשובה' : 'כתבו תשובה (תופיע בחשבון הפונה)'"></textarea>
+          <button nbButton size="small" status="primary" class="mt-1" (click)="sendReply(m, replyBox.value)">שלח תשובה</button>
+        </div>
+      } @else {
+        <small class="text-muted">הפונה לא היה מחובר, ולכן אין אפשרות להשיב באתר.</small>
+      }
       <div>
         <button nbButton size="small" [status]="m.handled ? 'basic' : 'success'" (click)="toggle(m)">
           {{ m.handled ? 'פתח מחדש' : 'סמן כטופל' }}

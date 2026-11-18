@@ -1,5 +1,6 @@
 import { Component, Input, OnInit } from '@angular/core';
-import { NbButtonModule, NbCardModule, NbToastrService } from "@nebular/theme";
+import { FormsModule } from '@angular/forms';
+import { NbButtonModule, NbCardModule, NbInputModule, NbToastrService } from "@nebular/theme";
 import { AdminService } from '../../../services/admin.service';
 import { Reports, Report } from '../../../models/report.model';
 
@@ -10,6 +11,8 @@ import { MessageTimePipe } from "../../../pipes/message-time.pipe";
   imports: [
     NbCardModule,
     NbButtonModule,
+    NbInputModule,
+    FormsModule,
     MessageTimePipe
 ],
   templateUrl: './reports.component.html',
@@ -40,6 +43,17 @@ export class ReportsComponent implements OnInit {
       this.adminService.refreshInbox();
       this.status === 'all' ? this.reports[this.reports.findIndex(r => r.id === report.id)] = report : this.reports = this.reports.filter(r => r.id !== report.id);
     }).catch(() => this.toastrService.danger('', ''));
+  }
+
+  // the reply goes to the reporter's personal area (reporters are always logged in)
+  sendReply(report: Report, text: string) {
+    const reply = (text || '').trim();
+    if (!reply) return;
+    this.adminService.setReportReply(report.id, reply).then(() => {
+      report.reply = reply;
+      report.repliedAt = new Date().toISOString();
+      this.toastrService.success('', 'התשובה נשמרה ותופיע אצל המדווח');
+    }).catch(() => this.toastrService.danger('', 'שגיאה בשמירת התשובה'));
   }
 
   viewReport(messageId: number) {
