@@ -6,6 +6,19 @@
     @include nb-theme-global();
 }
 
+/* The site font for pages outside nb-layout too (the personal area fell back to Times New Roman).
+   Plain buttons and fields do not inherit the font by themselves. */
+body {
+    font-family: Assistant, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+    font-family: inherit;
+}
+
 /* You can add global styles to this file, and also import other style files */
 @import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
 

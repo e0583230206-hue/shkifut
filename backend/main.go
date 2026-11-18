@@ -58,8 +58,9 @@ func main() {
 	startManualVideoWorker() // MANUAL_BLUR_VIDEO: the one worker that renders manual videos (does nothing while the flag is off)
 	startMediaCleanup()
 	startPresenceCleanup()
-	go sweepHeldMessages() // HOLD_VIDEOS_UNTIL_APPROVED: releases held messages whose videos were approved while the backend was down
-	warmWaiting()
+	go sweepHeldMessages()                  // HOLD_VIDEOS_UNTIL_APPROVED: releases held messages whose videos were approved while the backend was down
+	warmWaiting()                           // the first count of what waits for an approver is done now, not at the first page that asks
+	go dropPendingChecksOfDeletedMessages() // checks that wait for files whose messages were all deleted are not queued again
 
 	var err error
 	store, err = redistore.NewRediStore(10, redisType, redisAddr, "", redisPass, []byte(secretKey))

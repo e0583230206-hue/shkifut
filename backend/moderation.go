@@ -270,6 +270,67 @@ func cancelInflight(id string) {
 	}
 }
 
+// stopCheckOfDeletedFile: the automatic check of a file that no live message uses any more is pointless (a long video can keep the one
+// worker busy for minutes, and every restart queued it again). The file is taken out of the waiting set, a check that is running is stopped and
+// the service is told to stop. Its status stays "pending" (readers get it blurred, as always), so nothing is shown that was not shown before.
+// Only a check that is still to be done is touched: a file that was decided (by the check or by hand) is left as it is.
+func stopCheckOfDeletedFile(fileID string) {
+	meta, err := readMetadata(fileID)
+	if err != nil || !isModeratedType(metaString(meta, "type")) || metaString(meta, "moderation") != ModPending {
+		return
+	}
+	ctx, cancel := redisCtx()
+	removed, err := rdb.SRem(ctx, moderationPending, fileID).Result()
+	cancel()
+	inflightMu.Lock()
+	running := inflight[fileID] != nil
+	inflightMu.Unlock()
+	if (err != nil || removed == 0) && !running {
+		return // nothing was waiting for a check
+	}
+	cancelInflight(fileID)
+	modTracker.Reset(fileID)
+	if hash, ok := metaHash(meta); ok && running && moderationURL != "" {
+		go cancelServiceJobPath(filepath.ToSlash(filepath.Join(hash[:2], hash[2:4], hash))) // the service keeps working on an abandoned file
+	}
+	appendYamlLog(moderationLogFile, map[string]any{"action": "stopped", "fileId": fileID, "reason": "every message of this file was deleted", "filename": metaString(meta, "filename")})
+}
+
+// stopChecksOfDeletedFiles: a message was deleted; of the files in it, those that no live message uses any more stop being checked.
+func stopChecksOfDeletedFiles(messageID string) {
+	ctx, cancel := redisCtx()
+	text, err := rdb.HGet(ctx, "messages:"+messageID, "text").Result()
+	cancel()
+	if err != nil {
+		return
+	}
+	ids := map[string]bool{}
+	for _, m := range fileRefRe.FindAllStringSubmatch(text, -1) {
+		ids[m[1]] = true
+	}
+	for id := range deletedOnlyAmong(ids) {
+		stopCheckOfDeletedFile(id)
+	}
+}
+
+// dropPendingChecksOfDeletedMessages runs at start: checks that were left waiting for files whose messages were all deleted (before this
+// existed, or while the backend was down) are dropped, instead of being queued again by the sweep.
+func dropPendingChecksOfDeletedMessages() {
+	ctx, cancel := redisCtx()
+	pending, err := rdb.SMembers(ctx, moderationPending).Result()
+	cancel()
+	if err != nil || len(pending) == 0 {
+		return
+	}
+	ids := make(map[string]bool, len(pending))
+	for _, id := range pending {
+		ids[id] = true
+	}
+	for id := range deletedOnlyAmong(ids) {
+		stopCheckOfDeletedFile(id)
+	}
+}
+
 // manualDecisionMakesCheckPointless: a moderator opened or blurred the file by hand, so the automatic result would not be
 // applied anyway (and an hour-long video would block everything behind it). Regional needs the analysis, so it is not skipped.
 func manualDecisionMakesCheckPointless(meta map[string]any) bool {

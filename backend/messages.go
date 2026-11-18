@@ -209,6 +209,7 @@ func afterMessageDeleted(ctx context.Context, id string, message *Message) {
 
 	waitingInvalidate() // its video or image no longer waits for a decision
 	publishWaitingChanged(ctx)
+	go stopChecksOfDeletedFiles(id) // ... and is no longer checked (a long video would keep the one worker busy for nothing)
 
 	go SendWebhook(context.Background(), "delete", message)
 }
