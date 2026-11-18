@@ -59,6 +59,7 @@ func main() {
 	startMediaCleanup()
 	startPresenceCleanup()
 	go sweepHeldMessages() // HOLD_VIDEOS_UNTIL_APPROVED: releases held messages whose videos were approved while the backend was down
+	warmWaiting()
 
 	var err error
 	store, err = redistore.NewRediStore(10, redisType, redisAddr, "", redisPass, []byte(secretKey))
