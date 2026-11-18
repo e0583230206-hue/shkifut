@@ -1,3 +1,5 @@
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { appConfig } from '../../../app.config';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { StatisticsComponent } from './statistics.component';
@@ -8,7 +10,8 @@ describe('StatisticsComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [StatisticsComponent]
+      imports: [StatisticsComponent],
+      providers: [...appConfig.providers, provideHttpClientTesting()]
     })
     .compileComponents();
 

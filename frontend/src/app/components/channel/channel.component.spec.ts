@@ -1,3 +1,5 @@
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { appConfig } from '../../app.config';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { ChannelComponent } from './channel.component';
@@ -8,7 +10,8 @@ describe('ChannelComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ChannelComponent]
+      imports: [ChannelComponent],
+      providers: [...appConfig.providers, provideHttpClientTesting()]
     })
     .compileComponents();
 

@@ -1,3 +1,5 @@
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { appConfig } from '../../../app.config';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { PrivilegDashboardComponent } from './privileg-dashboard.component';
@@ -8,7 +10,8 @@ describe('PrivilegDashboardComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PrivilegDashboardComponent]
+      imports: [PrivilegDashboardComponent],
+      providers: [...appConfig.providers, provideHttpClientTesting()]
     })
     .compileComponents();
 

@@ -1,3 +1,5 @@
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { appConfig } from '../../../app.config';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { ChatComponent } from './chat.component';
@@ -8,7 +10,8 @@ describe('ChatComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ChatComponent]
+      imports: [ChatComponent],
+      providers: [...appConfig.providers, provideHttpClientTesting()]
     })
     .compileComponents();
 
