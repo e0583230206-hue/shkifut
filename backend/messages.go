@@ -252,7 +252,6 @@ func getEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ch := pubsub.Channel()
-	approver := canReviewFigures(r) // held messages (HOLD_VIDEOS_UNTIL_APPROVED) go only to those who may approve videos
 	for {
 		select {
 		case <-clientCtx.Done():
@@ -269,7 +268,7 @@ func getEvents(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if !approver && strings.Contains(msg.Payload, "approversOnly") {
+			if !canReviewFigures(r) && strings.Contains(msg.Payload, "approversOnly") {
 				var p struct {
 					ApproversOnly bool `json:"approversOnly"`
 				}

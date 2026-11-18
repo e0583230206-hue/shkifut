@@ -99,6 +99,10 @@ func setMessage(ctx context.Context, m *Message, isUpdate bool) error {
 	if err := rdb.HSet(ctx, messageKey, m).Err(); err != nil {
 		return err
 	}
+	// The file index must cover the stored text (file_msgs_index.go). After the write, so it indexes what is really stored.
+	if err := updateFileIndex(ctx, messageKey, m.Text); err != nil {
+		log.Printf("file index update failed for %s: %v", messageKey, err)
+	}
 
 	// Add message timestamp to sorted set
 	if !isUpdate {

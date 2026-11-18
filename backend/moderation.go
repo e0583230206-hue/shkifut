@@ -609,6 +609,8 @@ func publishFileModeration(ctx context.Context, id, status string) {
 }
 
 type FileModerationInfo struct {
+	ReleasedBy     string   `json:"releasedBy,omitempty"`
+	ReleasedAt     string   `json:"releasedAt,omitempty"`
 	ID             string   `json:"id"`
 	Status         string   `json:"status"`
 	Kind           string   `json:"kind"`
@@ -668,8 +670,18 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if isStaff(r) && !holdActive(meta) {
+		info.ReleasedBy = metaString(meta, "approvedBy")
+		info.ReleasedAt = metaString(meta, "approvedAt")
+		if info.ReleasedBy != "" {
+			info.ReleasedBy = staffName(info.ReleasedBy)
+		}
+	}
 	if isMediaModerator(r) {
 		info.ReviewedBy = metaString(meta, "reviewedBy")
+		if info.ReviewedBy != "" {
+			info.ReviewedBy = staffName(info.ReviewedBy)
+		}
 		info.ReviewedAt = metaString(meta, "reviewedAt")
 		info.AutoDecision = metaString(meta, "autoDecision")
 		info.AutoLevel = metaString(meta, "autoLevel")
@@ -685,6 +697,9 @@ func getFileModeration(w http.ResponseWriter, r *http.Request) {
 			info.ManualBlur = manualInfoFor(meta, id)
 		}
 		info.Hold = holdInfoFor(r, meta)
+		if by, ok := info.Hold["approvedBy"].(string); ok && by != "" {
+			info.Hold["approvedBy"] = staffName(by)
+		}
 		info.CanReview = canReviewFigures(r)
 		if holdActive(meta) {
 			info.PreviewVariant = baseVariant(meta, id)

@@ -62,7 +62,7 @@ func newsArticleJSON(headline, description, canonical, siteName string, publishe
 }
 
 // SPA routes that exist; anything else gets the app with a real 404 status.
-var spaRoutes = map[string]bool{"/": true, "/login": true, "/privacy": true, "/terms": true, "/accessibility": true, "/index.html": true}
+var spaRoutes = map[string]bool{"/": true, "/login": true, "/my-messages": true, "/admin": true, "/privacy": true, "/terms": true, "/accessibility": true, "/index.html": true}
 
 var (
 	embedRe     = regexp.MustCompile(`\[(?:image|video|audio|quote|gallery)-embedded#\]\(([^)]*)\)`)
@@ -208,7 +208,7 @@ func serveSpaFile(w http.ResponseWriter, r *http.Request) {
 		m.Title, m.Description = "תנאי שימוש | "+name, "תנאי השימוש באתר "+name
 	case "/accessibility":
 		m.Title, m.Description = "הצהרת נגישות | "+name, "הצהרת הנגישות של האתר "+name
-	case "/login":
+	case "/login", "/my-messages", "/admin":
 		m.NoIndex = true
 	}
 	isReviewLink := strings.HasPrefix(r.URL.Path, "/review/") && validFileId(strings.TrimPrefix(r.URL.Path, "/review/"))

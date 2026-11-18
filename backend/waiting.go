@@ -188,7 +188,8 @@ var (
 // restored, and the cleanup removes it after MEDIA_CLEANUP_DAYS), so without this the bar would go on counting a video nobody can see any more.
 // A file that no message uses yet (just uploaded, being written) is not in the set and still counts. On a Redis error: empty set.
 // The messages are asked in a few batches, not one round trip each.
-func deletedOnlyAmong(ids map[string]bool) map[string]bool {
+// deletedOnlyAmongScan is the original full scan (kept as the fallback until the file index is complete; see file_msgs_index.go).
+func deletedOnlyAmongScan(ids map[string]bool) map[string]bool {
 	out := map[string]bool{}
 	if len(ids) == 0 {
 		return out

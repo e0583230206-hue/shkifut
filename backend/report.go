@@ -141,6 +141,14 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	for _, r := range reports {
+		if r.ClosedBy != "" {
+			r.ClosedBy = staffName(r.ClosedBy)
+		}
+		if r.ReplyBy != "" {
+			r.ReplyBy = staffName(r.ReplyBy)
+		}
+	}
 	json.NewEncoder(w).Encode(reports)
 }
 

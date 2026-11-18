@@ -58,7 +58,9 @@ func main() {
 	startManualVideoWorker() // MANUAL_BLUR_VIDEO: the one worker that renders manual videos (does nothing while the flag is off)
 	startMediaCleanup()
 	startPresenceCleanup()
+	startStaffCleanup()
 	go sweepHeldMessages()                  // HOLD_VIDEOS_UNTIL_APPROVED: releases held messages whose videos were approved while the backend was down
+	backfillOnStartup() // BACKFILL_FILE_INDEX=1 only: builds the file index once (file_msgs_index.go)
 	warmWaiting()                           // the first count of what waits for an approver is done now, not at the first page that asks
 	go dropPendingChecksOfDeletedMessages() // checks that wait for files whose messages were all deleted are not queued again
 
@@ -102,10 +104,20 @@ func main() {
 		r.Use(checkLogin)
 		r.Post("/api/reactions/set-reactions", setReactions)
 		r.Post("/api/messages/report", reportMessage)
-		r.Get("/api/my/messages", getMyMessages)            // the personal area: only his own reports and contact messages
+		r.Get("/api/my/messages", getMyMessages) // the personal area: only his own reports and contact messages
 		r.Post("/api/my/messages/seen", markMyReplySeen)
 		r.Post("/api/my/messages/reply", postMyReply)
 		r.Get("/api/my/summary", getMySummary)
+		r.Get("/api/staff/messages", protectedWithStaff(getStaffMessages))
+		r.Post("/api/staff/messages", protectedWithStaff(sendStaffMessage))
+		r.Get("/api/staff/summary", protectedWithStaff(staffSummary))
+		r.Post("/api/staff/seen", protectedWithStaff(markStaffSeen))
+		r.Post("/api/staff/upload", protectedWithStaff(uploadStaffFile))
+		r.Get("/api/staff/files/{id}", protectedWithStaff(serveStaffFile))
+		r.Get("/api/my/saved", getSaved)
+		r.Post("/api/my/saved", updateSaved)
+		r.Get("/api/my/preferences", getPersonalPreferences)
+		r.Post("/api/my/preferences", setPersonalPreferences)
 		r.Get("/api/my/broadcasts", getMyBroadcasts)
 		r.Post("/api/my/broadcasts/seen", markBroadcastsSeen)
 		r.Post("/api/polls/vote", votePoll)

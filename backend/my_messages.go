@@ -186,22 +186,35 @@ func myItems(ctx context.Context, s Session) []myItem {
 		}
 		items = append(items, it)
 	}
+	// The newest 500 of each list, read in ONE pipeline instead of one round trip per item (the old loop made ~1000 round trips per call).
+	var keys, kinds []string
 	if reportKeys, err := rdb.ZRevRange(ctx, "reports:list", 0, 499).Result(); err == nil {
 		for _, k := range reportKeys {
-			h, err := rdb.HGetAll(ctx, k).Result()
-			if err != nil || len(h) == 0 {
-				continue
-			}
-			add("report", k, h, s.ID != "" && h["reporterId"] == s.ID)
+			keys, kinds = append(keys, k), append(kinds, "report")
 		}
 	}
 	if contactKeys, err := rdb.ZRevRange(ctx, "contact:list", 0, 499).Result(); err == nil {
 		for _, k := range contactKeys {
-			h, err := rdb.HGetAll(ctx, k).Result()
+			keys, kinds = append(keys, k), append(kinds, "contact")
+		}
+	}
+	if len(keys) > 0 {
+		pipe := rdb.Pipeline()
+		cmds := make([]*redis.MapStringStringCmd, len(keys))
+		for i, k := range keys {
+			cmds[i] = pipe.HGetAll(ctx, k)
+		}
+		pipe.Exec(ctx) // each command's own error is checked below, as before
+		for i, k := range keys {
+			h, err := cmds[i].Result()
 			if err != nil || len(h) == 0 {
 				continue
 			}
-			add("contact", k, h, s.Email != "" && strings.EqualFold(h["userEmail"], s.Email))
+			if kinds[i] == "report" {
+				add("report", k, h, s.ID != "" && h["reporterId"] == s.ID)
+			} else {
+				add("contact", k, h, s.Email != "" && strings.EqualFold(h["userEmail"], s.Email))
+			}
 		}
 	}
 	sort.SliceStable(items, func(i, j int) bool {
@@ -384,5 +397,11 @@ func getAdminThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rdb.HSet(ctx, item, "adminSeenAt", nowText())
-	writeJSON(w, map[string]any{"thread": readThread(ctx, kind, id, h)})
+	thread := readThread(ctx, kind, id, h)
+	for i := range thread {
+		if thread[i].By != "" {
+			thread[i].By = staffName(thread[i].By)
+		}
+	}
+	writeJSON(w, map[string]any{"thread": thread})
 }

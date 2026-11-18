@@ -19,21 +19,21 @@ import (
 // Contact form ("צור קשר"): public submit with spam protection, inbox for moderators.
 
 type ContactMessage struct {
-	ID        int64     `json:"id" redis:"id"`
-	Name      string    `json:"name" redis:"name"`
-	Email     string    `json:"email" redis:"email"`
-	Phone     string    `json:"phone" redis:"phone"`
-	Subject   string    `json:"subject" redis:"subject"`
-	Message   string    `json:"message" redis:"message"`
-	CreatedAt time.Time `json:"createdAt" redis:"createdAt"`
-	Handled   bool      `json:"handled" redis:"handled"`
-	UserEmail string    `json:"userEmail,omitempty" redis:"userEmail"` // logged-in sender, if any
-	HandledBy string    `json:"handledBy,omitempty" redis:"handledBy"` // moderator who marked it handled (set only while handled)
-	HandledAt string    `json:"handledAt,omitempty" redis:"handledAt"` // RFC3339
-	Reply     string    `json:"reply,omitempty" redis:"reply"`         // shown to the sender in his personal area
-	RepliedAt string    `json:"repliedAt,omitempty" redis:"repliedAt"`
-	ReplyBy   string    `json:"replyBy,omitempty" redis:"replyBy"` // admin only
-	SeenReplyAt string  `json:"seenReplyAt,omitempty" redis:"seenReplyAt"`
+	ID          int64     `json:"id" redis:"id"`
+	Name        string    `json:"name" redis:"name"`
+	Email       string    `json:"email" redis:"email"`
+	Phone       string    `json:"phone" redis:"phone"`
+	Subject     string    `json:"subject" redis:"subject"`
+	Message     string    `json:"message" redis:"message"`
+	CreatedAt   time.Time `json:"createdAt" redis:"createdAt"`
+	Handled     bool      `json:"handled" redis:"handled"`
+	UserEmail   string    `json:"userEmail,omitempty" redis:"userEmail"` // logged-in sender, if any
+	HandledBy   string    `json:"handledBy,omitempty" redis:"handledBy"` // moderator who marked it handled (set only while handled)
+	HandledAt   string    `json:"handledAt,omitempty" redis:"handledAt"` // RFC3339
+	Reply       string    `json:"reply,omitempty" redis:"reply"`         // shown to the sender in his personal area
+	RepliedAt   string    `json:"repliedAt,omitempty" redis:"repliedAt"`
+	ReplyBy     string    `json:"replyBy,omitempty" redis:"replyBy"` // admin only
+	SeenReplyAt string    `json:"seenReplyAt,omitempty" redis:"seenReplyAt"`
 }
 
 const (
@@ -161,6 +161,12 @@ func getContactMessages(w http.ResponseWriter, r *http.Request) {
 	for _, k := range keys {
 		var m ContactMessage
 		if err := rdb.HGetAll(ctx, k).Scan(&m); err == nil && m.ID != 0 {
+			if m.HandledBy != "" {
+				m.HandledBy = staffName(m.HandledBy)
+			}
+			if m.ReplyBy != "" {
+				m.ReplyBy = staffName(m.ReplyBy)
+			}
 			out = append(out, m)
 		}
 	}

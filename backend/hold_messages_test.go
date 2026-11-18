@@ -25,6 +25,9 @@ type heldEnv struct {
 	ctx      context.Context
 	webhooks *atomic.Int32
 	ids      []int
+	// announced: how many webhook goroutines the test has started (one per announced message). Cleanup waits until the
+	// server has received that many, so no goroutine still reads settingConfig.WebhookURL when the next test changes it.
+	announced int
 }
 
 func newHeldEnv(t *testing.T) *heldEnv {
@@ -32,10 +35,23 @@ func newHeldEnv(t *testing.T) *heldEnv {
 	oldRoot, oldHold, oldHook := rootUploadPath, holdVideos, settingConfig.WebhookURL
 	e := &heldEnv{ctx: context.Background(), webhooks: &atomic.Int32{}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { e.webhooks.Add(1) }))
+	heldMu.Lock()
 	rootUploadPath, holdVideos, settingConfig.WebhookURL = t.TempDir(), true, srv.URL
+	heldMu.Unlock()
 	t.Cleanup(func() {
+		deadline := time.Now().Add(5 * time.Second)
+		for e.webhooks.Load() < int32(e.announced) && time.Now().Before(deadline) {
+			time.Sleep(5 * time.Millisecond)
+		}
+		if got := e.webhooks.Load(); got < int32(e.announced) {
+			t.Errorf("only %d of %d webhook goroutines finished before cleanup", got, e.announced)
+		}
 		srv.Close()
+		// The release goroutines (holdNewMessage) read rootUploadPath under heldMu: restore under the same lock,
+		// so every read by them is ordered before this write (or after it, with the lock as the ordering).
+		heldMu.Lock()
 		rootUploadPath, holdVideos, settingConfig.WebhookURL = oldRoot, oldHold, oldHook
+		heldMu.Unlock()
 		for _, id := range e.ids {
 			k := fmt.Sprintf("messages:%d", id)
 			rdb.Del(e.ctx, k)
@@ -60,7 +76,25 @@ func (e *heldEnv) video(t *testing.T, id string, held bool) {
 func (e *heldEnv) approve(t *testing.T, id string) {
 	t.Helper()
 	writeWaitingFile(t, id, map[string]any{"type": "video", "holdRequired": true, "approvedAt": "2026-11-11T10:00:00Z"})
-	releaseHeldFor(id)
+	e.countReleases(func() { releaseHeldFor(id) })
+}
+
+// countReleases runs a release (approval, sweep) and counts the messages of this test it released and did not delete:
+// each of them started one webhook goroutine (see releaseHeldMessage).
+func (e *heldEnv) countReleases(run func()) {
+	wasHeld := map[int]bool{}
+	for _, mid := range e.ids {
+		if v, _ := rdb.HGet(e.ctx, fmt.Sprintf("messages:%d", mid), heldField).Result(); v == "1" {
+			wasHeld[mid] = true
+		}
+	}
+	run()
+	for mid := range wasHeld {
+		h, _ := rdb.HGetAll(e.ctx, fmt.Sprintf("messages:%d", mid)).Result()
+		if h[heldField] != "1" && h["deleted"] != "1" && h["deleted"] != "true" {
+			e.announced++
+		}
+	}
 }
 
 // post stores a message the way the import API does (setMessage + the follow-up) and returns it.
@@ -70,6 +104,9 @@ func (e *heldEnv) post(t *testing.T, id int, text string, ts time.Time) *Message
 	m := &Message{ID: id, Type: "md", Text: text, Timestamp: ts}
 	if err := setMessage(e.ctx, m, false); err != nil {
 		t.Fatal(err)
+	}
+	if !m.Held {
+		e.announced++ // afterMessageCreated starts one webhook goroutine for a message that is not held
 	}
 	afterMessageCreated(m)
 	return m
@@ -283,7 +320,7 @@ func TestHeldMessageEditStaysHiddenAndSweepReleases(t *testing.T) {
 
 	// the approval was written but the release never ran (a restart): the sweep at start finds it
 	writeWaitingFile(t, heldVidA, map[string]any{"type": "video", "holdRequired": true, "approvedAt": "2026-11-11T10:00:00Z"})
-	sweepHeldMessages()
+	e.countReleases(sweepHeldMessages)
 	if messageIsHeld(e.ctx, 880041) {
 		t.Fatalf("the sweep did not release the message")
 	}
