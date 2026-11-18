@@ -293,6 +293,17 @@ nb-layout-header nav {
     }
 }
 
+/* Phone and tablet (below 1100 px): the bar is taller by the strip under it (channel-header), and the page starts lower by the same amount. */
+@media (max-width: 1099.98px) {
+    nb-layout-header nav {
+        height: 7.25rem !important;
+    }
+
+    nb-layout-header.fixed ~ .layout-container {
+        padding-top: 7.25rem !important;
+    }
+}
+
 .nb-theme-custom-dark nb-layout-header nav {
     background: linear-gradient(to left, #b3121f 0%, #8f1523 24%, #2a1020 58%, #101320 100%) !important;
     box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6) !important;
