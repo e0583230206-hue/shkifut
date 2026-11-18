@@ -100,7 +100,8 @@ check('search: choosing a result closes the dialog and highlights the message',
 console.log('step: last read position');
 const recent = await evaluate(`fetch('/api/messages?offset=0&limit=10&direction=desc').then(r => r.json()).then(a => a.map(m => m.id))`);
 if ((recent || []).length >= 6) {
-  await evaluate(`localStorage.setItem('lastReadMessage', '${recent[4]}')`); // 4 unread
+  // legacy marker: an id only, saved before the time was stored (exercises the upgrade path)
+  await evaluate(`localStorage.removeItem('lastReadMessageAt'); localStorage.setItem('lastReadMessage', '${recent[4]}')`); // 4 unread
   await go('/', 6000);
   check('last read: "unread" divider right before the first unread message',
     await waitFor(`document.getElementById('unread-divider')?.closest('nb-list-item')?.querySelector('app-message')?.id === '${recent[3]}'`),
@@ -112,7 +113,7 @@ if ((recent || []).length >= 6) {
   await evaluate(`document.getElementById('${recent[0]}')?.scrollIntoView({ block: 'center' }); window.dispatchEvent(new Event('scroll'))`);
   check('last read: seeing the newest message marks everything read', await waitFor(`localStorage.getItem('lastReadMessage') === '${recent[0]}'`, 6000),
     await evaluate(`localStorage.getItem('lastReadMessage')`));
-  await evaluate(`localStorage.removeItem('lastReadMessage')`);
+  await evaluate(`localStorage.removeItem('lastReadMessage'); localStorage.removeItem('lastReadMessageAt')`);
   await go('/', 5000);
   check('first visit: opens at the newest message without a divider',
     await waitFor(`localStorage.getItem('lastReadMessage') === '${recent[0]}' && !document.getElementById('unread-divider')`));

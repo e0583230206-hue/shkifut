@@ -8,7 +8,7 @@ cd "$(dirname "$0")/../.."
 export MSYS_NO_PATHCONV=1
 BASE_URL="$(python -I tests/_guard.py "${BASE_URL:-}")" || exit 2
 export BASE_URL
-NET=thechannel-local_default
+NET=${NET:-thechannel-local_default}
 HERE="$(pwd)/tests/ui"
 command -v cygpath >/dev/null 2>&1 && HERE="$(cygpath -m "$HERE")"
 
